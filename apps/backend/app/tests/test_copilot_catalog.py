@@ -6,10 +6,10 @@ from app.modules.copilot.catalog import (
 )
 
 
-def test_resolve_context_module_uses_global_aliases():
-    assert resolve_context_module("finanzas") == "finance"
-    assert resolve_context_module("produccion") == "manufacturing"
-    assert resolve_context_module("inventario") == "inventory"
+def test_resolve_context_module_returns_canonical_id():
+    assert resolve_context_module("finance") == "finance"
+    assert resolve_context_module("manufacturing") == "manufacturing"
+    assert resolve_context_module("inventory") == "inventory"
 
 
 def test_catalog_exposes_supported_modules_only():

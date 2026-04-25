@@ -4,14 +4,10 @@ from app.modules.settings.interface.http.public import (
 )
 
 
-def test_canonical_enabled_modules_normalizes_manufacturing_aliases():
-    assert _canonical_enabled_modules(["production", "Manufacturing", "producción"]) == [
-        "manufacturing"
-    ]
+def test_canonical_enabled_modules_normalizes_case():
+    assert _canonical_enabled_modules(["manufacturing", "Manufacturing"]) == ["manufacturing"]
 
 
-def test_production_module_enabled_accepts_manufacturing_aliases():
+def test_production_module_enabled():
     assert _production_module_enabled(["manufacturing"]) is True
-    assert _production_module_enabled(["production"]) is True
-    assert _production_module_enabled(["produccion"]) is True
     assert _production_module_enabled(["inventory"]) is False

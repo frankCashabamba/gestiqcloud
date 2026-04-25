@@ -51,23 +51,19 @@ def test_register_modules_uses_complete_canonical_catalog(db):
     assert "projects" not in names
 
 
-def test_register_modules_upserts_legacy_alias_to_canonical_name(db):
-    legacy = Module(
-        name="importador",
-        description="Legacy importer",
-        active=False,
-        initial_template="Panel",
+def test_register_modules_does_not_duplicate_existing_imports_module(db):
+    existing = Module(
+        name="imports",
+        description="Importer",
+        active=True,
+        initial_template="imports",
         context_type="none",
     )
-    db.add(legacy)
+    db.add(existing)
     db.commit()
-    db.refresh(legacy)
+    db.refresh(existing)
 
-    data = register_modules({"dir": "Z:/missing/modules", "upsert": True}, db)
+    data = register_modules({"dir": "Z:/missing/modules"}, db)
 
-    refreshed = db.query(Module).filter(Module.id == legacy.id).first()
-    assert refreshed is not None
-    assert refreshed.name == "imports"
-    assert refreshed.active is True
     assert db.query(Module).filter(Module.name == "imports").count() == 1
-    assert "imports" in data["updated"]
+    assert "imports" in data["already_existing"] or "imports" in data["updated"]

@@ -86,18 +86,18 @@ class TestModuleDispatch:
         assert "ventas_hoy" in data
         assert "turno_activo" in data
 
-    def test_inventory_spanish_alias(self):
+    def test_inventory_dispatches_correctly(self):
         low_stock_row = _row(name="Producto A", qty=2, almacen="A01")
         total_row = _row(valor=5000.0)
         db = _make_db_with_results([[low_stock_row], total_row, []])
-        result_json = CopilotContextBuilder.build(db, TENANT, "inventario")
+        result_json = CopilotContextBuilder.build(db, TENANT, "inventory")
         data = json.loads(result_json)
         assert data["modulo"] == "Inventario"
 
-    def test_purchases_spanish_alias(self):
+    def test_purchases_dispatches_correctly(self):
         pending_row = _row(total=3, monto=1500.0)
         db = _make_db_with_results([pending_row, []])
-        result_json = CopilotContextBuilder.build(db, TENANT, "compras")
+        result_json = CopilotContextBuilder.build(db, TENANT, "purchases")
         data = json.loads(result_json)
         assert data["modulo"] == "Compras"
 
@@ -107,34 +107,34 @@ class TestModuleDispatch:
         data = json.loads(result_json)
         assert data["modulo"] == "Ventas"
 
-    def test_finance_spanish_alias(self):
+    def test_finance_dispatches_correctly(self):
         db = _make_db_with_results([[]])
-        result_json = CopilotContextBuilder.build(db, TENANT, "finanzas")
+        result_json = CopilotContextBuilder.build(db, TENANT, "finance")
         data = json.loads(result_json)
         assert data["modulo"] == "Finanzas"
 
-    def test_manufacturing_spanish_alias(self):
+    def test_manufacturing_dispatches_correctly(self):
         db = _make_db_with_results([(5,)])
-        result_json = CopilotContextBuilder.build(db, TENANT, "produccion")
+        result_json = CopilotContextBuilder.build(db, TENANT, "manufacturing")
         data = json.loads(result_json)
         assert data["modulo"] == "Producción"
 
-    def test_expenses_spanish_alias(self):
+    def test_expenses_dispatches_correctly(self):
         db = _make_db_with_results([[]])
-        result_json = CopilotContextBuilder.build(db, TENANT, "gastos")
+        result_json = CopilotContextBuilder.build(db, TENANT, "expenses")
         data = json.loads(result_json)
         assert data["modulo"] == "Gastos"
 
-    def test_hr_spanish_alias(self):
+    def test_hr_dispatches_correctly(self):
         db = _make_db_with_results([(12,)])
-        result_json = CopilotContextBuilder.build(db, TENANT, "rrhh")
+        result_json = CopilotContextBuilder.build(db, TENANT, "hr")
         data = json.loads(result_json)
         assert data["modulo"] == "RRHH"
 
-    def test_products_spanish_alias(self):
+    def test_products_dispatches_correctly(self):
         stats_row = _row(total=50, activos=45)
         db = _make_db_with_results([stats_row])
-        result_json = CopilotContextBuilder.build(db, TENANT, "productos")
+        result_json = CopilotContextBuilder.build(db, TENANT, "products")
         data = json.loads(result_json)
         assert data["modulo"] == "Productos"
 

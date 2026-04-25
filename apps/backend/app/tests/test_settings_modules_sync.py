@@ -104,7 +104,7 @@ def test_settings_modules_enable_disable_sync_company_modules_and_dependencies(
     db.add(CompanyModule(tenant_id=tenant.id, module_id=sales.id, active=True))
     db.commit()
 
-    enable_response = client.post("/api/v1/settings/modules/finanzas/enable", headers=headers)
+    enable_response = client.post("/api/v1/settings/modules/finance/enable", headers=headers)
     assert enable_response.status_code == 200, enable_response.text
     db.refresh(settings)
     assert set(settings.settings["enabled_modules"]) == {"inventory", "sales", "finance"}

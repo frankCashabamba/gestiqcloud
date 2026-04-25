@@ -65,7 +65,7 @@ def _seed_plan(db, *, plan_id: str) -> None:
                 stripe_price_id_monthly, stripe_price_id_yearly, sort_order
             ) VALUES (
                 :id, 'pro', 'Pro', 29, 290,
-                10, 3, '[\"clients\", \"users\", \"einvoicing\"]', '{}', 1,
+                10, 3, '[\"customers\", \"users\", \"einvoicing\"]', '{}', 1,
                 'price_monthly_pro', 'price_yearly_pro', 1
             )
             """
