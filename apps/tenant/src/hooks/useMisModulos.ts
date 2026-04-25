@@ -111,10 +111,11 @@ export function useMisModulos() {
           mods = []
         }
 
+        const modsWithItems = mods as unknown as { items?: Modulo[] }
         const list = Array.isArray(mods)
           ? mods
-          : (mods && Array.isArray((mods as any).items))
-          ? (mods as any).items
+          : (modsWithItems && Array.isArray(modsWithItems.items))
+          ? (modsWithItems.items as Modulo[])
           : []
 
         if (!cancelled) setModules(dedupeModules(list).map(localizeModule))

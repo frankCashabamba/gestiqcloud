@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import PageContainer from '../../../components/PageContainer'
 import QuickUploadPanel from '../components/QuickUploadPanel'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import {
@@ -332,7 +333,8 @@ export default function DocumentList() {
   }
 
   return (
-    <div style={{ padding: '1.25rem', display: 'grid', gap: '1rem', background: '#f8fafc' }}>
+    <PageContainer className="bg-slate-50">
+      <div style={{ display: 'grid', gap: '1rem' }}>
       <style>{`
         .importador-inbox__hero,
         .importador-inbox__toolbar,
@@ -955,7 +957,8 @@ export default function DocumentList() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   )
 }
 

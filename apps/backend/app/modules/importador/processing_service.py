@@ -56,6 +56,32 @@ from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
 
+_FIELD_REVIEW_THRESHOLD = 0.75
+
+
+def _analysis_requires_review_from_field_confidences(
+    analysis: dict[str, Any],
+    *,
+    threshold: float = _FIELD_REVIEW_THRESHOLD,
+) -> bool:
+    field_confidences = analysis.get("field_confidences")
+    if not isinstance(field_confidences, dict) or not field_confidences:
+        return False
+
+    for payload in field_confidences.values():
+        if not isinstance(payload, dict):
+            continue
+        value = payload.get("value")
+        if value in (None, "", [], {}):
+            continue
+        try:
+            confidence = float(payload.get("confidence") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if confidence < threshold:
+            return True
+    return False
+
 AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[..., Awaitable[dict[str, Any]]]
 
@@ -2632,7 +2658,9 @@ async def _process_run_document(
     confianza = float(normalized_analysis["confidence"])
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
-    requiere_revision = confianza < classification_threshold
+    requiere_revision = confianza < classification_threshold or _analysis_requires_review_from_field_confidences(
+        normalized_analysis
+    )
 
     current_field_keys = (
         sorted(
@@ -2715,7 +2743,9 @@ async def _process_run_document(
                 confianza = float(_escalated_norm["confidence"])
                 razonamiento = str(_escalated_norm["reasoning"])
                 analysis_fields = _escalated_fields
-                requiere_revision = confianza < classification_threshold
+                requiere_revision = confianza < classification_threshold or _analysis_requires_review_from_field_confidences(
+                    _escalated_norm
+                )
                 _lane_escalated = True
                 _lane_escalation_reason = _escalation_reason
             else:
@@ -2921,7 +2951,9 @@ async def _process_run_document(
                     confianza = float(rerun_normalized["confidence"])
                     razonamiento = str(rerun_normalized["reasoning"])
                     analysis_fields = rerun_fields
-                    requiere_revision = confianza < classification_threshold
+                    requiere_revision = confianza < classification_threshold or _analysis_requires_review_from_field_confidences(
+                        rerun_normalized
+                    )
                     datos_extraidos = rerun_fields
                     local_recipe_config = auto_rc2
 

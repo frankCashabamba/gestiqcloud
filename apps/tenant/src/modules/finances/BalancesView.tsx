@@ -5,6 +5,7 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { BackButton } from '@ui'
+import PageContainer from '../../components/PageContainer'
 
 export default function SaldosView() {
   const { t } = useTranslation(['finances', 'common'])
@@ -31,17 +32,17 @@ export default function SaldosView() {
 
   if (loading) {
     return (
-      <div className="p-4">
+      <PageContainer>
         <div className="text-gray-500">{t('finances:balances.loadingBalances')}</div>
-      </div>
+      </PageContainer>
     )
   }
 
   if (!saldos) {
     return (
-      <div className="p-4">
+      <PageContainer>
         <div className="text-red-600">{t('finances:balances.errorLoadingBalances')}</div>
-      </div>
+      </PageContainer>
     )
   }
 
@@ -51,7 +52,7 @@ export default function SaldosView() {
   const pendienteConciliar = saldos.pendiente_conciliar ?? 0
 
   return (
-    <div className="p-4">
+    <PageContainer>
       <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-4">
         <div>
@@ -194,6 +195,6 @@ export default function SaldosView() {
           )}
         </div>
       </div>
-    </div>
+    </PageContainer>
   )
 }

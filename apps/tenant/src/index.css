@@ -52,6 +52,7 @@
     /* ── Spacing rhythm ── */
     --gc-page-x: clamp(1rem, 4vw, 2rem);
     --gc-page-max: 72rem;
+    --gc-page-wide: 90rem;   /* 1440px — para dashboards y tablas */
   }
 
   html {
@@ -96,10 +97,22 @@
     max-width: var(--gc-page-max);
   }
 
+  .gc-container-wide {
+    @apply mx-auto w-full px-4 sm:px-6 lg:px-8;
+    max-width: var(--gc-page-wide);
+  }
+
   .gc-grid-2 { @apply grid gap-5 md:grid-cols-2; }
   .gc-grid-3 { @apply grid gap-5 md:grid-cols-3; }
   .gc-grid-4 { @apply grid gap-5 sm:grid-cols-2 lg:grid-cols-4; }
   .gc-stack  { @apply flex flex-col gap-6; }
+
+  /* Pantallas anchas: más columnas en grids */
+  @media (min-width: 1440px) {
+    .gc-grid-4 {
+      @apply xl:grid-cols-4;
+    }
+  }
 
   /* ── Card ── */
 

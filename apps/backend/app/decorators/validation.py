@@ -44,8 +44,9 @@ def extract_tenant_id(request: Request) -> str:
     Raises:
         HTTPException: If tenant_id not found or invalid
     """
-    claims = getattr(request.state, "access_claims", {})
-    tenant = claims.get("tenant_id") or claims.get("tenant_id")
+    claims = getattr(request.state, "access_claims", {}) or {}
+    session = getattr(request.state, "session", {}) or {}
+    tenant = claims.get("tenant_id") or session.get("tenant_id")
 
     if tenant is None:
         raise HTTPException(status_code=400, detail="Tenant not found in token")
@@ -178,13 +179,13 @@ def tenant_required(func: Callable) -> Callable:
         # Find request in args or kwargs
         request = None
         for arg in args:
-            if isinstance(arg, Request):
+            if isinstance(arg, Request) or hasattr(arg, "state"):
                 request = arg
                 break
 
         if not request:
             for value in kwargs.values():
-                if isinstance(value, Request):
+                if isinstance(value, Request) or hasattr(value, "state"):
                     request = value
                     break
 

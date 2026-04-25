@@ -21,6 +21,12 @@ import {
 import { getEmpresa } from '../services/empresa'
 import { useToast } from '../shared/toast'
 
+type EmpresaInfo = {
+  id?: string | number
+  name?: string
+  nombre?: string
+}
+
 const ROLES_DISPONIBLES = [
   { value: 'owner', label: 'Owner (Full Admin)' },
   { value: 'manager', label: 'Manager (Management)' },
@@ -34,7 +40,7 @@ export const CompanyUsuarios: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const { show: showToast } = useToast()
 
-  const [empresa, setEmpresa] = useState<any>(null)
+  const [empresa, setEmpresa] = useState<EmpresaInfo | null>(null)
   const [usuarios, setUsuarios] = useState<CompanyUser[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -291,7 +297,7 @@ export const CompanyUsuarios: React.FC = () => {
         />
         <select
           value={filtroActivo}
-          onChange={(e) => setFiltroActivo(e.target.value as any)}
+          onChange={(e) => setFiltroActivo(e.target.value as 'all' | 'activo' | 'inactivo')}
           className="input"
         >
           <option value="all">All</option>

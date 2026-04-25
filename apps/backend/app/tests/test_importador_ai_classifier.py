@@ -100,6 +100,41 @@ def test_analyze_document_includes_pre_extracted_fields_in_prompt(monkeypatch):
     assert '"total_amount": 123.45' in captured["prompt"]
 
 
+def test_analyze_document_attaches_field_confidences_and_review_flag(monkeypatch):
+    async def fake_query(**kwargs):
+        del kwargs
+        return SimpleNamespace(
+            content=(
+                '{"doc_type":"INVOICE","confidence":0.91,"reasoning":"ok",'
+                '"is_table":false,"columns":[],"fields":{'
+                '"vendor":"ACME",'
+                '"issue_date":"2026-04-18",'
+                '"currency":"EUR",'
+                '"total_amount":123.45'
+                "}}"
+            ),
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content="Documento sin proveedor claro ni totales evidentes",
+            filename="scan.pdf",
+            format_hint="PDF",
+        )
+    )
+
+    assert result["doc_type"] == "INVOICE"
+    assert result["requires_review"] is True
+    assert result["field_confidences"]["vendor"]["value"] == "ACME"
+    assert result["field_confidences"]["vendor"]["confidence"] < 0.75
+    assert result["field_confidences"]["total_amount"]["confidence"] < 0.75
+
+
 def test_analyze_document_uses_runtime_doc_type_instruction_for_structured_inputs(monkeypatch):
     captured: dict[str, str] = {}
 

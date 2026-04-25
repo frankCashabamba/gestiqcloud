@@ -8,7 +8,7 @@ import api from '../shared/api/client'
 const svc = createEmpresaService(api, { base: ADMIN_COMPANIES.base })
 
 // Re-export solo los usados actualmente (alta completa usa createFull)
-export const { getEmpresas, updateEmpresa } = svc as any
+export const { getEmpresas, updateEmpresa } = svc
 
 export async function deleteEmpresa(id: number | string): Promise<any> {
   const tenantId = String(id).trim()

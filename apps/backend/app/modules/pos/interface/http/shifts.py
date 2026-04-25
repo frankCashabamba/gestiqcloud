@@ -181,7 +181,8 @@ def list_shifts(
         sql_parts.append("AND opened_at <= :until")
         params["until"] = until
 
-    sql_parts.append(f"ORDER BY opened_at DESC LIMIT {min(limit, 1000)}")
+    sql_parts.append("ORDER BY opened_at DESC LIMIT :lim")
+    params["lim"] = min(limit, 1000)
 
     try:
         rows = db.execute(text(" ".join(sql_parts)), params).fetchall()
@@ -219,17 +220,23 @@ def get_shift_summary(
     tenant_id = get_tenant_id(request)
     cashier_uuid = validate_uuid(cashier_id, "Cashier ID") if cashier_id else None
 
-    base_filter = "shift_id = :sid"
     params: dict = {"sid": shift_uuid, "tid": tenant_id}
+    cashier_filter_no_alias = ""
+    cashier_filter_r = ""
+    cashier_filter_pr = ""
     if cashier_uuid:
-        base_filter += " AND cashier_id = :cid"
+        cashier_filter_no_alias = " AND cashier_id = :cid"
+        cashier_filter_r = " AND r.cashier_id = :cid"
+        cashier_filter_pr = " AND pr.cashier_id = :cid"
         params["cid"] = cashier_uuid
 
     try:
         pending_receipts = db.execute(
             text(
-                f"SELECT COUNT(*) FROM pos_receipts "
-                f"WHERE {base_filter} AND tenant_id = :tid AND status IN ('draft', 'unpaid')"
+                "SELECT COUNT(*) FROM pos_receipts "
+                "WHERE shift_id = :sid AND tenant_id = :tid"
+                " AND status IN ('draft', 'unpaid')"
+                + cashier_filter_no_alias
             ).bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -245,8 +252,9 @@ def get_shift_summary(
                 "FROM pos_receipt_lines rl "
                 "JOIN pos_receipts r ON r.id = rl.receipt_id "
                 "LEFT JOIN products p ON p.id = rl.product_id "
-                f"WHERE r.{base_filter} AND r.tenant_id = :tid AND r.status = 'paid' "
-                "GROUP BY rl.product_id, p.id, p.name, p.sku "
+                "WHERE r.shift_id = :sid AND r.tenant_id = :tid AND r.status = 'paid'"
+                + cashier_filter_r
+                + " GROUP BY rl.product_id, p.id, p.name, p.sku "
                 "ORDER BY p.name"
             ).bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
@@ -291,8 +299,9 @@ def get_shift_summary(
 
         sales_total = db.execute(
             text(
-                f"SELECT COALESCE(SUM(gross_total), 0) "
-                f"FROM pos_receipts WHERE {base_filter} AND tenant_id = :tid AND status = 'paid'"
+                "SELECT COALESCE(SUM(gross_total), 0) "
+                "FROM pos_receipts WHERE shift_id = :sid AND tenant_id = :tid AND status = 'paid'"
+                + cashier_filter_no_alias
             ).bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -305,8 +314,9 @@ def get_shift_summary(
                 "SELECT pp.method, COALESCE(SUM(pp.amount), 0) as total "
                 "FROM pos_payments pp "
                 "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
-                f"WHERE pr.{base_filter} AND pr.tenant_id = :tid AND pr.status = 'paid' "
-                "GROUP BY pp.method"
+                "WHERE pr.shift_id = :sid AND pr.tenant_id = :tid AND pr.status = 'paid'"
+                + cashier_filter_pr
+                + " GROUP BY pp.method"
             ).bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("tid", type_=PGUUID(as_uuid=True)),

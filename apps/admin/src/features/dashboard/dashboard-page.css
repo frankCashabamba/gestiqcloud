@@ -2,7 +2,7 @@
 
 .dashboard-page {
   padding: 2rem;
-  max-width: 1400px;
+  max-width: var(--admin-page-wide);
   margin: 0 auto;
 }
 

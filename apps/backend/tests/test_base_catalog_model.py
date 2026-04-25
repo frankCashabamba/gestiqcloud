@@ -46,7 +46,6 @@ class TestBaseCatalogModel:
     def test_business_category_inherits_catalog_fields(self):
         """Test BusinessCategory has all catalog fields."""
         business_category = BusinessCategory(
-            tenant_id=uuid4(),
             name="Test Category",
             code="CAT_TEST",
             is_active=True
@@ -56,6 +55,7 @@ class TestBaseCatalogModel:
         assert business_category.name == "Test Category"
         assert business_category.code == "CAT_TEST"
         assert business_category.is_active is True
+        assert not hasattr(business_category, "tenant_id")
 
     def test_active_property_backward_compatibility(self):
         """Test active property works for backward compatibility."""
@@ -81,6 +81,9 @@ class TestBaseCatalogModel:
             name="Test",
             is_active=True
         )
+
+        self.session.add(business_type)
+        self.session.flush()
 
         # Timestamps should be datetime objects
         assert isinstance(business_type.created_at, datetime)

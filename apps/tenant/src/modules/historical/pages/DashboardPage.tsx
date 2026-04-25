@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getDashboard, type HistDashboard } from '../services'
+import PageContainer from '../../../components/PageContainer'
 
 const EMPTY: HistDashboard = {
   total_imports: 0,
@@ -55,7 +56,8 @@ export default function DashboardPage() {
   ], [t])
 
   return (
-    <div style={{ padding: '1.5rem', display: 'grid', gap: '1rem', maxWidth: 1100, margin: '0 auto' }}>
+    <PageContainer>
+      <div style={{ display: 'grid', gap: '1rem' }}>
       <section
         style={{
           borderRadius: 30,
@@ -141,6 +143,7 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
-    </div>
+      </div>
+    </PageContainer>
   )
 }

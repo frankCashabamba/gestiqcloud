@@ -1,6 +1,6 @@
 # isort: off
 # Import Base before the models to avoid circular imports
-from app.config.database import Base  # shared Base for the whole project
+from app.config.database import Base, IS_SQLITE  # shared Base for the whole project
 
 # Import the aggregator so every model is registered
 import app.models  # noqa: F401
@@ -60,10 +60,11 @@ try:
     import app.models.core.document_storage  # noqa: F401
 except Exception:
     pass
-try:
-    import app.modules.copilot.models  # noqa: F401
-except Exception:
-    pass
+if not IS_SQLITE:
+    try:
+        import app.modules.copilot.models  # noqa: F401
+    except Exception:
+        pass
 try:
     import app.modules.branches.models  # noqa: F401
 except Exception:

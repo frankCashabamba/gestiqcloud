@@ -11,6 +11,7 @@ import unicodedata
 from typing import Any
 
 from app.modules.importador.document_fields import safe_floatish
+from app.modules.importador.ocr_quality import estimate_text_quality as _base_estimate_text_quality
 from app.modules.importador.runtime_config import (
     _DEFAULT_OCR_CONFIG,
     load_ai_model_routing,
@@ -129,48 +130,7 @@ def _estimate_text_quality(
     ai_runtime: dict[str, Any] | None = None,
 ) -> dict[str, float]:
     """Estimate whether OCR text is good enough to avoid a vision pass."""
-    cfg = ai_runtime or load_ai_runtime_config(None)
-    normalized = " ".join(str(text or "").split())
-    if not normalized:
-        return {"score": 0.0, "chars": 0.0, "words": 0.0}
-
-    chars = len(normalized)
-    tokens = re.findall(r"[^\W_]{2,}", normalized, flags=re.UNICODE)
-    word_count = len(tokens)
-    alpha_chars = sum(1 for ch in normalized if ch.isalpha())
-    alnum_chars = sum(1 for ch in normalized if ch.isalnum())
-    weird_chars = sum(
-        1
-        for ch in normalized
-        if not (ch.isalnum() or ch.isspace() or ch in ".,;:/-_#%()[]{}+*'\"@")
-    )
-
-    alpha_ratio = alpha_chars / max(alnum_chars, 1)
-    weird_ratio = weird_chars / max(chars, 1)
-    length_score = min(chars / max(float(cfg.get("ocr_length_target_chars") or 1200.0), 1.0), 1.0)
-    word_score = min(word_count / max(float(cfg.get("ocr_word_target") or 180.0), 1.0), 1.0)
-    alpha_score = min(
-        alpha_ratio / max(float(cfg.get("ocr_alpha_ratio_target") or 0.6), 0.01),
-        1.0,
-    )
-    noise_penalty = min(
-        weird_ratio / max(float(cfg.get("ocr_noise_ratio_limit") or 0.2), 0.01),
-        1.0,
-    )
-
-    score = (
-        (length_score * float(cfg.get("ocr_score_weight_length") or 0.35))
-        + (word_score * float(cfg.get("ocr_score_weight_words") or 0.35))
-        + (alpha_score * float(cfg.get("ocr_score_weight_alpha") or 0.2))
-        + ((1 - noise_penalty) * float(cfg.get("ocr_score_weight_clean") or 0.1))
-    )
-    return {
-        "score": round(max(0.0, min(1.0, score)), 3),
-        "chars": float(chars),
-        "words": float(word_count),
-        "alpha_ratio": round(alpha_ratio, 3),
-        "weird_ratio": round(weird_ratio, 3),
-    }
+    return _base_estimate_text_quality(text, ai_runtime=ai_runtime)
 
 
 def _should_use_vision_fallback(
@@ -210,6 +170,194 @@ def _should_use_vision_fallback(
         "yes" if needs_vision else "no",
     )
     return needs_vision
+
+
+_CRITICAL_FIELD_NAMES: tuple[str, ...] = (
+    "vendor",
+    "customer",
+    "doc_number",
+    "invoice_number",
+    "vendor_tax_id",
+    "customer_tax_id",
+    "issue_date",
+    "currency",
+    "subtotal",
+    "tax_amount",
+    "total_amount",
+    "line_items",
+)
+_FIELD_REVIEW_THRESHOLD = 0.75
+
+
+def _score_field_confidence(
+    field_name: str,
+    value: Any,
+    *,
+    content: str,
+    format_hint: str,
+    ai_runtime: dict[str, Any],
+    ocr_runtime: dict[str, Any],
+    analysis_path: str,
+) -> float:
+    if value in (None, "", [], {}):
+        return 0.0
+
+    if analysis_path == "structured_direct":
+        return 0.98
+
+    normalized_content = _normalize_evidence_text(content)
+    digits_content = _digits_only(content)
+    quality = _estimate_text_quality(content, ai_runtime=ai_runtime)
+    quality_factor = 0.65 + (0.35 * float(quality.get("score") or 0.0))
+    confidence = 0.55
+    normalized_format = str(format_hint or "").strip().upper()
+
+    if field_name in {"vendor", "customer", "concept"}:
+        confidence = 0.72
+        if _value_token_evidence(normalized_content, value, ai_runtime=ai_runtime):
+            confidence = 0.94
+        elif _looks_like_noisy_scalar_text(str(value), field_name=field_name):
+            confidence = 0.35
+        elif normalized_format in {"IMAGE_OCR", "PDF_OCR"} and len(str(value).split()) > 1:
+            confidence = 0.8
+    elif field_name in {"doc_number", "invoice_number"}:
+        confidence = 0.58
+        if _value_token_evidence(normalized_content, value, min_len=3, ai_runtime=ai_runtime):
+            confidence = 0.93
+        elif _digits_only(value) and _digits_only(value) in digits_content:
+            confidence = 0.9
+    elif field_name in {"vendor_tax_id", "customer_tax_id"}:
+        digits = _digits_only(value)
+        confidence = 0.55
+        if digits and len(digits) >= 10 and digits in digits_content:
+            confidence = 0.96
+        elif digits and len(digits) >= 10:
+            confidence = 0.82
+    elif field_name == "issue_date":
+        confidence = 0.6
+        if _value_token_evidence(normalized_content, value, min_len=4, ai_runtime=ai_runtime):
+            confidence = 0.94
+        elif _numeric_evidence(digits_content, value, min_len=6):
+            confidence = 0.87
+    elif field_name == "currency":
+        confidence = 0.45
+        if _currency_evidence(normalized_content, value, ai_runtime=ai_runtime):
+            confidence = 0.96
+    elif field_name in {"subtotal", "tax_amount", "total_amount"}:
+        confidence = 0.62
+        if _amount_has_monetary_context(
+            content,
+            value,
+            field_name=field_name,
+            ocr_runtime=ocr_runtime,
+        ):
+            confidence = 0.96
+        elif _numeric_evidence(digits_content, value, min_len=3):
+            confidence = 0.8
+    elif field_name == "line_items":
+        items = value if isinstance(value, list) else []
+        confidence = 0.45 if not items else 0.72
+        if items and _line_items_evidence(
+            normalized_content,
+            digits_content,
+            items,
+            ai_runtime=ai_runtime,
+        ):
+            confidence = 0.92
+        elif items:
+            confidence = max(confidence, 0.78 if len(items) >= 2 else 0.7)
+
+    if normalized_format in {"IMAGE_OCR", "PDF_OCR"} and confidence < 1.0:
+        confidence *= quality_factor
+        if quality.get("repeat_ratio") and float(quality.get("repeat_ratio") or 0.0) > 0.35:
+            confidence *= 0.88
+        if float(quality.get("useful_hits") or 0.0) >= 2:
+            confidence = min(1.0, confidence + 0.04)
+    return max(0.0, min(1.0, confidence))
+
+
+def _build_field_confidences(
+    fields: dict[str, Any] | None,
+    *,
+    content: str,
+    format_hint: str,
+    ai_runtime: dict[str, Any] | None = None,
+    ocr_runtime: dict[str, Any] | None = None,
+    analysis_path: str = "",
+) -> dict[str, dict[str, Any]]:
+    current_fields = fields if isinstance(fields, dict) else {}
+    if not current_fields:
+        return {}
+
+    ai_cfg = ai_runtime or load_ai_runtime_config(None)
+    ocr_cfg = ocr_runtime or load_ocr_runtime_config(None)
+    result: dict[str, dict[str, Any]] = {}
+    for field_name in _CRITICAL_FIELD_NAMES:
+        value = current_fields.get(field_name)
+        if value in (None, "", [], {}):
+            continue
+        confidence = _score_field_confidence(
+            field_name,
+            value,
+            content=content,
+            format_hint=format_hint,
+            ai_runtime=ai_cfg,
+            ocr_runtime=ocr_cfg,
+            analysis_path=analysis_path,
+        )
+        result[field_name] = {"value": value, "confidence": round(confidence, 2)}
+
+    for field_name, value in current_fields.items():
+        if field_name in result or value in (None, "", [], {}) or str(field_name).startswith("_"):
+            continue
+        confidence = _score_field_confidence(
+            str(field_name),
+            value,
+            content=content,
+            format_hint=format_hint,
+            ai_runtime=ai_cfg,
+            ocr_runtime=ocr_cfg,
+            analysis_path=analysis_path,
+        )
+        result[str(field_name)] = {"value": value, "confidence": round(confidence, 2)}
+    return result
+
+
+def _finalize_analysis_payload(
+    parsed: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+    ai_runtime: dict[str, Any] | None = None,
+    ocr_runtime: dict[str, Any] | None = None,
+    analysis_path: str = "",
+) -> dict[str, Any]:
+    result = dict(parsed or {})
+    fields = result.get("fields")
+    if not isinstance(fields, dict):
+        fields = {}
+        result["fields"] = fields
+
+    field_confidences = _build_field_confidences(
+        fields,
+        content=content,
+        format_hint=format_hint,
+        ai_runtime=ai_runtime,
+        ocr_runtime=ocr_runtime,
+        analysis_path=analysis_path or str(result.get("analysis_path") or ""),
+    )
+    result["field_confidences"] = field_confidences
+
+    weak_fields = [
+        field_name
+        for field_name, payload in field_confidences.items()
+        if isinstance(payload, dict)
+        and payload.get("value") not in (None, "", [], {})
+        and float(payload.get("confidence") or 0.0) < _FIELD_REVIEW_THRESHOLD
+    ]
+    if weak_fields or bool(result.get("requires_review")):
+        result["requires_review"] = True
+    return result
 
 
 def _normalize_evidence_text(value: str) -> str:
@@ -2176,6 +2324,55 @@ def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1024) -> bytes:
     return result
 
 
+def _vision_provider_config(ai_runtime: dict[str, Any]) -> dict[str, str]:
+    provider = str(
+        os.getenv("IMPORTADOR_VISION_PROVIDER")
+        or ai_runtime.get("vision_provider")
+        or "ollama"
+    ).strip().lower()
+    if provider in {"openai", "openai_compatible", "openai-compatible", "compatible"}:
+        provider = "openai_compatible"
+    elif provider not in {"ollama", "openai_compatible"}:
+        provider = "ollama"
+
+    base_url = str(
+        os.getenv("IMPORTADOR_VISION_ENDPOINT")
+        or (
+            os.getenv("OLLAMA_BASE_URL")
+            or os.getenv("OLLAMA_URL")
+            or "http://127.0.0.1:11434"
+        )
+    ).rstrip("/")
+    model = str(
+        os.getenv("IMPORTADOR_VISION_MODEL")
+        or os.getenv("OLLAMA_VISION_MODEL")
+        or ai_runtime.get("vision_model")
+        or "minicpm-v"
+    ).strip()
+    chat_path = str(
+        os.getenv("IMPORTADOR_VISION_CHAT_PATH")
+        or ("/api/chat" if provider == "ollama" else "/v1/chat/completions")
+    ).strip()
+    probe_path = str(
+        os.getenv("IMPORTADOR_VISION_PROBE_PATH")
+        or ("/api/tags" if provider == "ollama" else "")
+    ).strip()
+    skip_probe = str(os.getenv("IMPORTADOR_VISION_SKIP_PROBE") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    return {
+        "provider": provider,
+        "base_url": base_url,
+        "model": model,
+        "chat_path": chat_path or ("/api/chat" if provider == "ollama" else "/v1/chat/completions"),
+        "probe_path": probe_path,
+        "skip_probe": "1" if skip_probe else "0",
+    }
+
+
 async def _analyze_with_vision(
     image_bytes: bytes,
     filename: str,
@@ -2187,7 +2384,7 @@ async def _analyze_with_vision(
     db: Any = None,
     timeout_override_secs: float | None = None,
 ) -> dict[str, Any] | None:
-    """Try to analyze a document image using a vision-capable model via Ollama.
+    """Try to analyze a document image using a vision-capable model.
 
     Returns None if no vision model is available, letting the caller fall back
     to the text-based OCR path.
@@ -2197,22 +2394,31 @@ async def _analyze_with_vision(
     import httpx
 
     ai_runtime = load_ai_runtime_config(db)
-
-    ollama_url = (
-        os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434"
-    ).rstrip("/")
-    vision_model = os.getenv("OLLAMA_VISION_MODEL", "minicpm-v")
+    vision_cfg = _vision_provider_config(ai_runtime)
+    vision_model = vision_cfg["model"]
+    provider = vision_cfg["provider"]
+    base_url = vision_cfg["base_url"]
+    chat_path = vision_cfg["chat_path"]
+    probe_path = vision_cfg["probe_path"]
 
     try:
-        probe_timeout = max(1.0, float(ai_runtime.get("vision_probe_timeout_seconds") or 5.0))
-        async with httpx.AsyncClient(timeout=probe_timeout) as client:
-            tags_resp = await client.get(f"{ollama_url}/api/tags")
-            if tags_resp.status_code != 200:
-                return None
-            available = [m["name"].split(":")[0] for m in tags_resp.json().get("models", [])]
-            if vision_model.split(":")[0] not in available:
-                logger.info("Vision model '%s' not available, falling back to OCR", vision_model)
-                return None
+        probe_timeout = max(
+            1.0,
+            float(
+                os.getenv("IMPORTADOR_VISION_PROBE_TIMEOUT")
+                or ai_runtime.get("vision_probe_timeout_seconds")
+                or 5.0
+            ),
+        )
+        if provider == "ollama" and probe_path and vision_cfg["skip_probe"] != "1":
+            async with httpx.AsyncClient(timeout=probe_timeout) as client:
+                tags_resp = await client.get(f"{base_url}{probe_path}")
+                if tags_resp.status_code != 200:
+                    return None
+                available = [m["name"].split(":")[0] for m in tags_resp.json().get("models", [])]
+                if vision_model.split(":")[0] not in available:
+                    logger.info("Vision model '%s' not available, falling back to OCR", vision_model)
+                    return None
     except Exception:
         return None
 
@@ -2303,28 +2509,41 @@ async def _analyze_with_vision(
         _resize_image_for_vision(image_bytes, max_dim=resize_max_dim)
     ).decode("utf-8")
 
-    payload = {
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": user_prompt,
+        },
+    ]
+    if provider == "ollama":
+        messages[-1]["images"] = [img_b64]
+
+    payload: dict[str, Any] = {
         "model": vision_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": user_prompt,
-                "images": [img_b64],
-            },
-        ],
+        "messages": messages,
         "stream": False,
-        "options": {
+        "temperature": float(ai_runtime.get("vision_temperature") or 0.1),
+    }
+    if provider == "ollama":
+        payload["options"] = {
             "temperature": float(ai_runtime.get("vision_temperature") or 0.1),
             "num_predict": max(1, int(ai_runtime.get("vision_num_predict") or 600)),
-        },
-    }
+        }
+    else:
+        payload["max_tokens"] = max(1, int(ai_runtime.get("vision_num_predict") or 600))
+        payload["temperature"] = float(ai_runtime.get("vision_temperature") or 0.1)
+        payload["messages"][-1]["content"] = [
+            {"type": "text", "text": user_prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
+        ]
 
     try:
         timeout_secs = max(
             1.0,
             float(
                 timeout_override_secs
+                or os.getenv("IMPORTADOR_VISION_TIMEOUT")
                 or os.getenv("OLLAMA_VISION_TIMEOUT")
                 or ai_runtime.get("vision_timeout_seconds")
                 or os.getenv("OLLAMA_TIMEOUT", "30")
@@ -2332,11 +2551,16 @@ async def _analyze_with_vision(
         )
         timeout = httpx.Timeout(timeout_secs, read=timeout_secs)
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(f"{ollama_url}/api/chat", json=payload)
+            resp = await client.post(f"{base_url}{chat_path}", json=payload)
         resp.raise_for_status()
         data = resp.json()
 
-        raw_content = (data.get("message") or {}).get("content", "")
+        if provider == "ollama":
+            raw_content = (data.get("message") or {}).get("content", "")
+        else:
+            choices = data.get("choices") or []
+            message = choices[0].get("message") if choices else {}
+            raw_content = (message or {}).get("content", "")
         model_used = data.get("model") or vision_model
 
         parsed = _parse_json_response(raw_content)
@@ -2369,7 +2593,14 @@ async def _analyze_with_vision(
             parsed["prompt_full"] = prompt_trace["full_prompt"]
             parsed["prompt_parts"] = prompt_trace
             logger.info("Vision analysis succeeded with %s for %s", model_used, filename)
-            return parsed
+            return _finalize_analysis_payload(
+                parsed,
+                content=ocr_content,
+                format_hint=format_hint,
+                ai_runtime=ai_runtime,
+                ocr_runtime=ocr_runtime,
+                analysis_path="ai_vision",
+            )
 
         logger.warning("Vision model returned unparseable response for %s", filename)
         return None
@@ -2466,7 +2697,7 @@ def _structured_direct_analysis(
     doc_type = doc_type_hint or fallback_guess.get("doc_type", "OTHER")
     confidence = max(confidence_hint, 0.86 if fields else 0.72)
 
-    return {
+    result = {
         "doc_type": doc_type,
         "confidence": confidence,
         "reasoning": "Structured bypass: parsed CSV/Excel/JSON directly without LLM.",
@@ -2481,6 +2712,14 @@ def _structured_direct_analysis(
         "cache_hit": False,
         "cache_bypassed": False,
     }
+    return _finalize_analysis_payload(
+        result,
+        content=content,
+        format_hint=format_hint,
+        ai_runtime=load_ai_runtime_config(None),
+        ocr_runtime=load_ocr_runtime_config(None),
+        analysis_path="structured_direct",
+    )
 
 
 def _build_reprocess_recipe_config(
@@ -2961,7 +3200,14 @@ async def analyze_document(
         if vision_result:
             return vision_result
 
-    return _text_result
+    return _finalize_analysis_payload(
+        _text_result,
+        content=content,
+        format_hint=format_hint,
+        ai_runtime=ai_runtime,
+        ocr_runtime=ocr_runtime,
+        analysis_path=str(_text_result.get("analysis_path") or ""),
+    )
 
 
 def _fallback_classify(

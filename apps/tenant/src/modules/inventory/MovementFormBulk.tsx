@@ -8,6 +8,7 @@ import { useCompanySector } from '../../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
+import PageContainer from '../../components/PageContainer'
 
 export default function MovimientoForm() {
     const { t } = useTranslation(['inventory', 'common'])
@@ -56,7 +57,7 @@ export default function MovimientoForm() {
             try {
                 const [w, p] = await Promise.all([listWarehouses(), listProductos()])
                 setWarehouses(w.filter((x) => x.is_active))
-                setProductos(p.filter((x) => (x as any).active !== false))
+                setProductos(p.filter((x) => x.active !== false))
             } catch (e: any) {
                 toastError(getErrorMessage(e))
             }
@@ -100,7 +101,7 @@ export default function MovimientoForm() {
                 const qtyVal = Number(bulkQty)
                 if (Number.isNaN(qtyVal)) throw new Error(t('inventory:errors.invalidQty'))
                 const BATCH_SIZE = 50
-                const activeProducts = productos.filter((p) => (p as any).active !== false)
+                const activeProducts = productos.filter((p) => p.active !== false)
                 const allResults: PromiseSettledResult<unknown>[] = []
                 for (let i = 0; i < activeProducts.length; i += BATCH_SIZE) {
                     const batch = activeProducts.slice(i, i + BATCH_SIZE)
@@ -154,7 +155,7 @@ export default function MovimientoForm() {
     }
 
     return (
-        <div className="p-6 max-w-2xl mx-auto">
+        <PageContainer>
             <h1 className="text-2xl font-bold mb-6">{t('inventory:form.title')}</h1>
 
             <form onSubmit={onSubmit} className="bg-white shadow-sm rounded-lg p-6 space-y-4">
@@ -162,7 +163,7 @@ export default function MovimientoForm() {
                     <label className="block mb-2 font-medium">{t('inventory:form.movementType')} <span className="text-red-600">*</span></label>
                     <select
                         value={form.kind}
-                        onChange={(e) => setForm({ ...form, kind: e.target.value as any })}
+                        onChange={(e) => setForm({ ...form, kind: e.target.value as typeof form.kind })}
                         className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
                         required
                     >
@@ -333,6 +334,6 @@ export default function MovimientoForm() {
                     </button>
                 </div>
             </form>
-        </div>
+        </PageContainer>
     )
 }

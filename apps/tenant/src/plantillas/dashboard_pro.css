@@ -71,7 +71,7 @@
   grid-template-areas:
     "topbar topbar"
     "sidebar main";
-  max-width: 1600px;
+  max-width: var(--gc-page-wide);
   width: 100%;
   margin: 0 auto;
 }
@@ -539,13 +539,13 @@
   grid-area: main;
   padding: var(--pad) var(--pad) 56px;
   overflow-y: auto;
-  max-width: 1280px;
+  max-width: var(--gc-page-wide);
   width: 100%;
   margin: 0 auto;
 }
 
 .dashboard-pro-app--no-sidebar .main-content {
-  max-width: 1480px;
+  max-width: var(--gc-page-wide);
 }
 
 .main-content h1 {

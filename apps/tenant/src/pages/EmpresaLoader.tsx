@@ -1,11 +1,12 @@
 import React, { Suspense, useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { applyTheme } from '@shared/ui'
+import type { ThemeConfig } from '@shared/ui'
 import { useAuth } from '../auth/AuthContext'
-import { fetchCompanyTheme } from '../services/theme'
+import { fetchCompanyTheme, type ThemeResponse } from '../services/theme'
 
 type LazyComp = React.LazyExoticComponent<React.ComponentType<any>>
-type ThemeResp = { sector?: string } & Record<string, any>
+type PlantillasMap = Record<string, () => Promise<{ default: React.ComponentType<any> }>>
 
 const rawPlantillas = import.meta.glob('../plantillas/*.tsx')
 const allowedPlantillas = new Set([
@@ -36,10 +37,10 @@ export default function EmpresaLoader() {
     ;(async () => {
       try {
         if (!empresa) return
-        const t = await fetchCompanyTheme(empresa)
+        const t: ThemeResponse = await fetchCompanyTheme(empresa)
         if (t) {
           try {
-            applyTheme(t as any)
+            applyTheme(t as ThemeConfig)
           } catch {}
           const s = t.sector || 'default'
           try {
@@ -64,10 +65,10 @@ export default function EmpresaLoader() {
       try {
         const name = sector || 'default'
         const key = `../plantillas/${name}.tsx`
-        const importer = (PLANTILLAS as any)[key]
+        const importer = (PLANTILLAS as PlantillasMap)[key]
         let lazy: LazyComp
         if (importer) {
-          lazy = React.lazy(importer as any)
+          lazy = React.lazy(importer)
         } else {
           lazy = React.lazy(() => import('../plantillas/default'))
         }

@@ -340,7 +340,7 @@
 
 /* ============ Responsive ============ */
 
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
   .webhooks-list__table-head,
   .webhooks-list__table-row {
     grid-template-columns: 1fr;

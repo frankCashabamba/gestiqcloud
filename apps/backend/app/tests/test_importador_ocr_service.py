@@ -71,6 +71,46 @@ def test_run_easyocr_reuses_reader_instance(monkeypatch):
     assert constructor_calls["count"] == 1
 
 
+def test_ocr_image_uses_easyocr_fallback_when_tesseract_is_weak(monkeypatch):
+    constructor_calls = {"count": 0}
+    read_calls = {"count": 0}
+
+    class FakeReader:
+        def __init__(self, langs, gpu=False):
+            constructor_calls["count"] += 1
+            self.langs = langs
+            self.gpu = gpu
+
+        def readtext(self, _image):
+            read_calls["count"] += 1
+            return [(None, "FACTURA 12345 TOTAL 12.50", 0.99)]
+
+    monkeypatch.setenv("IMPORTADOR_OCR_EASYOCR_ENABLED", "1")
+    monkeypatch.setitem(
+        __import__("sys").modules, "easyocr", type("E", (), {"Reader": FakeReader})()
+    )
+    monkeypatch.setattr(ocr_service, "_run_tesseract", lambda variant, psm_modes=None: "aaa aaa")
+    ocr_service._EASYOCR_READERS.clear()
+
+    img = Image.new("L", (120, 80), color=255)
+
+    result = ocr_service._ocr_image(img)
+
+    assert result == "FACTURA 12345 TOTAL 12.50"
+    assert constructor_calls["count"] == 1
+    assert read_calls["count"] == 1
+
+
+def test_estimate_text_quality_penalizes_repetitive_noise():
+    quality = ocr_service._estimate_text_quality(
+        "aaa aaa aaa aaa aaa",
+        ocr_runtime=ocr_service._ocr_runtime_config(),
+    )
+
+    assert quality["repeat_ratio"] > 0.5
+    assert quality["score"] < 0.7
+
+
 def test_extract_csv_builds_virtual_sheet_context():
     result = ocr_service._extract_csv(b"fecha,total\n2026-04-01,12.5\n2026-04-02,8.0\n")
 

@@ -100,14 +100,14 @@ export default function CajaForm() {
     try {
       for (const f of fieldList || []) {
         if (f.required && f.visible !== false) {
-          const val = (form as any)[f.field]
+          const val = (form as Record<string, unknown>)[f.field]
           if (val === undefined || val === null || String(val).trim() === '') {
             throw new Error(t('finances:cashForm.fieldRequired', { field: f.label || f.field }))
           }
         }
       }
-      if (id) await updateMovimientoCaja(id, form as any)
-      else await createMovimientoCaja(form as any)
+      if (id) await updateMovimientoCaja(id, form as Partial<Omit<Movimiento, 'id'>>)
+      else await createMovimientoCaja(form as Omit<Movimiento, 'id'>)
       success(t('finances:cashForm.saved'))
       nav('..')
     } catch (e: any) {
@@ -135,7 +135,8 @@ export default function CajaForm() {
         {fieldList.map((f) => {
           const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
           const type = getInputType(f.field)
-          const value = (form as any)[f.field] ?? ''
+          const rawValue = (form as Record<string, unknown>)[f.field]
+          const value = rawValue === undefined || rawValue === null ? '' : String(rawValue)
 
           if (f.field === 'tipo') {
             return (

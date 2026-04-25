@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchDashboard, type DashboardStats } from '../services'
+import PageContainer from '../../../components/PageContainer'
 
 const EMPTY_STATS: DashboardStats = {
   total: 0,
@@ -30,7 +31,7 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <>
+    <PageContainer>
       <style>{`
         @media (max-width: 960px) {
           .importador-dashboard__hero {
@@ -54,7 +55,7 @@ export default function Dashboard() {
         }
       `}</style>
 
-      <div className="importador-dashboard" style={{ padding: '1.5rem', display: 'grid', gap: '1rem' }}>
+      <div className="importador-dashboard" style={{ display: 'grid', gap: '1rem' }}>
         <section
           className="importador-dashboard__hero"
           style={{
@@ -163,7 +164,7 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
-    </>
+    </PageContainer>
   )
 }
 

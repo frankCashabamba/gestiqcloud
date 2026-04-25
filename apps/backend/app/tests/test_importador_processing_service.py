@@ -16,6 +16,7 @@ from app.modules.importador.processing_service import (
     _XML_INVOICE_FORMATS,
     _XML_TIPO_DOCUMENTO_MAP,
     RecipeContext,
+    _analysis_requires_review_from_field_confidences,
     _analysis_indicates_ai_failure,
     _analyze_with_context,
     _build_ai_attempt_fingerprint,
@@ -123,6 +124,26 @@ def test_pre_extract_route_decision_does_not_count_missing_total_as_strong_field
     assert decision["has_total"] is False
     assert decision["strong_count"] == 0
     assert decision["skip_ai"] is False
+
+
+@pytest.mark.no_db
+def test_analysis_requires_review_from_field_confidences_detects_weak_critical_fields():
+    analysis = {
+        "field_confidences": {
+            "vendor": {"value": "ACME", "confidence": 0.62},
+            "total_amount": {"value": 123.45, "confidence": 0.94},
+        }
+    }
+
+    assert _analysis_requires_review_from_field_confidences(analysis) is True
+    assert _analysis_requires_review_from_field_confidences(
+        {
+            "field_confidences": {
+                "vendor": {"value": "ACME", "confidence": 0.82},
+                "total_amount": {"value": 123.45, "confidence": 0.94},
+            }
+        }
+    ) is False
 
 
 @pytest.mark.no_db

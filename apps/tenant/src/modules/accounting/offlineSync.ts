@@ -25,14 +25,14 @@ export const AccountingAdapter: SyncAdapter = {
 
   async create(data: any): Promise<PlanCuenta> {
     const cuenta = await createCuenta(data)
-    const remoteVersion = (cuenta as any)?.updated_at ? new Date((cuenta as any).updated_at as string).getTime() : Date.now()
+    const remoteVersion = cuenta.updated_at ? new Date(cuenta.updated_at).getTime() : Date.now()
     await storeEntity('account', String(cuenta.id), cuenta, 'synced', remoteVersion)
     return cuenta
   },
 
   async update(id: string, data: any): Promise<PlanCuenta> {
     const cuenta = await updateCuenta(id, data)
-    const remoteVersion = (cuenta as any)?.updated_at ? new Date((cuenta as any).updated_at as string).getTime() : Date.now()
+    const remoteVersion = cuenta.updated_at ? new Date(cuenta.updated_at).getTime() : Date.now()
     await storeEntity('account', String(id), cuenta, 'synced', remoteVersion)
     return cuenta
   },
@@ -50,8 +50,8 @@ export const AccountingAdapter: SyncAdapter = {
   async getRemoteVersion(id: string): Promise<number> {
     try {
       const cuenta = await getCuenta(id)
-      const timestamp = (cuenta as any)?.updated_at ?? (cuenta as any)?.created_at
-      return timestamp ? new Date(timestamp as string).getTime() : 0
+      const timestamp = cuenta.updated_at ?? cuenta.created_at
+      return timestamp ? new Date(timestamp).getTime() : 0
     } catch {
       return 0
     }

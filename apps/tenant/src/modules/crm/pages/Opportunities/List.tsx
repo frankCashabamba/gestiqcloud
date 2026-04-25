@@ -6,6 +6,7 @@ import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { usePagination, Pagination } from '../../../../shared/pagination'
 import { OpportunityStage } from '../../types'
 import { BackButton } from '@ui'
+import PageContainer from '../../../../components/PageContainer'
 
 export default function OpportunitiesList() {
   const [items, setItems] = useState<Opportunity[]>([])
@@ -66,7 +67,7 @@ export default function OpportunitiesList() {
   }
 
   return (
-    <div className="p-4">
+    <PageContainer>
       <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">
@@ -155,6 +156,6 @@ export default function OpportunitiesList() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

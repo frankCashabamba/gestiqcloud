@@ -8,6 +8,7 @@ import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
 import StatsCard from './components/StatsCard'
 import { BackButton } from '@ui'
+import PageContainer from '../../components/PageContainer'
 
 export default function GastosList() {
   const { t } = useTranslation(['expenses', 'common'])
@@ -160,7 +161,7 @@ export default function GastosList() {
   }
 
   return (
-    <div className="p-4">
+    <PageContainer>
       <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-4">
          <h2 className="font-semibold text-lg">{t('expenses:title')}</h2>
@@ -488,6 +489,6 @@ export default function GastosList() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

@@ -67,7 +67,7 @@ const toApiPayload = (payload: Partial<Gasto>) => ({
 export async function listGastos(): Promise<Gasto[]> {
   const { data } = await tenantApi.get<Gasto[] | { items?: Gasto[] }>(TENANT_EXPENSES.base)
   if (Array.isArray(data)) return data.map(normalizeGasto)
-  const items = (data as any)?.items
+  const items = (data as { items?: Gasto[] }).items
   return Array.isArray(items) ? items.map(normalizeGasto) : []
 }
 

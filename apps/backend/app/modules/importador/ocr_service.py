@@ -10,6 +10,7 @@ import io
 import itertools
 import json
 import logging
+import os
 import re
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -44,7 +45,7 @@ _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
 OCR_EXTRACTION_CACHE_VERSION = (
-    "2026-04-15-1"  # bumped: fix precios POS ticket (columnar split) + stop tokens vendor
+    "2026-04-24-1"  # bumped: OCR quality + EasyOCR fallback + candidate normalization
 )
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
@@ -191,6 +192,55 @@ def _ocr_text_score(text: str) -> tuple[int, int]:
     return (len(words), len(raw))
 
 
+def _env_bool(*names: str, default: bool | None = None) -> bool | None:
+    for name in names:
+        raw = os.getenv(name)
+        if raw is None:
+            continue
+        token = str(raw).strip().lower()
+        if token in {"1", "true", "yes", "on"}:
+            return True
+        if token in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _easyocr_enabled(config: dict[str, Any] | None = None) -> bool:
+    env_value = _env_bool("IMPORTADOR_OCR_EASYOCR_ENABLED", "IMPORTS_EASYOCR_ENABLED")
+    if env_value is not None:
+        return env_value
+    cfg = config or _ocr_runtime_config()
+    return bool(cfg.get("easyocr_enabled", False))
+
+
+def _easyocr_enabled_for_pdf(config: dict[str, Any] | None = None) -> bool:
+    env_value = _env_bool("IMPORTADOR_OCR_EASYOCR_PDF_ENABLED", "IMPORTS_EASYOCR_PDF_ENABLED")
+    if env_value is not None:
+        return env_value
+    cfg = config or _ocr_runtime_config()
+    return bool(cfg.get("easyocr_enabled_pdf", False))
+
+
+def _normalize_ocr_candidate_text(text: str) -> str:
+    raw_lines = [str(line).strip() for line in str(text or "").splitlines()]
+    cleaned_lines: list[str] = []
+    seen_lines: set[str] = set()
+    for line in raw_lines:
+        normalized = " ".join(line.split())
+        if not normalized:
+            continue
+        if len(normalized) < 3:
+            continue
+        if normalized in seen_lines and cleaned_lines and cleaned_lines[-1] == normalized:
+            continue
+        cleaned_lines.append(normalized)
+        seen_lines.add(normalized)
+    cleaned = "\n".join(cleaned_lines).strip()
+    if cleaned:
+        return cleaned
+    return " ".join(str(text or "").split()).strip()
+
+
 def _ocr_runtime_config() -> dict[str, Any]:
     return load_ocr_runtime_config(None)
 
@@ -210,6 +260,10 @@ def _is_weak_ocr_text(
     )
     quality = _estimate_text_quality(text, ocr_runtime=config)
     if float(quality.get("score") or 0.0) < min_quality:
+        return True
+    if float(quality.get("repeat_ratio") or 0.0) > 0.45:
+        return True
+    if float(quality.get("useful_hits") or 0.0) <= 0 and float(quality.get("score") or 0.0) < 0.7:
         return True
     words, chars = _ocr_text_score(text)
     return words < min_words or chars < min_chars
@@ -598,7 +652,7 @@ def _run_easyocr(img: Image.Image) -> str:
                 reader = easyocr.Reader(list(reader_key[0]), gpu=reader_key[1])
                 _EASYOCR_READERS[reader_key] = reader
     results = reader.readtext(np.array(img))
-    return "\n".join([r[1] for r in results]).strip()
+    return _normalize_ocr_candidate_text("\n".join([r[1] for r in results]).strip())
 
 
 def _pdf_render_dpi_candidates(base_dpi: int) -> tuple[int, ...]:
@@ -618,7 +672,7 @@ def _best_text_candidate(candidates: list[str], *, ocr_runtime: dict[str, Any]) 
     best_text = ""
     best_key = (-1.0, -1.0, -1.0)
     for candidate in candidates:
-        text = str(candidate or "").strip()
+        text = _normalize_ocr_candidate_text(candidate)
         if not text:
             continue
         quality = _estimate_text_quality(text, ocr_runtime=ocr_runtime)
@@ -631,6 +685,68 @@ def _best_text_candidate(candidates: list[str], *, ocr_runtime: dict[str, Any]) 
             best_key = key
             best_text = text
     return best_text
+
+
+def _ocr_image_candidates(
+    img: Image.Image,
+    *,
+    allow_easyocr: bool = True,
+    allow_rescue_variants: bool = True,
+) -> str:
+    candidates: list[str] = []
+    config = _ocr_runtime_config()
+    variants = _iter_ocr_variants(img)
+    primary_variants, rescue_variants = _partition_ocr_variants(
+        variants,
+        list(config["primary_variant_labels"]),
+    )
+    try:
+        for variant in itertools.chain(primary_variants, rescue_variants):
+            if not allow_rescue_variants and variant not in primary_variants:
+                continue
+            psm_modes = (
+                config["primary_psm_modes"]
+                if variant in primary_variants
+                else config["rescue_psm_modes"]
+            )
+            cleaned = _run_tesseract(variant, psm_modes=psm_modes)
+            if cleaned:
+                candidates.append(cleaned)
+            if cleaned and not _is_weak_ocr_text(cleaned):
+                logger.info(
+                    "Tesseract OCR accepted variant=%s words=%s chars=%s",
+                    _variant_label(variant) or "unknown",
+                    *_ocr_text_score(cleaned),
+                )
+                return cleaned
+        if allow_easyocr and _easyocr_enabled(config):
+            easyocr_variant = _pick_easyocr_variant(
+                variants,
+                str(config.get("easyocr_variant_label") or "autocontrast"),
+            )
+            if easyocr_variant is not None:
+                try:
+                    easyocr_text = _run_easyocr(easyocr_variant)
+                    if easyocr_text:
+                        candidates.append(easyocr_text)
+                        best_text = _best_text_candidate(candidates, ocr_runtime=config)
+                        if best_text and best_text == _normalize_ocr_candidate_text(easyocr_text):
+                            logger.info(
+                                "EasyOCR fallback accepted variant=%s words=%s chars=%s",
+                                _variant_label(easyocr_variant) or "unknown",
+                                *_ocr_text_score(best_text),
+                            )
+                        return best_text
+                except Exception as exc:
+                    logger.warning("EasyOCR OCR failed: %s", exc, exc_info=True)
+        logger.info("Tesseract OCR weak output detected across variants; keeping best native text")
+    except Exception as exc:
+        logger.warning("Tesseract OCR failed: %s", exc)
+
+    if not candidates:
+        return ""
+
+    return _best_text_candidate(candidates, ocr_runtime=config)
 
 
 async def extract_text_from_file(
@@ -807,9 +923,9 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             )
             page_texts.append(page_text)
             page_text_clean = str(page_text or "").strip()
+            best_page_text = page_text_clean
             if page_text_clean:
                 page_quality = _estimate_text_quality(page_text_clean, ocr_runtime=ocr_runtime)
-                _page_quality_scores.append(float(page_quality.get("score") or 0.0))
                 is_sufficient = page_quality["score"] >= float(
                     ocr_runtime.get("ocr_min_quality") or 0.45
                 ) and page_quality["words"] >= int(
@@ -818,17 +934,21 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
                 if is_sufficient:
                     text_parts.append(page_text_clean)
                     selected_page_texts.append(page_text_clean)
+                    _page_quality_scores.append(float(page_quality.get("score") or 0.0))
                     continue
 
             used_ocr = True
             ocr_candidates: list[str] = [page_text_clean] if page_text_clean else []
-            best_page_text: str = page_text_clean
             for dpi in _pdf_render_dpi_candidates(pdf_render_dpi):
                 pix = page.get_pixmap(dpi=dpi)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 if vision_image_bytes is None:
                     vision_image_bytes = _image_to_jpeg_bytes(img)
-                candidate = _ocr_image(img)
+                candidate = _ocr_image_candidates(
+                    img,
+                    allow_easyocr=_easyocr_enabled_for_pdf(config),
+                    allow_rescue_variants=False,
+                )
                 if candidate:
                     ocr_candidates.append(candidate)
                 best_page_text = _best_text_candidate(ocr_candidates, ocr_runtime=ocr_runtime)
@@ -837,8 +957,12 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             if best_page_text:
                 text_parts.append(best_page_text)
                 selected_page_texts.append(best_page_text)
+                selected_quality = _estimate_text_quality(best_page_text, ocr_runtime=ocr_runtime)
+                _page_quality_scores.append(float(selected_quality.get("score") or 0.0))
             else:
                 selected_page_texts.append(page_text_clean)
+                if page_text_clean:
+                    _page_quality_scores.append(float(page_quality.get("score") or 0.0))
 
         pages = len(doc)
     finally:
@@ -877,9 +1001,11 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
                     page_candidates.append(candidate)
                     if not _is_weak_ocr_text(candidate):
                         break
-            ocr_texts.append(_best_text_candidate(page_candidates, ocr_runtime=ocr_runtime))
+            best_page_text = _best_text_candidate(page_candidates, ocr_runtime=ocr_runtime)
+            ocr_texts.append(best_page_text)
         combined = "\n\n".join(t for t in ocr_texts if t)
         if combined.strip():
+            combined_quality = _estimate_text_quality(combined, ocr_runtime=ocr_runtime)
             return {
                 "text": combined,
                 "pages": len(doc2),
@@ -887,7 +1013,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
                 "format": "PDF_OCR",
                 "vision_image_bytes": vision_image_bytes,
                 "page_texts": ocr_texts,
-                "ocr_quality_score": 0.0,
+                "ocr_quality_score": float(combined_quality.get("score") or 0.0),
             }
     except Exception as exc:
         logger.warning("PyMuPDF OCR fallback failed: %s", exc)
@@ -902,15 +1028,23 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
         ocr_texts = []
         vision_image_bytes = _image_to_jpeg_bytes(images[0]) if images else None
         for img in images:
-            ocr_texts.append(_ocr_image(img))
+            ocr_texts.append(
+                _ocr_image_candidates(
+                    img,
+                    allow_easyocr=_easyocr_enabled_for_pdf(config),
+                    allow_rescue_variants=False,
+                )
+            )
+        combined = "\n\n".join(ocr_texts)
+        combined_quality = _estimate_text_quality(combined, ocr_runtime=ocr_runtime)
         return {
-            "text": "\n\n".join(ocr_texts),
+            "text": combined,
             "pages": len(images),
             "structured_data": None,
             "format": "PDF_OCR",
             "vision_image_bytes": vision_image_bytes,
             "page_texts": ocr_texts,
-            "ocr_quality_score": 0.0,
+            "ocr_quality_score": float(combined_quality.get("score") or 0.0),
         }
     except Exception as exc:
         logger.warning("pdf2image OCR fallback failed: %s", exc)
@@ -962,51 +1096,20 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
 
     text = _ocr_image(img)
     vision_image_bytes = _image_to_jpeg_bytes(img)
+    ocr_quality = _estimate_text_quality(text, ocr_runtime=config)
     return {
         "text": text,
         "pages": 1,
         "structured_data": None,
         "format": "IMAGE_OCR",
         "vision_image_bytes": vision_image_bytes,
+        "ocr_quality_score": float(ocr_quality.get("score") or 0.0),
     }
 
 
 def _ocr_image(img: Image.Image) -> str:
     """Run Tesseract OCR on a PIL Image."""
-    candidates: list[str] = []
-    config = _ocr_runtime_config()
-    variants = _iter_ocr_variants(img)
-    primary_variants, rescue_variants = _partition_ocr_variants(
-        variants,
-        list(config["primary_variant_labels"]),
-    )
-    try:
-        for variant in itertools.chain(primary_variants, rescue_variants):
-            psm_modes = (
-                config["primary_psm_modes"]
-                if variant in primary_variants
-                else config["rescue_psm_modes"]
-            )
-            cleaned = _run_tesseract(variant, psm_modes=psm_modes)
-            if cleaned:
-                candidates.append(cleaned)
-            if cleaned and not _is_weak_ocr_text(cleaned):
-                logger.info(
-                    "Tesseract OCR accepted variant=%s words=%s chars=%s",
-                    _variant_label(variant) or "unknown",
-                    *_ocr_text_score(cleaned),
-                )
-                return cleaned
-        logger.info(
-            "Tesseract OCR weak output detected across variants; skipping non-native fallback"
-        )
-    except Exception as exc:
-        logger.warning("Tesseract OCR failed: %s", exc)
-
-    if not candidates:
-        return ""
-
-    return _best_text_candidate(candidates, ocr_runtime=config)
+    return _ocr_image_candidates(img, allow_easyocr=True, allow_rescue_variants=True)
 
 
 def _normalize_header(h: Any, idx: int) -> str:

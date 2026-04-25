@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import tenantApi from '../shared/api/client'
 import { TENANT_ONBOARDING } from '@shared/endpoints'
 import { useToast, getErrorMessage } from '../shared/toast'
+import PageContainer from '../components/PageContainer'
 
 type Step = 'info' | 'regional' | 'branding' | 'review'
 
@@ -267,7 +268,7 @@ export default function Onboarding() {
   const languageLabel = normalizeLanguage(formData.default_language) === 'es' ? 'Español' : 'English'
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
+    <PageContainer className="min-h-screen bg-slate-50">
       <div className="max-w-2xl mx-auto">
 
         {/* Header con sector */}
@@ -539,6 +540,6 @@ export default function Onboarding() {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   )
 }

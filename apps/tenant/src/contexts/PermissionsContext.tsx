@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import type { MeCompany } from '../auth/AuthContext'
 import { apiFetch } from '../lib/http'
+
+type MeCompanyExtended = MeCompany & {
+  is_company_admin?: boolean
+  is_admin_empresa?: boolean
+}
 
 /**
  * PermissionsContext
@@ -120,7 +126,8 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
 
     // Si el profile del AuthContext ya tiene permisos, los usamos directamente
     // evitando una llamada extra a /me/tenant
-    const profilePermisos = (profile as any)?.permisos || (profile as any)?.permissions
+    const extProfile = profile as MeCompanyExtended | null
+    const profilePermisos = extProfile?.permisos || extProfile?.permissions
     const fromProfile = normalizePermissions(profilePermisos)
     if (Object.keys(fromProfile).length > 0) {
       setPermisos(fromProfile)
@@ -154,10 +161,11 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
   }, [token, profile])
 
   const tokenPayload = useMemo(() => parseTokenPayload(token), [token])
+  const extProfile = profile as MeCompanyExtended | null
   const isCompanyAdmin =
     Boolean(profile?.es_admin_empresa) ||
-    Boolean((profile as any)?.is_company_admin) ||
-    Boolean((profile as any)?.is_admin_empresa) ||
+    Boolean(extProfile?.is_company_admin) ||
+    Boolean(extProfile?.is_admin_empresa) ||
     Boolean(tokenPayload?.es_admin_empresa) ||
     Boolean(tokenPayload?.is_company_admin) ||
     Boolean(tokenPayload?.is_admin_empresa)

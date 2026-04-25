@@ -48,7 +48,7 @@ export async function listProducts(params?: { q?: string; limit?: number }) {
   // Use tenant-scoped endpoint; compatible with both array and {items}
   const { data } = await api.get<Product[] | { items?: Product[] }>('/api/v1/tenant/products', { params })
   if (Array.isArray(data)) return data
-  const items = (data as any)?.items
+  const items = (data as { items?: Product[] }).items
   return Array.isArray(items) ? items : []
 }
 
@@ -57,7 +57,7 @@ export async function listRawMaterials(params?: { q?: string; limit?: number }) 
     params,
   })
   if (Array.isArray(data)) return data.map(normalizeProduct)
-  const items = (data as any)?.items
+  const items = (data as { items?: Product[] }).items
   return Array.isArray(items) ? items.map(normalizeProduct) : []
 }
 

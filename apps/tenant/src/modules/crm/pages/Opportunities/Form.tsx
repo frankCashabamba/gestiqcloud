@@ -4,6 +4,7 @@ import { createOpportunity, getOpportunity, updateOpportunity, type Opportunity 
 import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { OpportunityStage } from '../../types'
+import PageContainer from '../../../../components/PageContainer'
 
 export default function OpportunityForm() {
   const { id } = useParams()
@@ -44,7 +45,7 @@ export default function OpportunityForm() {
   }
 
   return (
-    <div className="p-4">
+    <PageContainer>
       <h3 className="text-xl font-semibold mb-3">{id ? t('opportunities.edit') : t('opportunities.new')}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>
@@ -178,6 +179,6 @@ export default function OpportunityForm() {
           <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>{t('opportunities.cancel')}</button>
         </div>
       </form>
-    </div>
+    </PageContainer>
   )
 }

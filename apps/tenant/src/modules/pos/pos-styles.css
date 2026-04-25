@@ -511,7 +511,7 @@
 
 .tpv .catalog {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(155px, 220px));
   gap: 8px;
   overflow: auto;
   padding: 2px;
@@ -520,13 +520,13 @@
 
 @media (max-width: 1200px) {
   .tpv .catalog {
-    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(145px, 210px));
   }
 }
 
 @media (max-width: 800px) {
   .tpv .catalog {
-    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(132px, 190px));
   }
 }
 
@@ -561,6 +561,19 @@
   color: var(--pos-price-text);
   font-size: 11px;
   font-weight: 600;
+}
+
+@media (min-width: 1440px) {
+  .tpv .tile {
+    min-height: 72px;
+    font-size: 13px;
+  }
+  .tpv .tile strong {
+    font-size: 13px;
+  }
+  .tpv .tile small {
+    font-size: 12px;
+  }
 }
 
 .tpv .tile .tags {
@@ -957,7 +970,7 @@
   }
 
   .tpv .catalog {
-    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(124px, 190px));
     gap: 8px;
   }
 

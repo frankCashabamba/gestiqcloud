@@ -4,7 +4,7 @@ Tests for validation decorators.
 
 import pytest
 from uuid import UUID, uuid4
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session
@@ -115,9 +115,7 @@ class TestValidateResourceExists:
         )
 
         # Verify get_resource was called correctly
-        self.mock_get_resource.assert_called_once_with(
-            Mock(), self.tenant_id, self.resource_id
-        )
+        self.mock_get_resource.assert_called_once_with(ANY, self.tenant_id, self.resource_id)
         assert result == mock_resource
 
     def test_resource_not_found_raises_404(self):
@@ -291,16 +289,14 @@ class TestTenantRequired:
         decorator = tenant_required
 
         @decorator
-        def test_function(request, other_param):
-            return other_param
+        def test_function(request, other_param, tenant_id=None):
+            return other_param, tenant_id
 
         result = test_function(request=mock_request, other_param="test")
 
         # Verify extract_tenant_id was called
         mock_extract.assert_called_once_with(mock_request)
-
-        # Note: This test would need to be adapted for the actual decorator implementation
-        # since it modifies kwargs dynamically
+        assert result == ("test", "tenant-123")
 
     def test_missing_request_raises_500(self):
         """Test missing request parameter raises 500."""

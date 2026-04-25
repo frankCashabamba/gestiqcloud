@@ -16,6 +16,8 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import { getDefaultReorderPoint, getCompanySettings } from '../../services/companySettings'
 import { isStandardUnitCode } from '../../services/unitService'
 
+import PageContainer from '../../components/PageContainer'
+
 // ─── Caché de módulo (persiste entre navegaciones, TTL 3 min) ─────────────────
 let _stockCache: { items: StockItem[]; warehouses: Warehouse[]; ts: number } | null = null
 const STOCK_CACHE_TTL = 3 * 60 * 1000
@@ -286,7 +288,7 @@ export default function StockList() {
   }, [items])
 
   return (
-    <>
+    <PageContainer>
     {quickAdjust.open && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setQuickAdjust(EMPTY_QUICK)}>
         <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
@@ -376,7 +378,7 @@ export default function StockList() {
         </div>
       </div>
     )}
-    <div className="p-6">
+    <div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('inventory:stock.title')}</h1>
@@ -622,6 +624,6 @@ export default function StockList() {
         </div>
       )}
     </div>
-    </>
+    </PageContainer>
   )
 }

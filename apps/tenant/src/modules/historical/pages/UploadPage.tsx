@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { uploadFile, type HistImport } from '../services'
+import PageContainer from '../../../components/PageContainer'
 
 const IMPORT_TYPES = [
   { value: 'sales', label: 'Ventas' },
@@ -54,7 +55,8 @@ export default function UploadPage() {
   }
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 720, margin: '0 auto', display: 'grid', gap: '1rem' }}>
+    <PageContainer>
+      <div style={{ display: 'grid', gap: '1rem' }}>
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => navigate('../imports')}
@@ -173,6 +175,7 @@ export default function UploadPage() {
           <strong>Error:</strong> {error}
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   )
 }

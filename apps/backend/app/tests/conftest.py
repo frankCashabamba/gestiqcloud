@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event
+from sqlalchemy import event, text
 
 # Ensure repository root is on sys.path so `apps.*` imports always resolve,
 # regardless of PYTHONPATH overrides when running tests individually.
@@ -124,6 +124,8 @@ def _load_all_models():
         "app.models.company.settings",
         # Tenancy model so SQLite create_all creates the tenants table used by admin flows
         "app.models.tenant",
+        # Core modules and links used by module assignment flows
+        "app.models.core.module",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
         "app.models.core.clients",
         "app.models.core.facturacion",
@@ -347,6 +349,23 @@ def db():
 
 def _ensure_ui_field_config_scope_rules(session) -> None:
     from app.models.core.ui_field_config import UiFieldConfigScopeRule
+
+    bind = session.get_bind()
+    if bind is not None and bind.dialect.name == "sqlite":
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS ui_field_config_scope_rules (
+                    id VARCHAR(36) NOT NULL PRIMARY KEY,
+                    scope_type VARCHAR(32) NOT NULL,
+                    scope_value VARCHAR(255) NOT NULL,
+                    action VARCHAR(16) NOT NULL,
+                    reason TEXT,
+                    active BOOLEAN NOT NULL
+                )
+                """
+            )
+        )
 
     desired_rules = [
         {

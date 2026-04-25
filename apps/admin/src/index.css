@@ -385,7 +385,7 @@ input:focus { border-color: var(--gc-primary); box-shadow: 0 0 0 3px var(--color
 .btn:hover:not(:disabled) { background: var(--gc-primary-dark); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .error { color: var(--gc-danger); background: color-mix(in srgb, var(--gc-danger) 6%, white); border: 1px solid color-mix(in srgb, var(--gc-danger) 25%, transparent); border-radius: var(--gc-radius-md); padding: .5rem .75rem; font-size: .875rem; }
-.header { max-width: 960px; margin: 1rem auto; display: flex; justify-content: space-between; align-items: center; }
+.header { max-width: var(--admin-page-max); margin: 1rem auto; display: flex; justify-content: space-between; align-items: center; }
 .header button { background: var(--gc-surface); border: 1px solid var(--gc-border); border-radius: var(--gc-radius-md); padding: .5rem .75rem; }
 pre { background: var(--gc-bg); border: 1px solid var(--gc-border); border-radius: var(--gc-radius-lg); padding: 1rem; overflow: auto; }
 .center { display: grid; place-items: center; height: 100%; }

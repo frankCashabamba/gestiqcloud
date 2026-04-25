@@ -27,6 +27,10 @@ from app.config.database import Base
 UUID_COL = PGUUID(as_uuid=True)
 
 
+def _sqlite_json_array(item_type):
+    return ARRAY(item_type).with_variant(JSON(), "sqlite")
+
+
 class ImpDocumento(Base):
     __tablename__ = "imp_documento"
     __table_args__ = {"extend_existing": True}
@@ -553,17 +557,17 @@ class ImpReviewSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     filter_estados: Mapped[list[str]] = mapped_column(
-        ARRAY(String), nullable=False, server_default=text("'{}'")
+        _sqlite_json_array(String), nullable=False, server_default=text("'{}'")
     )
     filter_error_codes: Mapped[list[str]] = mapped_column(
-        ARRAY(String), nullable=False, server_default=text("'{}'")
+        _sqlite_json_array(String), nullable=False, server_default=text("'{}'")
     )
     filter_campos: Mapped[list[str]] = mapped_column(
-        ARRAY(String), nullable=False, server_default=text("'{}'")
+        _sqlite_json_array(String), nullable=False, server_default=text("'{}'")
     )
     filter_columns: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
     filter_lines: Mapped[list[int]] = mapped_column(
-        ARRAY(Integer), nullable=False, server_default=text("'{}'")
+        _sqlite_json_array(Integer), nullable=False, server_default=text("'{}'")
     )
     filter_sheet: Mapped[str | None] = mapped_column(String(200), nullable=True)
     preview_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -672,7 +676,7 @@ class ImpDocTypeTemplate(Base):
 
     min_confidence_para_skip: Mapped[float] = mapped_column(Float, nullable=False, default=0.80)
     campos_requeridos: Mapped[list] = mapped_column(
-        ARRAY(String), nullable=False, server_default=text("'{}'")
+        _sqlite_json_array(String), nullable=False, server_default=text("'{}'")
     )
 
     # Stats de uso y aprendizaje

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,7 @@ from app.config.database import get_db
 from app.modules.products.interface.http.tenant import (
     CategoryOut,
     ProductOut,
+    _empresa_id_from_request,
     get_categories_for_request,
     list_products,
     protected,
@@ -39,6 +42,10 @@ def public_list_products(
     offset: int = Query(default=0, ge=0),
 ):
     """Public endpoint for listing products (no auth required)"""
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        return []
+
     return list_products(
         request=request,
         db=db,
@@ -47,5 +54,5 @@ def public_list_products(
         active=activo,
         limit=limit,
         offset=offset,
-        _tid="",  # Will be extracted from request
+        tenant_id=UUID(tenant_id),
     )

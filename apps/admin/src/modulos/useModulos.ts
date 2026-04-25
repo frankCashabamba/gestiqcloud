@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { AxiosRequestConfig } from "axios";
 
 import api from "../utils/axios";
 
@@ -87,7 +88,7 @@ export function useModulos(): UseModulosResult {
         setError(null);
         const res = await api.get<BackendModulo[]>(
           "/v1/admin/modules/public",
-          { signal: ac.signal } as any
+          { signal: ac.signal } as AxiosRequestConfig
         );
         const data = res.data || [];
         const dedup = new Map<string, Modulo>();

@@ -76,3 +76,24 @@ def test_normalize_analysis_output_scales_percentage_confidence_to_unit_interval
         "reasoning": "Spreadsheet looked highly consistent",
         "fields": {},
     }
+
+
+@pytest.mark.no_db
+def test_normalize_analysis_output_preserves_field_confidences_and_review_flag():
+    result = _normalize_analysis_output(
+        {
+            "doc_type": "invoice",
+            "confidence": 0.91,
+            "reasoning": "Detected invoice data",
+            "fields": {"vendor": "ACME", "total_amount": 123.45},
+            "field_confidences": {
+                "vendor": {"value": "ACME", "confidence": 0.62},
+                "total_amount": {"value": 123.45, "confidence": 0.91},
+            },
+            "requires_review": True,
+        }
+    )
+
+    assert result["doc_type"] == "INVOICE"
+    assert result["field_confidences"]["vendor"]["confidence"] == 0.62
+    assert result["requires_review"] is True

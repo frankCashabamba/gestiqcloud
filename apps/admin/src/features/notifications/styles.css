@@ -17,7 +17,7 @@
   background: var(--notification-bg);
   border: 1px solid var(--notification-border);
   border-radius: 0.75rem;
-  max-width: 800px;
+  max-width: 800px; /* component-scoped width, not a page layout — intentional */
   margin: 0 auto;
 }
 

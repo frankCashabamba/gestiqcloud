@@ -6,6 +6,7 @@ import {
   fetchSnapshots, createSnapshot,
   type Recipe, type RecipeDraft, type RecipeSnapshot,
 } from '../services'
+import PageContainer from '../../../components/PageContainer'
 
 export default function RecipeManager() {
   const navigate = useNavigate()
@@ -126,7 +127,7 @@ export default function RecipeManager() {
   }
 
   return (
-    <>
+    <PageContainer>
       <style>{`
         @media (max-width: 980px) {
           .recipe-manager__layout {
@@ -149,7 +150,7 @@ export default function RecipeManager() {
         }
       `}</style>
 
-      <div className="recipe-manager" style={{ padding: '1.5rem', display: 'grid', gap: '1rem' }}>
+      <div className="recipe-manager" style={{ display: 'grid', gap: '1rem' }}>
         <button
           onClick={() => navigate('../documents', { replace: true })}
           style={{
@@ -450,7 +451,7 @@ export default function RecipeManager() {
           </section>
         </div>
       </div>
-    </>
+    </PageContainer>
   )
 }
 

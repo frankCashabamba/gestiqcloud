@@ -1,7 +1,7 @@
 /* Admin Panel – Unified with GestiqCloud Design System */
 
 .admin-container {
-  max-width: 1120px;
+  max-width: var(--admin-page-max);
   margin: 0 auto;
   padding: 1.5rem var(--gc-page-x, 1.25rem);
 }
@@ -145,7 +145,7 @@
 @media (min-width: 640px) {
   .admin-grid { grid-template-columns: repeat(2, 1fr); }
 }
-@media (min-width: 960px) {
+@media (min-width: 1024px) {
   .admin-grid { grid-template-columns: repeat(3, 1fr); }
 }
 

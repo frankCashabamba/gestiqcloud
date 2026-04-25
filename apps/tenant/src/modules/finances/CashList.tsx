@@ -7,6 +7,7 @@ import type { Movimiento } from './types'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { PAGINATION_DEFAULTS } from '../../constants/defaults'
+import PageContainer from '../../components/PageContainer'
 
 export default function CajaList() {
     const nav = useNavigate()
@@ -89,7 +90,7 @@ export default function CajaList() {
     if (loading) return <div className="p-4 text-sm text-gray-500">{t('finances:cash.loading')}</div>
 
     return (
-        <div className="p-4">
+        <PageContainer>
             <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold text-lg">{t('finances:cash.title')}</h2>
@@ -285,6 +286,6 @@ export default function CajaList() {
             </div>
 
             <Pagination page={page} setPage={setPage} totalPages={totalPages} />
-        </div>
+        </PageContainer>
     )
 }

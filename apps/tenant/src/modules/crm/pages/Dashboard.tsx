@@ -8,6 +8,7 @@ import { usePermission } from '../../../hooks/usePermission'
 import { useCurrency } from '../../../hooks/useCurrency'
 import PermissionDenied from '../../../components/PermissionDenied'
 import type { CRMDashboard } from '../types'
+import PageContainer from '../../../components/PageContainer'
 
 export default function CRMDashboard() {
   const { t: tCommon } = useTranslation('common')
@@ -46,7 +47,7 @@ export default function CRMDashboard() {
   const lostOpportunities = metrics.opportunities.by_stage?.closed_lost ?? 0
 
   return (
-    <div className="p-4">
+    <PageContainer>
       <h2 className="text-2xl font-bold mb-6">{t('dashboard.title')}</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -128,6 +129,6 @@ export default function CRMDashboard() {
           <p className="text-2xl font-bold text-red-800">{lostOpportunities}</p>
         </div>
         </div>
-    </div>
+    </PageContainer>
   )
 }

@@ -25,6 +25,14 @@ export interface ActionConfig<T> {
   href?: (item: T) => string
 }
 
+export interface BulkActionConfig<T> {
+  key: string
+  label: string
+  icon?: React.ReactNode
+  onClick?: (items: T[]) => void
+  variant?: 'primary' | 'secondary' | 'danger'
+}
+
 export interface SortConfig {
   sortBy?: string
   order?: 'asc' | 'desc'
@@ -40,7 +48,7 @@ export interface GenericListProps<T> {
 
   // Configuración de acciones
   actions?: ActionConfig<T>[]
-  bulkActions?: ActionConfig<T>[]
+  bulkActions?: BulkActionConfig<T>[]
 
   // Configuración de visualización
   title?: string
@@ -182,8 +190,8 @@ export function GenericList<T = any>({
     action.onClick?.(item, index)
   }
 
-  const handleBulkAction = (action: ActionConfig<T>) => {
-    action.onClick?.(selectedItems as unknown as T, 0)
+  const handleBulkAction = (action: BulkActionConfig<T>) => {
+    action.onClick?.(selectedItems)
   }
 
   // Render functions
@@ -327,7 +335,7 @@ export function GenericList<T = any>({
           <span className="selected-count">
             {selectedItems.length} seleccionados
           </span>
-          {bulkActions.map(action => (
+          {bulkActions.map((action: BulkActionConfig<T>) => (
             <button
               key={action.key}
               className={`btn btn-sm btn-${action.variant || 'secondary'}`}
@@ -385,7 +393,7 @@ export function GenericList<T = any>({
 
               return (
                 <tr
-                  key={(item as any).id || index}
+                  key={String((item as Record<string, unknown>).id ?? index)}
                   className={`
                     ${isSelected ? 'selected' : ''}
                     ${rowClass}

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { listSales, type HistSale, type PaginatedResponse } from '../services'
+import PageContainer from '../../../components/PageContainer'
 
 const EMPTY: PaginatedResponse<HistSale> = { items: [], total: 0, page: 1, page_size: 50 }
 
@@ -28,7 +29,7 @@ export default function SalesPage() {
   const totalPages = Math.ceil(data.total / (data.page_size || 50)) || 1
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 1100, margin: '0 auto' }}>
+    <PageContainer>
       <h1 style={{ margin: '0 0 1rem', fontSize: 24, color: '#0f172a' }}>Ventas históricas</h1>
 
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -87,7 +88,7 @@ export default function SalesPage() {
           </div>
         </>
       )}
-    </div>
+    </PageContainer>
   )
 }
 

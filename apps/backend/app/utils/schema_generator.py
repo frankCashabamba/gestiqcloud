@@ -56,15 +56,23 @@ def create_catalog_schemas(
 
     # Create Update schema (all fields optional)
     update_fields = {}
+
+    def _optional_annotation(annotation: Any) -> Any:
+        if isinstance(annotation, str):
+            return annotation if "None" in annotation else f"{annotation} | None"
+        try:
+            return annotation | None
+        except TypeError:
+            return annotation
+
     for field_name, field_type in base_fields.items():
         if field_name == "tenant_id":
             continue  # Don't allow updating tenant_id
-        # Make fields optional for update
+        # Make fields optional for update without turning them into required fields again.
         if isinstance(field_type, tuple):
-            field_type = (field_type[0] | None, field_type[1])
+            update_fields[field_name] = (_optional_annotation(field_type[0]), None)
         else:
-            field_type = (field_type | None, Field(...))
-        update_fields[field_name] = field_type
+            update_fields[field_name] = (_optional_annotation(field_type), None)
 
     UpdateSchema = create_model(
         f"{model_name}Update",

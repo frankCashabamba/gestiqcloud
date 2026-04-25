@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listImports, deleteImport, type HistImport } from '../services'
+import PageContainer from '../../../components/PageContainer'
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   completed: { label: 'Completado', color: '#166534', bg: '#dcfce7' },
@@ -55,7 +56,7 @@ export default function ImportsPage() {
   }
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 1100, margin: '0 auto' }}>
+    <PageContainer>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <h1 style={{ margin: 0, fontSize: 24, color: '#0f172a' }}>Importaciones históricas</h1>
         <button
@@ -129,7 +130,7 @@ export default function ImportsPage() {
           </table>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }
 

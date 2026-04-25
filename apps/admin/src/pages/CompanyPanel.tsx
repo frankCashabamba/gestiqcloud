@@ -7,6 +7,7 @@ import { Container } from './Container';
 import { DeleteAllCompaniesModal } from '../components/DeleteAllCompaniesModal';
 import { DeleteEmpresaModal } from '../components/DeleteCompanyModal';
 import { useEmpresas } from '../hooks/useEmpresas';
+import type { Empresa } from '../typesall/empresa';
 import { deleteAllEmpresas, deleteEmpresa, purgeOrphanCompanyData } from '../services/empresa';
 
 export const EmpresaPanel: React.FC = () => {
@@ -74,7 +75,7 @@ export const EmpresaPanel: React.FC = () => {
       if (status !== 404) throw e;
 
       // Fallback for older backends where /bulk/delete-all is not deployed yet.
-      const targets = empresasDisponibles.map((empresa: any) => ({
+      const targets = empresasDisponibles.map((empresa: Empresa) => ({
         id: String(empresa?.id ?? empresa?.tenant_id ?? '').trim(),
         name: String(empresa?.nombre ?? empresa?.name ?? ''),
       })).filter((x) => x.id);
@@ -184,10 +185,10 @@ export const EmpresaPanel: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {empresasFiltradas.map((empresa) => {
-                const empresaId = String((empresa as any)?.id ?? (empresa as any)?.tenant_id ?? '').trim();
-                const nombreEmpresa = empresa?.nombre || (empresa as any)?.name || 'Sin nombre';
-                const modulos = (empresa as any)?.modulos || (empresa as any)?.modules || [];
+              {empresasFiltradas.map((empresa: Empresa) => {
+                const empresaId = String(empresa?.id ?? empresa?.tenant_id ?? '').trim();
+                const nombreEmpresa = empresa?.nombre || empresa?.name || 'Sin nombre';
+                const modulos = empresa?.modulos || empresa?.modules || [];
                 return (
                   <tr key={empresaId || String(empresa.id)}>
                     <td style={{ fontWeight: 600 }}>{nombreEmpresa}</td>

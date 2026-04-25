@@ -2,6 +2,8 @@ export interface Empresa {
   id: number;
   nombre: string;
   name?: string;
+  tenant_id?: string;
+  modules?: string[];
   modulos?: string[];
 }
 

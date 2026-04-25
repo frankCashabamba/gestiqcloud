@@ -8,6 +8,7 @@ export type Movimiento = {
   cuenta?: string
   conciliado?: boolean
   created_at?: string
+  updated_at?: string
 }
 
 export type MovimientoBanco = Movimiento & {

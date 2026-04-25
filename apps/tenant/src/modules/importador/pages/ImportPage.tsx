@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ImportIntake from '../components/ImportIntake'
+import PageContainer from '../../../components/PageContainer'
 
 export default function ImportPage() {
   const navigate = useNavigate()
@@ -18,17 +19,8 @@ export default function ImportPage() {
   }
 
   return (
-    <div
-      style={{
-        padding: '1.5rem',
-        width: '100%',
-        maxWidth: 1080,
-        margin: '0 auto',
-        display: 'grid',
-        gap: '1rem',
-        boxSizing: 'border-box',
-      }}
-    >
+    <PageContainer>
+      <div style={{ display: 'grid', gap: '1rem' }}>
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => navigate('../documents')}
@@ -86,6 +78,7 @@ export default function ImportPage() {
         documentPathBuilder={(docId) => `../documents/${docId}`}
         compact
       />
-    </div>
+      </div>
+    </PageContainer>
   )
 }

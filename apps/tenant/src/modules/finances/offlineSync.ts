@@ -26,14 +26,14 @@ export const CashflowAdapter: SyncAdapter = {
 
   async create(data: any): Promise<Movimiento> {
     const mov = await createMovimientoCaja(data)
-    const remoteVersion = (mov as any)?.updated_at ? new Date((mov as any).updated_at as string).getTime() : Date.now()
+    const remoteVersion = mov.updated_at ? new Date(mov.updated_at).getTime() : Date.now()
     await storeEntity('cashflow', String(mov.id), mov, 'synced', remoteVersion)
     return mov
   },
 
   async update(id: string, data: any): Promise<Movimiento> {
     const mov = await updateMovimientoCaja(id, data)
-    const remoteVersion = (mov as any)?.updated_at ? new Date((mov as any).updated_at as string).getTime() : Date.now()
+    const remoteVersion = mov.updated_at ? new Date(mov.updated_at).getTime() : Date.now()
     await storeEntity('cashflow', String(id), mov, 'synced', remoteVersion)
     return mov
   },
@@ -45,8 +45,8 @@ export const CashflowAdapter: SyncAdapter = {
   async getRemoteVersion(id: string): Promise<number> {
     try {
       const mov = await getMovimientoCaja(id)
-      const timestamp = (mov as any)?.updated_at ?? (mov as any)?.fecha ?? (mov as any)?.created_at
-      return timestamp ? new Date(timestamp as string).getTime() : 0
+      const timestamp = mov.updated_at ?? mov.fecha ?? mov.created_at
+      return timestamp ? new Date(timestamp).getTime() : 0
     } catch {
       return 0
     }
