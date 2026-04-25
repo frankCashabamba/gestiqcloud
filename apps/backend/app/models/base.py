@@ -5,10 +5,10 @@ Base models for common patterns in the application.
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, String, Text, func, ForeignKey
+from sqlalchemy import Boolean, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
 
@@ -55,7 +55,6 @@ class BaseCatalogModel(Base):
         default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
     )
 
-    
     # Backward compatibility alias for active -> is_active
     @hybrid_property
     def active(self) -> bool:

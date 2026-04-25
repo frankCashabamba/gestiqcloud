@@ -69,8 +69,12 @@ class CompanySettings(Base):
         DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
-    language_id: Mapped[UUID | None] = mapped_column(TENANT_UUID, ForeignKey("languages.id"), nullable=True)
-    currency_id: Mapped[UUID | None] = mapped_column(TENANT_UUID, ForeignKey("currencies.id"), nullable=True)
+    language_id: Mapped[UUID | None] = mapped_column(
+        TENANT_UUID, ForeignKey("languages.id"), nullable=True
+    )
+    currency_id: Mapped[UUID | None] = mapped_column(
+        TENANT_UUID, ForeignKey("currencies.id"), nullable=True
+    )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
 

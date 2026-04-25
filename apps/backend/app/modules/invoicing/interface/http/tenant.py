@@ -431,8 +431,7 @@ def get_invoice_by_id(
             "id": getattr(cliente_obj, "id", None),
             "name": getattr(cliente_obj, "name", "") or "",
             "email": getattr(cliente_obj, "email", "") or "",
-            "tax_id": getattr(cliente_obj, "tax_id", "")
-            or "",
+            "tax_id": getattr(cliente_obj, "tax_id", "") or "",
         }
 
     return {

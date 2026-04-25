@@ -7,7 +7,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 ProductionOrderStatus = Literal["DRAFT", "SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
 
 

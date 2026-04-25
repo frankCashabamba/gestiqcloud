@@ -9,9 +9,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 MovementType = Literal["INCOME", "EXPENSE", "ADJUSTMENT"]
-CashCategory = Literal["SALE", "PURCHASE", "EXPENSE", "PAYROLL", "BANK", "CHANGE", "ADJUSTMENT", "OTHER"]
+CashCategory = Literal[
+    "SALE", "PURCHASE", "EXPENSE", "PAYROLL", "BANK", "CHANGE", "ADJUSTMENT", "OTHER"
+]
 
 
 class CashMovementBase(BaseModel):

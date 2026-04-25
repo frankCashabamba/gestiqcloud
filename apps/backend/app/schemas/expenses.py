@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 ExpenseStatus = Literal["draft", "approved", "paid", "cancelled"]
 PaymentMethod = Literal["cash", "card", "transfer", "check"]
 

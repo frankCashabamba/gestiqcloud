@@ -553,8 +553,6 @@ def canonicalize_module_id(module_id: str | None) -> str | None:
     return normalized
 
 
-
-
 def _module_catalog_id(module_row: Module) -> str | None:
     """Resuelve el catalog_id canónico de una fila de la tabla modules."""
     context_filters = getattr(module_row, "context_filters", None) or {}

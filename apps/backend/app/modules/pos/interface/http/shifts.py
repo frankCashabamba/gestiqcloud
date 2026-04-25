@@ -235,8 +235,7 @@ def get_shift_summary(
             text(
                 "SELECT COUNT(*) FROM pos_receipts "
                 "WHERE shift_id = :sid AND tenant_id = :tid"
-                " AND status IN ('draft', 'unpaid')"
-                + cashier_filter_no_alias
+                " AND status IN ('draft', 'unpaid')" + cashier_filter_no_alias
             ).bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("tid", type_=PGUUID(as_uuid=True)),

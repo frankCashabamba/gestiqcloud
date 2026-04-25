@@ -1123,9 +1123,9 @@ def list_order_costs(
         )
     ).scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     if not _order_costs_storage_available(db):
         return []
 
@@ -1153,9 +1153,9 @@ def replace_order_costs(
         )
     ).scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     if order.status == "COMPLETED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1229,9 +1229,9 @@ async def get_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     return order
 
 
@@ -1250,9 +1250,9 @@ async def update_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     if order.status not in ["DRAFT", "SCHEDULED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1280,9 +1280,9 @@ async def delete_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     if order.status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1307,9 +1307,9 @@ async def start_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     if order.status not in ["DRAFT", "SCHEDULED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1344,9 +1344,9 @@ async def complete_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     if order.status in ["DRAFT", "SCHEDULED"]:
         order.started_at = order.started_at or request.completed_at or datetime.now(UTC)
         order.status = "IN_PROGRESS"
@@ -1408,9 +1408,9 @@ async def cancel_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+        )
     if order.status == "COMPLETED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

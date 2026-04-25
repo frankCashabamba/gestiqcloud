@@ -9,6 +9,7 @@ from app.modules.importador.ai_classifier import (
     _extract_labeled_amount,
     _extract_vendor_name_from_ocr,
 )
+from app.modules.importador.document_pipeline_router import decide_import_pipeline
 from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
 from app.modules.importador.processing_service import (
     _STRUCTURED_SKIP_FORMATS,
@@ -16,8 +17,8 @@ from app.modules.importador.processing_service import (
     _XML_INVOICE_FORMATS,
     _XML_TIPO_DOCUMENTO_MAP,
     RecipeContext,
-    _analysis_requires_review_from_field_confidences,
     _analysis_indicates_ai_failure,
+    _analysis_requires_review_from_field_confidences,
     _analyze_with_context,
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
@@ -136,14 +137,100 @@ def test_analysis_requires_review_from_field_confidences_detects_weak_critical_f
     }
 
     assert _analysis_requires_review_from_field_confidences(analysis) is True
-    assert _analysis_requires_review_from_field_confidences(
-        {
-            "field_confidences": {
-                "vendor": {"value": "ACME", "confidence": 0.82},
-                "total_amount": {"value": 123.45, "confidence": 0.94},
+    assert (
+        _analysis_requires_review_from_field_confidences(
+            {
+                "field_confidences": {
+                    "vendor": {"value": "ACME", "confidence": 0.82},
+                    "total_amount": {"value": 123.45, "confidence": 0.94},
+                }
             }
-        }
-    ) is False
+        )
+        is False
+    )
+
+
+@pytest.mark.no_db
+def test_pipeline_router_rejects_low_quality_visual_without_primary_evidence():
+    decision = decide_import_pipeline(
+        doc_format="IMAGE_OCR",
+        tipo_archivo="JPG",
+        text="NOTA DE VENTA CANT DESCRIPCION V.TOTAL ruido",
+        has_structured=False,
+        has_vision=True,
+        ocr_quality_score=0.32,
+        pre_fields={},
+        processing_cfg={
+            "pipeline_reject_low_quality_enabled": True,
+            "pipeline_reject_quality_threshold": 0.50,
+            "pipeline_reject_min_chars": 180,
+            "pipeline_reject_min_words": 45,
+            "pipeline_vision_quality_threshold": 0.68,
+            "pipeline_local_min_strong_fields": 3,
+        },
+    )
+
+    assert decision.action == "REJECT_LOW_QUALITY"
+    assert decision.skip_ai is True
+    assert decision.requires_review is True
+    assert decision.user_message
+
+
+@pytest.mark.no_db
+def test_pipeline_router_routes_printed_invoice_to_vision_when_native_evidence_incomplete():
+    decision = decide_import_pipeline(
+        doc_format="IMAGE_OCR",
+        tipo_archivo="JPG",
+        text=(
+            "FACTURA RUC DATOS DEL CLIENTE SUB TOTAL VALOR TOTAL "
+            "Codigo Principal Cantidad Descripcion Precio Total"
+        ),
+        has_structured=False,
+        has_vision=True,
+        ocr_quality_score=0.61,
+        pre_fields={"doc_number": "001-001-000120085", "issue_date": "2026-01-16"},
+        processing_cfg={
+            "pipeline_reject_low_quality_enabled": True,
+            "pipeline_reject_quality_threshold": 0.50,
+            "pipeline_reject_min_chars": 180,
+            "pipeline_reject_min_words": 45,
+            "pipeline_vision_quality_threshold": 0.68,
+            "pipeline_local_min_strong_fields": 3,
+        },
+    )
+
+    assert decision.family == "PRINTED_INVOICE"
+    assert decision.action == "VISION_FALLBACK"
+    assert decision.force_vision is True
+
+
+@pytest.mark.no_db
+def test_pipeline_router_keeps_receipt_on_local_path_when_fields_are_enough():
+    decision = decide_import_pipeline(
+        doc_format="IMAGE_OCR",
+        tipo_archivo="JPG",
+        text="FACTURA SIMPLIFICADA TARJETA CAMBIO NUM. TOTAL ART. VENDIDOS ESTABLECIMIENTO",
+        has_structured=False,
+        has_vision=True,
+        ocr_quality_score=0.72,
+        pre_fields={
+            "vendor": "ALCAMPO LOGRONO",
+            "issue_date": "2026-03-27",
+            "total_amount": 19.39,
+        },
+        processing_cfg={
+            "pipeline_reject_low_quality_enabled": True,
+            "pipeline_reject_quality_threshold": 0.50,
+            "pipeline_reject_min_chars": 180,
+            "pipeline_reject_min_words": 45,
+            "pipeline_vision_quality_threshold": 0.68,
+            "pipeline_local_min_strong_fields": 3,
+        },
+    )
+
+    assert decision.family == "THERMAL_RECEIPT"
+    assert decision.action == "LOCAL_PARSER"
+    assert decision.force_vision is False
 
 
 @pytest.mark.no_db
@@ -851,6 +938,73 @@ def test_repair_pre_extracted_fields_recovers_invoice_vendor_and_concept_from_li
     assert "customer_tax_id" not in repaired
     assert "subtotal" not in repaired
     assert "tax_amount" not in repaired
+
+
+@pytest.mark.no_db
+def test_noisy_molinos_photo_ocr_repairs_vendor_total_date_and_items():
+    content = """
+    w .unos + 001-001-000120085 a
+    Miraflores, | \\cotzzsonacos :-
+    Ss MIRAFLORES S.A. 2026-01-16T08:56:16-05:00
+    RUC :1890004195001 AMBIENTE : PRODUCCION
+    Www.molinosmiraflores.com 4601202601 1890004195001 20010010001 200851234567811
+    DATOS DEL CLIENTE: MARIA AURORA CASABAMBA
+    2az6n Social / Nombres y Apellidos KUSI PANADERIA Pedido No. 115854
+    RUC / CI 4802479871001 PRODUCTO TERI Vendedor: CRISTINA RAMOS
+    Fecha de Emision viernes, 16 de enero de 2026 Fecha vencimiento: domingo, 15 de febrero de 2026
+    “HARINA-00006 (0788115386881 50.00|HARINA TRADICION PREMIUM 50 KG F/ 42.90 :
+    2,145.00
+    SUB TOTAL 15 % 0.00
+    SUB TOTAL 0% 2,145.00
+    SUB TOTAL SIN IMPUESTOS 2,145.00
+    PROPINA 9
+    VALOR TOTAL 2,148.00
+    FECHA DE ENTREGA CLIENTE> viernes, 16 de enero de 2028
+    """.strip()
+
+    repaired = _repair_pre_extracted_fields(
+        {
+            "vendor": "2az6n Social / Nombres y Apellidos KUSI PANADERIA",
+            "issue_date": "2028-01-16",
+            "total_amount": 9.0,
+            "customer_tax_id": "48024798710043",
+        },
+        content=content,
+        format_hint="IMAGE_OCR",
+        prompt_config={},
+        ocr_runtime={},
+    )
+
+    assert repaired["vendor"] == "MOLINOS MIRAFLORES S.A."
+    assert repaired["issue_date"] == "2026-01-16"
+    assert repaired["doc_number"] == "001-001-000120085"
+    assert repaired["vendor_tax_id"] == "1890004195001"
+    assert repaired["total_amount"] == 2145.0
+    assert repaired["line_items"][0]["description"] == "HARINA TRADICION PREMIUM 50 KG F"
+    assert repaired["line_items"][0]["quantity"] == 50.0
+    assert repaired["line_items"][0]["unit_price"] == 42.9
+    assert repaired["line_items"][0]["total_price"] == 2145.0
+
+
+@pytest.mark.no_db
+def test_invoice_rescue_prefers_line_item_total_over_noisy_visual_total():
+    content = """
+    Ss MIRAFLORES S.A. 2026-01-16T08:56:16-05:00
+    RUC :1890004195001
+    Www.molinosmiraflores.com
+    DATOS DEL CLIENTE: MARIA AURORA CASABAMBA
+    HARINA-00006 0788115386881 50.00|HARINA TRADICION PREMIUM 50 KG F/ 42.90 :
+    2,145.00
+    SUB TOTAL 0% 2,145.00
+    VALOR TOTAL 2,148.00
+    """.strip()
+
+    rescued = invoice_rescue_from_ocr(content)
+
+    assert rescued["vendor"] == "MOLINOS MIRAFLORES S.A."
+    assert rescued["subtotal"] == 2145.0
+    assert rescued["total_amount"] == 2145.0
+    assert len(rescued["line_items"]) == 1
 
 
 @pytest.mark.no_db

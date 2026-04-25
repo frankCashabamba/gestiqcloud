@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 TransactionStatus = Literal["pending", "cleared", "reconciled", "cancelled"]
 
 

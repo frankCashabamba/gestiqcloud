@@ -199,6 +199,8 @@ def _score_field_confidence(
     ocr_runtime: dict[str, Any],
     analysis_path: str,
 ) -> float:
+    from app.modules.importador.processing_service import _looks_like_noisy_scalar_text
+
     if value in (None, "", [], {}):
         return 0.0
 
@@ -1779,6 +1781,60 @@ def _join_multiline_table_rows(lines: list[str]) -> list[str]:
     return result
 
 
+def _join_visual_invoice_amount_rows(lines: list[str]) -> list[str]:
+    """Join photographed invoice rows where the total wrapped to the next line."""
+    result: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = str(lines[i] or "").strip()
+        if not line:
+            i += 1
+            continue
+        if i + 1 < len(lines):
+            next_line = str(lines[i + 1] or "").strip()
+            current_amounts = _extract_money_like_amounts_from_line(line)
+            next_amounts = _extract_money_like_amounts_from_line(next_line)
+            normalized = _normalize_evidence_text(line)
+            if (
+                len(current_amounts) >= 2
+                and len(next_amounts) == 1
+                and next_line.count(" ") <= 1
+                and not any(
+                    marker in normalized
+                    for marker in (
+                        "subtotal",
+                        "sub total",
+                        "total",
+                        "iva",
+                        "fecha",
+                        "ruc",
+                        "razon social",
+                        "nombres y apellidos",
+                    )
+                )
+            ):
+                result.append(f"{line} {next_line}")
+                i += 2
+                continue
+        result.append(line)
+        i += 1
+    return result
+
+
+def _token_looks_like_invoice_code(token: str) -> bool:
+    raw = str(token or "").strip()
+    if not raw:
+        return True
+    digits = _digits_only(raw)
+    if len(digits) > 8:
+        return True
+    if re.search(r"[A-Za-z]", raw) and re.search(r"\d", raw):
+        return True
+    if "-" in raw and re.search(r"[A-Za-z]", raw):
+        return True
+    return False
+
+
 def _extract_invoice_line_items_from_ocr(
     content: str,
     *,
@@ -1791,7 +1847,7 @@ def _extract_invoice_line_items_from_ocr(
     text_normalized = _normalize_evidence_text(text)
     # Pre-procesar: colapsar filas multi-línea antes del análisis token a token
     raw_lines = [str(line).strip() for line in text.splitlines() if str(line).strip()]
-    lines = _join_multiline_table_rows(raw_lines)
+    lines = _join_visual_invoice_amount_rows(_join_multiline_table_rows(raw_lines))
     if not lines:
         return []
 
@@ -1813,6 +1869,9 @@ def _extract_invoice_line_items_from_ocr(
         "entregar",
         "ambiente",
         "emision",
+        "razon social",
+        "nombres y apellidos",
+        "pedido no",
     }
     cfg = ocr_runtime or load_ocr_runtime_config(None)
     skip_markers = _runtime_normalized_text_set(
@@ -1820,10 +1879,13 @@ def _extract_invoice_line_items_from_ocr(
         "invoice_line_skip_markers",
         list(_DEFAULT_OCR_CONFIG["invoice_line_skip_markers"]),
     )
+    skip_markers.update({"razon social", "nombres y apellidos", "pedido no"})
 
     candidates: list[tuple[float, dict[str, Any]]] = []
     for raw_line in lines:
         line = _normalize_invoice_ocr_line(raw_line, ocr_runtime=cfg)
+        line = line.replace("|", " ")
+        line = re.sub(r"\s+", " ", line).strip()
         if not line:
             continue
         normalized = _normalize_evidence_text(line)
@@ -1835,6 +1897,8 @@ def _extract_invoice_line_items_from_ocr(
         for idx, token in enumerate(tokens):
             digits = _digits_only(token)
             if not digits or len(digits) > 8:
+                continue
+            if _token_looks_like_invoice_code(token):
                 continue
             # Excluir tokens con sufijo de letra (duraciones "743h", "59m", unidades "1kg")
             # — representan tiempo o unidades de medida, no cantidades ni precios
@@ -1854,12 +1918,16 @@ def _extract_invoice_line_items_from_ocr(
             continue
 
         description = " ".join(tokens[qty_idx + 1 : unit_idx]).strip()
-        description = description.replace("F/", " ").replace("F /", " ")
         # Eliminar monedas/símbolos sueltos al inicio o final y limpiar puntuación
         description = re.sub(r"^[$€£¥]\s*|[$€£¥]\s*$", "", description)
         description = " ".join(description.split()).strip(" -–—|/.,;:()[]{}")
         description = _normalize_invoice_description_strict(description)
         if not description:
+            continue
+        if _normalize_evidence_text(description) in {
+            "razon social nombres y apellidos",
+            "nombres y apellidos",
+        }:
             continue
 
         candidate_score = 0.0
@@ -1903,6 +1971,86 @@ def _extract_invoice_line_items_from_ocr(
     return [row for _score, row in sorted(deduped.values(), key=lambda item: item[0], reverse=True)]
 
 
+def _field_appears_only_after_customer_block(content: str, value: Any) -> bool:
+    value_norm = _normalize_evidence_text(value)
+    text_norm = _normalize_evidence_text(content)
+    if not value_norm or len(value_norm) < 4 or not text_norm:
+        return False
+    marker_indexes = [
+        idx
+        for marker in ("datos del cliente", "razon social", "nombres y apellidos")
+        if (idx := text_norm.find(marker)) >= 0
+    ]
+    if not marker_indexes:
+        return False
+    marker_index = min(marker_indexes)
+    return value_norm in text_norm[marker_index:] and value_norm not in text_norm[:marker_index]
+
+
+def _looks_like_customer_party_value(value: Any) -> bool:
+    norm = _normalize_evidence_text(value)
+    return any(
+        token in norm
+        for token in (
+            "razon social",
+            "nombres y apellidos",
+            "datos del cliente",
+            "cliente",
+        )
+    )
+
+
+def _line_items_total_from_fields(fields: dict[str, Any]) -> float | None:
+    items = fields.get("line_items")
+    if not isinstance(items, list):
+        return None
+    total = 0.0
+    count = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_total = safe_floatish(item.get("total_price"))
+        if item_total is None:
+            quantity = safe_floatish(item.get("quantity"))
+            unit_price = safe_floatish(item.get("unit_price"))
+            if quantity is not None and unit_price is not None:
+                item_total = round(quantity * unit_price, 2)
+        if item_total is None or item_total <= 0:
+            continue
+        total += float(item_total)
+        count += 1
+    return round(total, 2) if count else None
+
+
+def _repair_total_from_line_items_or_subtotal(fields: dict[str, Any]) -> bool:
+    current_total = safe_floatish(fields.get("total_amount"))
+    line_items_total = _line_items_total_from_fields(fields)
+    subtotal = safe_floatish(fields.get("subtotal"))
+    tax_amount = safe_floatish(fields.get("tax_amount"))
+
+    preferred: float | None = None
+    if line_items_total is not None:
+        preferred = line_items_total
+    elif subtotal is not None and (tax_amount is None or abs(float(tax_amount)) <= 0.01):
+        preferred = subtotal
+
+    if preferred is None or preferred <= 0:
+        return False
+    if current_total is None:
+        fields["total_amount"] = preferred
+        return True
+
+    tolerance = max(5.0, abs(float(current_total)) * 0.02)
+    has_matching_subtotal = subtotal is not None and abs(float(subtotal) - preferred) <= 1.0
+    clearly_too_small = float(current_total) < preferred * 0.2
+    close_ocr_digit_error = abs(float(current_total) - preferred) <= tolerance
+    if has_matching_subtotal or clearly_too_small or close_ocr_digit_error:
+        if abs(float(current_total) - preferred) > 0.01:
+            fields["total_amount"] = preferred
+            return True
+    return False
+
+
 def _apply_invoice_ocr_rescue(
     parsed: dict[str, Any],
     *,
@@ -1935,6 +2083,12 @@ def _apply_invoice_ocr_rescue(
     } or any(
         token in text_normalized
         for token in ("factura", "invoice", "nota de venta", "comprobante", "boleta")
+    ) or (
+        ("ruc" in text_normalized or re.search(r"\b\d{3}-\d{3}-\d{6,12}\b", content))
+        and any(
+            token in text_normalized
+            for token in ("valor total", "subtotal", "sub total", "datos del cliente")
+        )
     )
     if not invoice_like:
         return []
@@ -1946,9 +2100,20 @@ def _apply_invoice_ocr_rescue(
     from .field_extractors import extract_vendor_name as _unified_extract_vendor_name
 
     ocr_vendor = _unified_extract_vendor_name(text=content, ocr_runtime=ocr_runtime)
+    try:
+        from .invoice_ocr_rescue import _rescue_vendor as _rescue_invoice_vendor
+
+        rescued_vendor = _rescue_invoice_vendor(content)
+        if rescued_vendor:
+            ocr_vendor = rescued_vendor
+    except Exception:
+        pass
     current_vendor = fields.get("vendor")
     if ocr_vendor and (
-        current_vendor in (None, "") or not _value_token_evidence(text_normalized, current_vendor)
+        current_vendor in (None, "")
+        or not _value_token_evidence(text_normalized, current_vendor)
+        or _looks_like_customer_party_value(current_vendor)
+        or _field_appears_only_after_customer_block(content, current_vendor)
     ):
         fields["vendor"] = ocr_vendor
         repaired_fields.append("vendor")
@@ -2135,6 +2300,8 @@ def _apply_high_evidence_ocr_repairs(
         ai_runtime=cfg,
         ocr_runtime=ocr_runtime,
     )
+    if _repair_total_from_line_items_or_subtotal(fields):
+        invoice_repaired_fields.append("total_amount")
     if invoice_repaired_fields:
         logger.info(
             "OCR invoice rescue applied (%s): %s",
@@ -2325,11 +2492,13 @@ def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1024) -> bytes:
 
 
 def _vision_provider_config(ai_runtime: dict[str, Any]) -> dict[str, str]:
-    provider = str(
-        os.getenv("IMPORTADOR_VISION_PROVIDER")
-        or ai_runtime.get("vision_provider")
-        or "ollama"
-    ).strip().lower()
+    provider = (
+        str(
+            os.getenv("IMPORTADOR_VISION_PROVIDER") or ai_runtime.get("vision_provider") or "ollama"
+        )
+        .strip()
+        .lower()
+    )
     if provider in {"openai", "openai_compatible", "openai-compatible", "compatible"}:
         provider = "openai_compatible"
     elif provider not in {"ollama", "openai_compatible"}:
@@ -2337,11 +2506,7 @@ def _vision_provider_config(ai_runtime: dict[str, Any]) -> dict[str, str]:
 
     base_url = str(
         os.getenv("IMPORTADOR_VISION_ENDPOINT")
-        or (
-            os.getenv("OLLAMA_BASE_URL")
-            or os.getenv("OLLAMA_URL")
-            or "http://127.0.0.1:11434"
-        )
+        or (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434")
     ).rstrip("/")
     model = str(
         os.getenv("IMPORTADOR_VISION_MODEL")
@@ -2354,8 +2519,7 @@ def _vision_provider_config(ai_runtime: dict[str, Any]) -> dict[str, str]:
         or ("/api/chat" if provider == "ollama" else "/v1/chat/completions")
     ).strip()
     probe_path = str(
-        os.getenv("IMPORTADOR_VISION_PROBE_PATH")
-        or ("/api/tags" if provider == "ollama" else "")
+        os.getenv("IMPORTADOR_VISION_PROBE_PATH") or ("/api/tags" if provider == "ollama" else "")
     ).strip()
     skip_probe = str(os.getenv("IMPORTADOR_VISION_SKIP_PROBE") or "").strip().lower() in {
         "1",
@@ -2394,6 +2558,7 @@ async def _analyze_with_vision(
     import httpx
 
     ai_runtime = load_ai_runtime_config(db)
+    ocr_runtime = load_ocr_runtime_config(db)
     vision_cfg = _vision_provider_config(ai_runtime)
     vision_model = vision_cfg["model"]
     provider = vision_cfg["provider"]
@@ -2417,7 +2582,9 @@ async def _analyze_with_vision(
                     return None
                 available = [m["name"].split(":")[0] for m in tags_resp.json().get("models", [])]
                 if vision_model.split(":")[0] not in available:
-                    logger.info("Vision model '%s' not available, falling back to OCR", vision_model)
+                    logger.info(
+                        "Vision model '%s' not available, falling back to OCR", vision_model
+                    )
                     return None
     except Exception:
         return None

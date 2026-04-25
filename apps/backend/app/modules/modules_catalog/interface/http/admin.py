@@ -574,7 +574,9 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
     """
 
     override_dir = payload.get("dir") if isinstance(payload, dict) else None
-    reactivate_existing = bool(payload.get("reactivate_existing")) if isinstance(payload, dict) else False
+    reactivate_existing = (
+        bool(payload.get("reactivate_existing")) if isinstance(payload, dict) else False
+    )
 
     source = "filesystem"
     warnings: list[str] = []

@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-
 EmployeeStatus = Literal["active", "inactive", "suspended"]
 VacationStatus = Literal["pending", "approved", "rejected", "cancelled"]
 VacationType = Literal["annual", "sick", "personal", "unpaid"]

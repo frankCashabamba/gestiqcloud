@@ -73,12 +73,7 @@ def estimate_text_quality(
     weird_chars = sum(
         1
         for ch in normalized
-        if not (
-            ch.isalpha()
-            or ch.isdigit()
-            or ch.isspace()
-            or ch in ".,;:/-_#%()[]{}+*'\"@$"
-        )
+        if not (ch.isalpha() or ch.isdigit() or ch.isspace() or ch in ".,;:/-_#%()[]{}+*'\"@$")
     )
 
     alpha_ratio = alpha_chars / max(alnum_chars, 1)

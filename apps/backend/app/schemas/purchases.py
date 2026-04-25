@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 PurchaseStatus = Literal["draft", "sent", "received", "cancelled"]
 
 

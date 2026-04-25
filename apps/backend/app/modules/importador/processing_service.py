@@ -29,6 +29,7 @@ from .category_loader import get_doc_categories
 from .classifier_learning import learn_column_candidates as _learn_column_candidates
 from .doc_type_resolution import promote_doc_type_from_text_fallback
 from .document_fields import safe_floatish
+from .document_pipeline_router import ImportPipelineDecision, decide_import_pipeline
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .invoice_ocr_rescue import invoice_rescue_from_ocr
 from .ocr_quality import estimate_text_quality as _estimate_text_quality
@@ -81,6 +82,7 @@ def _analysis_requires_review_from_field_confidences(
         if confidence < threshold:
             return True
     return False
+
 
 AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[..., Awaitable[dict[str, Any]]]
@@ -1329,6 +1331,15 @@ def _looks_like_noisy_scalar_text(value: Any, *, field_name: str) -> bool:
     ]
 
     if field_name == "vendor":
+        has_company_suffix = bool(
+            re.search(
+                r"\b(?:s\.?\s*a\.?|ltda\.?|cia\.?|compania|company|corp\.?|inc\.?|s\.?\s*r\.?\s*l\.?|sas)\b",
+                raw,
+                flags=re.I,
+            )
+        )
+        if has_company_suffix and alpha >= 6 and alpha_ratio >= 0.3 and weird_ratio <= 0.2:
+            return False
         min_alpha = int(cfg.get("vendor_noise_min_alpha") or 0)
         min_alpha_ratio = float(cfg.get("vendor_noise_min_alpha_ratio") or 0.0)
         max_weird_ratio = float(cfg.get("vendor_noise_max_weird_ratio") or 1.0)
@@ -1445,6 +1456,7 @@ def _build_low_evidence_visual_review_analysis(
     pre_fields: dict[str, Any],
     ocr_quality_score: float | None,
     processing_cfg: dict[str, Any],
+    pipeline_decision: ImportPipelineDecision | None = None,
 ) -> dict[str, Any]:
     min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 500))
     quality_threshold = float(processing_cfg.get("ocr_quality_vision_threshold") or 0.45)
@@ -1452,6 +1464,8 @@ def _build_low_evidence_visual_review_analysis(
         "La imagen no tiene evidencia suficiente para una extracción fiable. "
         "Saca una foto mas nitida o completa los datos manualmente antes de guardar."
     )
+    if pipeline_decision and pipeline_decision.user_message:
+        user_message = pipeline_decision.user_message
     return {
         "doc_type": "OTHER",
         "confidence": 0.2,
@@ -1465,6 +1479,10 @@ def _build_low_evidence_visual_review_analysis(
         "raw_response": "reason=low_evidence_visual_review",
         "model_used": "deterministic-low-evidence",
         "analysis_path": "low_evidence_review",
+        "pipeline_route": pipeline_decision.route if pipeline_decision else "low_evidence_visual",
+        "pipeline_action": pipeline_decision.action if pipeline_decision else "REJECT_LOW_QUALITY",
+        "pipeline_family": pipeline_decision.family if pipeline_decision else "VISUAL_UNKNOWN",
+        "pipeline_reasons": list(pipeline_decision.reasons) if pipeline_decision else [],
         "requires_review": True,
         "warnings": [
             {
@@ -2202,6 +2220,7 @@ async def _process_run_document(
         lane_decision.vision_first,
         lane_decision.reasons,
     )
+    _pipeline_decision: ImportPipelineDecision | None = None
 
     # Log específico para PDFs para observabilidad de estrategia de fases
     if _doc_format in {"PDF", "PDF_OCR"}:
@@ -2339,6 +2358,29 @@ async def _process_run_document(
                 pre_fields=_pre_fields,
                 processing_cfg=processing_cfg,
             )
+            _pipeline_decision = decide_import_pipeline(
+                doc_format=_doc_format,
+                tipo_archivo=tipo_archivo,
+                text=text,
+                has_structured=has_structured,
+                has_vision=bool(vision_image_bytes),
+                ocr_quality_score=_ocr_quality_score,
+                pre_fields=_pre_fields,
+                processing_cfg=processing_cfg,
+            )
+            logger.info(
+                "import_pipeline_route filename=%s format=%s route=%s action=%s family=%s "
+                "confidence=%.2f force_vision=%s vision_first=%s reasons=%s",
+                filename,
+                _doc_format,
+                _pipeline_decision.route,
+                _pipeline_decision.action,
+                _pipeline_decision.family,
+                _pipeline_decision.confidence,
+                _pipeline_decision.force_vision,
+                _pipeline_decision.vision_first,
+                list(_pipeline_decision.reasons),
+            )
             _has_total = bool(_pre_decision["has_total"])
             _has_date = bool(_pre_decision["has_date"])
             _has_doc = bool(_pre_decision["has_doc"])
@@ -2433,21 +2475,8 @@ async def _process_run_document(
             )
 
             _low_evidence_visual = (
-                _doc_format in (_get_visual_formats(db) | {"PDF_OCR"})
-                and not has_structured
-                and not _pre_decision["skip_ai"]
-                and (
-                    (
-                        _strong_count == 0
-                        and not _line_items_present
-                        and (
-                            _ocr_quality_score is None
-                            or _ocr_quality_score
-                            < float(processing_cfg.get("ocr_quality_vision_threshold") or 0.45)
-                        )
-                    )
-                    or (_strong_count < 3 and not _has_primary_saveable_evidence)
-                )
+                _pipeline_decision is not None
+                and _pipeline_decision.action == "REJECT_LOW_QUALITY"
             )
 
             if _low_evidence_visual:
@@ -2457,6 +2486,7 @@ async def _process_run_document(
                     pre_fields=_pre_fields,
                     ocr_quality_score=_ocr_quality_score,
                     processing_cfg=processing_cfg,
+                    pipeline_decision=_pipeline_decision,
                 )
                 _pre_skipped_ai = True
                 logger.info(
@@ -2574,9 +2604,20 @@ async def _process_run_document(
         if not _pre_skipped_ai:
             # ── Llamada al LLM ────────────────────────────────────────────────
             ai_primary_started_at = time.perf_counter()
-            _send_vision = (lane_decision.force_vision or is_image_doc or is_scanned_pdf) and bool(
-                vision_image_bytes
+            _pipeline_force_vision = bool(
+                _pipeline_decision and _pipeline_decision.force_vision
             )
+            _pipeline_vision_first = (
+                bool(_pipeline_decision.vision_first)
+                if _pipeline_decision and _pipeline_decision.force_vision
+                else lane_decision.vision_first
+            )
+            _send_vision = (
+                lane_decision.force_vision
+                or _pipeline_force_vision
+                or is_image_doc
+                or is_scanned_pdf
+            ) and bool(vision_image_bytes)
             analysis = await analyze_document_fn(
                 llm_content,
                 filename,
@@ -2601,9 +2642,14 @@ async def _process_run_document(
                     else None
                 ),
                 timeout_override=lane_decision.timeout_secs,
-                force_vision=lane_decision.force_vision,
-                vision_first=lane_decision.vision_first,
+                force_vision=lane_decision.force_vision or _pipeline_force_vision,
+                vision_first=_pipeline_vision_first,
             )
+            if _pipeline_decision:
+                analysis.setdefault("pipeline_route", _pipeline_decision.route)
+                analysis.setdefault("pipeline_action", _pipeline_decision.action)
+                analysis.setdefault("pipeline_family", _pipeline_decision.family)
+                analysis.setdefault("pipeline_reasons", list(_pipeline_decision.reasons))
             _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
             analysis.setdefault("analysis_path", "ok_llm")
             # Guard: si el análisis terminó en fallback con tipo fuerte sin evidencia → degrada a OTHER
@@ -2658,8 +2704,9 @@ async def _process_run_document(
     confianza = float(normalized_analysis["confidence"])
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
-    requiere_revision = confianza < classification_threshold or _analysis_requires_review_from_field_confidences(
-        normalized_analysis
+    requiere_revision = (
+        confianza < classification_threshold
+        or _analysis_requires_review_from_field_confidences(normalized_analysis)
     )
 
     current_field_keys = (
@@ -2743,8 +2790,9 @@ async def _process_run_document(
                 confianza = float(_escalated_norm["confidence"])
                 razonamiento = str(_escalated_norm["reasoning"])
                 analysis_fields = _escalated_fields
-                requiere_revision = confianza < classification_threshold or _analysis_requires_review_from_field_confidences(
-                    _escalated_norm
+                requiere_revision = (
+                    confianza < classification_threshold
+                    or _analysis_requires_review_from_field_confidences(_escalated_norm)
                 )
                 _lane_escalated = True
                 _lane_escalation_reason = _escalation_reason
@@ -2951,8 +2999,9 @@ async def _process_run_document(
                     confianza = float(rerun_normalized["confidence"])
                     razonamiento = str(rerun_normalized["reasoning"])
                     analysis_fields = rerun_fields
-                    requiere_revision = confianza < classification_threshold or _analysis_requires_review_from_field_confidences(
-                        rerun_normalized
+                    requiere_revision = (
+                        confianza < classification_threshold
+                        or _analysis_requires_review_from_field_confidences(rerun_normalized)
                     )
                     datos_extraidos = rerun_fields
                     local_recipe_config = auto_rc2
