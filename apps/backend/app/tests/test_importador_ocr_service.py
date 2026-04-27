@@ -36,6 +36,7 @@ def test_ocr_image_skips_easyocr_fallback_when_tesseract_is_weak(monkeypatch):
     monkeypatch.setitem(
         __import__("sys").modules, "easyocr", type("E", (), {"Reader": FakeReader})()
     )
+    monkeypatch.setenv("IMPORTADOR_OCR_EASYOCR_ENABLED", "0")
     monkeypatch.setattr(ocr_service, "_run_tesseract", lambda variant, psm_modes=None: "...")
     ocr_service._EASYOCR_READERS.clear()
 
@@ -293,6 +294,8 @@ def test_extract_text_from_file_rehydrates_cached_csv_context(monkeypatch, tmp_p
 
 
 def test_ocr_image_uses_best_tesseract_variant_when_available(monkeypatch):
+    monkeypatch.setenv("IMPORTADOR_OCR_EASYOCR_ENABLED", "0")
+
     def fake_tesseract(img, lang=None, config=None):
         variant = img.info.get("ocr_variant")
         if variant == "threshold":
@@ -314,6 +317,8 @@ def test_ocr_image_uses_best_tesseract_variant_when_available(monkeypatch):
 
 
 def test_ocr_image_can_use_rotated_trimmed_variant(monkeypatch):
+    monkeypatch.setenv("IMPORTADOR_OCR_EASYOCR_ENABLED", "0")
+
     def fake_tesseract(img, lang=None, config=None):
         variant = img.info.get("ocr_variant")
         if variant == "trimmed_rot90":
@@ -550,8 +555,8 @@ def test_extract_pdf_uses_multiple_dpi_candidates_when_embedded_text_is_weak(mon
     monkeypatch.setattr(ocr_service, "_estimate_text_quality", fake_text_quality)
     monkeypatch.setattr(
         ocr_service,
-        "_ocr_image",
-        lambda img: (
+        "_ocr_image_candidates",
+        lambda img, allow_easyocr=True, allow_rescue_variants=True: (
             "NOTA DE VENTA CLIENTE DESCRIPCION TOTAL 5.30 EXTRA"
             if img.width >= 4
             else "NOTA DE VENTA TOTAL 5.30"

@@ -82,10 +82,19 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db.rollback()
             raise
 
-    def update(self, db: Session, db_obj: ModelType, obj_in: UpdateSchemaType) -> ModelType:
-        """Update instance with safe transaction handling."""
-        # exclude_unset=True para solo aplicar campos proporcionados en el schema de actualización
-        # Si quieres omitir None explícitos: añade exclude_none=True
+    def update(
+        self, db: Session, db_obj: ModelType | IDType, obj_in: UpdateSchemaType
+    ) -> ModelType | None:
+        """Update instance with safe transaction handling.
+
+        ``db_obj`` can be either a model instance or an ID (int/str/UUID).
+        When an ID is provided the object is looked up first; returns *None*
+        if the ID does not exist.
+        """
+        if isinstance(db_obj, (int, str, UUID)):
+            db_obj = self.get(db, db_obj)
+            if db_obj is None:
+                return None
         obj_data = _to_dict(obj_in, exclude_unset=True)
         for field, value in obj_data.items():
             setattr(db_obj, field, value)
@@ -97,6 +106,17 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except SQLAlchemyError:
             db.rollback()
             raise
+
+    # ------------------------------------------------------------------
+    # Convenience aliases
+    # ------------------------------------------------------------------
+
+    def list(self, db: Session, offset: int = 0, limit: int = 100) -> list[ModelType]:
+        return self.get_multi(db, skip=offset, limit=limit)
+
+    def delete(self, db: Session, id: IDType) -> bool:
+        obj = self.remove(db, id)
+        return obj is not None
 
     def remove(self, db: Session, id: IDType) -> ModelType | None:
         """Delete instance by id with safe transaction handling."""

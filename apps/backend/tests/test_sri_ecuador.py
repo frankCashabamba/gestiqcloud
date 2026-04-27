@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, date
+from datetime import UTC, datetime, date
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -118,7 +118,7 @@ def tenant_id(db: Session):
             "name": "Test SRI Ecuador",
             "slug": f"sri-test-{tid.hex[:8]}",
             "active": True,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
         },
     )
     db.flush()

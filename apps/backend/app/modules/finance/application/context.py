@@ -22,6 +22,6 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     ).fetchall()
 
     return {
-        "module": "Finance",
+        "modulo": "Finanzas",
         "bank_summary": [dict(r._mapping) for r in bank_summary],
     }

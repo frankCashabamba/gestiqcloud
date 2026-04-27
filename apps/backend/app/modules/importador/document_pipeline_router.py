@@ -41,7 +41,9 @@ def _text_stats(text: str) -> tuple[int, int]:
 
 def _field_evidence(pre_fields: dict[str, Any]) -> dict[str, Any]:
     line_items = pre_fields.get("line_items")
-    has_line_items = isinstance(line_items, list) and any(isinstance(row, dict) for row in line_items)
+    has_line_items = isinstance(line_items, list) and any(
+        isinstance(row, dict) for row in line_items
+    )
     total_amount = safe_floatish(pre_fields.get("total_amount"))
     has_total = total_amount is not None and abs(float(total_amount)) > 0.0
     has_date = _nonempty(pre_fields.get("issue_date"))
@@ -180,7 +182,7 @@ def decide_import_pipeline(
             confidence=0.2,
             skip_ai=True,
             requires_review=True,
-            reasons=tuple([*reasons, "weak_text", "weak_quality", "no_primary_evidence"]),
+            reasons=(*reasons, "weak_text", "weak_quality", "no_primary_evidence"),
             user_message=(
                 "La imagen no tiene calidad suficiente para extraccion automatica fiable. "
                 "Edita los datos manualmente o vuelve a subir una foto mas nitida y completa."
@@ -195,7 +197,7 @@ def decide_import_pipeline(
             confidence=0.25,
             skip_ai=True,
             requires_review=True,
-            reasons=tuple([*reasons, "low_structure", "no_primary_evidence"]),
+            reasons=(*reasons, "low_structure", "no_primary_evidence"),
             user_message=(
                 "El documento visual no aporta campos suficientes para automatizarlo con seguridad. "
                 "Edita los datos manualmente o sube una imagen mas clara."
@@ -216,27 +218,34 @@ def decide_import_pipeline(
             confidence=0.3,
             skip_ai=True,
             requires_review=True,
-            reasons=tuple([*reasons, "secondary_fields_only", "no_primary_evidence"]),
+            reasons=(*reasons, "secondary_fields_only", "no_primary_evidence"),
             user_message=(
                 "El documento no tiene total, fecha ni lineas utilizables para extraerlo "
                 "automaticamente con seguridad. Edita los datos manualmente o sube una imagen mejor."
             ),
         )
 
-    if family in {"PRINTED_INVOICE", "THERMAL_RECEIPT"} and int(evidence["strong_count"]) >= min_local_strong:
+    if (
+        family in {"PRINTED_INVOICE", "THERMAL_RECEIPT"}
+        and int(evidence["strong_count"]) >= min_local_strong
+    ):
         return ImportPipelineDecision(
             route="local_parser",
             family=family,
             action="LOCAL_PARSER",
             confidence=0.72,
-            reasons=tuple([*reasons, "local_evidence_sufficient"]),
+            reasons=(*reasons, "local_evidence_sufficient"),
         )
 
-    needs_vision = bool(has_vision) and visual and (
-        quality is None
-        or quality < vision_quality
-        or int(evidence["strong_count"]) < min_local_strong
-        or not bool(evidence["has_total"])
+    needs_vision = (
+        bool(has_vision)
+        and visual
+        and (
+            quality is None
+            or quality < vision_quality
+            or int(evidence["strong_count"]) < min_local_strong
+            or not bool(evidence["has_total"])
+        )
     )
     if needs_vision:
         return ImportPipelineDecision(
@@ -246,7 +255,7 @@ def decide_import_pipeline(
             confidence=0.55,
             force_vision=True,
             vision_first=quality is None or quality < reject_quality,
-            reasons=tuple([*reasons, "vision_available", "native_evidence_incomplete"]),
+            reasons=(*reasons, "vision_available", "native_evidence_incomplete"),
         )
 
     return ImportPipelineDecision(

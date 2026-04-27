@@ -4,10 +4,10 @@ import uuid
 from datetime import UTC, date, datetime
 
 from sqlalchemy import Date, ForeignKey, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from app.models.base import TENANT_UUID
 
 
 class Purchase(Base):
@@ -17,17 +17,17 @@ class Purchase(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     number: Mapped[str] = mapped_column(String(50), nullable=False)
     supplier_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("suppliers.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -44,7 +44,7 @@ class Purchase(Base):
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivery_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
@@ -72,16 +72,16 @@ class PurchaseLine(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        TENANT_UUID, primary_key=True, default=uuid.uuid4
     )
     purchase_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("purchases.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     product_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("products.id", ondelete="SET NULL"),
         nullable=True,
     )

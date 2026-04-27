@@ -317,7 +317,10 @@ def _rescue_vendor(text: str) -> str | None:
             continue
         if _looks_like_generic_header(raw):
             continue
-        if re.search(r"(?i)\b(ruc|nit|cedula|cliente|fecha|subtotal|iva|total|autorizacion|ambiente|emision)\b", raw):
+        if re.search(
+            r"(?i)\b(ruc|nit|cedula|cliente|fecha|subtotal|iva|total|autorizacion|ambiente|emision)\b",
+            raw,
+        ):
             continue
         if _looks_like_address_only(raw):
             continue
@@ -475,7 +478,9 @@ def _line_items_total(items: list[dict[str, Any]]) -> float | None:
     return round(total, 2) if count else None
 
 
-def _rescue_total_amount(text: str, *, line_items: list[dict[str, Any]] | None = None) -> float | None:
+def _rescue_total_amount(
+    text: str, *, line_items: list[dict[str, Any]] | None = None
+) -> float | None:
     amounts = _rescue_amounts(text)
     item_total = _line_items_total(line_items or [])
     subtotal = amounts.get("subtotal")
@@ -635,11 +640,11 @@ def invoice_rescue_from_ocr(
         existing_line_items = existing.get("line_items")
         total_amount = _rescue_total_amount(
             text,
-            line_items=rescued_line_items
-            if rescued_line_items is not None
-            else existing_line_items
-            if isinstance(existing_line_items, list)
-            else None,
+            line_items=(
+                rescued_line_items
+                if rescued_line_items is not None
+                else existing_line_items if isinstance(existing_line_items, list) else None
+            ),
         )
         if total_amount is not None:
             rescued["total_amount"] = total_amount

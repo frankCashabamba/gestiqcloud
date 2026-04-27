@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import ARRAY, Boolean, Column, Date, DateTime, Integer, Numeric, String, Text
+from sqlalchemy import ARRAY, JSON, Boolean, Column, Date, DateTime, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
@@ -50,7 +50,7 @@ class Promotion(Base):
     valid_to = Column(Date)
     min_purchase = Column(Numeric(12, 2), default=0)
     applies_to = Column(String(20), nullable=False, default="all")
-    product_ids = Column(ARRAY(PGUUID(as_uuid=True)))
+    product_ids = Column(ARRAY(PGUUID(as_uuid=True)).with_variant(JSON, "sqlite"))
     promo_code = Column(String(100))
     is_active = Column(Boolean, nullable=False, default=True)
     usage_limit = Column(Integer)

@@ -11,6 +11,10 @@ from app.modules.importador.ai_classifier import (
 )
 from app.modules.importador.document_pipeline_router import decide_import_pipeline
 from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
+from app.modules.importador.local_document_parsers import (
+    parse_printed_invoice,
+    parse_thermal_receipt,
+)
 from app.modules.importador.processing_service import (
     _STRUCTURED_SKIP_FORMATS,
     _XML_HEADER_TO_CANONICAL,
@@ -231,6 +235,51 @@ def test_pipeline_router_keeps_receipt_on_local_path_when_fields_are_enough():
     assert decision.family == "THERMAL_RECEIPT"
     assert decision.action == "LOCAL_PARSER"
     assert decision.force_vision is False
+
+
+@pytest.mark.no_db
+def test_thermal_receipt_parser_extracts_total_date_payment_and_items():
+    parsed = parse_thermal_receipt(
+        """
+        ALCAMPO LOGRONO
+        FACTURA SIMPLIFICADA
+        NUECES MONDADAS              2,54 C
+        ANACARDOS AUCHAN             2,68 C
+        ORAL-B PRECISION             9,68 A
+        CERVEZA R.MINI               4,49 A
+        TOT                         19,39
+        TARJETA                     19,39
+        NUM. TOTAL ART. VENDIDOS = 4
+        FECHA - HORA: 27/03/26 - 19:00
+        """.strip()
+    )
+
+    assert parsed.fields["vendor"] == "ALCAMPO LOGRONO"
+    assert parsed.fields["issue_date"] == "2026-03-27"
+    assert parsed.fields["total_amount"] == 19.39
+    assert parsed.fields["payment_method"] == "Tarjeta"
+    assert len(parsed.fields["line_items"]) == 4
+
+
+@pytest.mark.no_db
+def test_printed_invoice_parser_uses_generic_invoice_rescue_fields():
+    parsed = parse_printed_invoice(
+        """
+        PROVEEDOR GENERAL S.A.
+        RUC: 1234567890001
+        FACTURA: 001-002-000000123
+        DATOS DEL CLIENTE: CLIENTE UNO
+        Codigo Principal Cantidad Descripcion P.Unit Precio Total
+        PROD-1 10.00 HARINA PREMIUM 12.50 125.00
+        SUB TOTAL 0% 125.00
+        VALOR TOTAL 125.00
+        """.strip()
+    )
+
+    assert parsed.fields["vendor"] == "PROVEEDOR GENERAL S.A."
+    assert parsed.fields["doc_number"] == "001-002-000000123"
+    assert parsed.fields["total_amount"] == 125.0
+    assert parsed.fields["line_items"][0]["description"] == "HARINA PREMIUM"
 
 
 @pytest.mark.no_db

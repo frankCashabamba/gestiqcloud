@@ -2,18 +2,51 @@
 Base models for common patterns in the application.
 """
 
+import uuid as _uuid_module
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, ForeignKey, String, Text, TypeDecorator, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
 
+
+class _TenantUUIDType(TypeDecorator):
+    """UUID type: native PGUUID for PostgreSQL, String(36) for SQLite.
+    Always returns uuid.UUID objects so sentinel matching works on both dialects."""
+
+    impl = PGUUID(as_uuid=True)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "sqlite":
+            return dialect.type_descriptor(String(36))
+        return dialect.type_descriptor(PGUUID(as_uuid=True))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, _uuid_module.UUID):
+            return str(value) if dialect.name == "sqlite" else value
+        # Accept string UUID in both dialects
+        return str(value) if dialect.name == "sqlite" else _uuid_module.UUID(str(value))
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, _uuid_module.UUID):
+            return value
+        try:
+            return _uuid_module.UUID(str(value))
+        except (ValueError, AttributeError):
+            return value
+
+
 UUID_TYPE = PGUUID(as_uuid=True)
-TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
+TENANT_UUID = _TenantUUIDType()
 
 
 def _get_now():

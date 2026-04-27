@@ -1644,7 +1644,8 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 ):
                     config[key] = _bool_value(row.value_text, bool(config.get(key, True)))
                 elif (
-                    key in {"pipeline_reject_quality_threshold", "pipeline_vision_quality_threshold"}
+                    key
+                    in {"pipeline_reject_quality_threshold", "pipeline_vision_quality_threshold"}
                     and row.value_text is not None
                 ):
                     config[key] = _float_value(row.value_text, float(config[key]), minimum=0.0)

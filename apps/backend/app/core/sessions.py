@@ -16,6 +16,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+_UNSET = object()  # sentinel to distinguish "not passed" from None
+
 
 @dataclass
 class SessionConfig:
@@ -102,25 +104,26 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
         *,
         ttl_seconds: int = 60 * 60 * 4,
         store: SessionStore | None = None,
-        cookie_domain: str | None = None,
+        cookie_domain: str | None | object = _UNSET,
         fallback_window_seconds: int = 30,
     ):
         super().__init__(app)
         self.signer = Signer(secret_key)
-        # Build config (respect settings when available)
+        # Build config – explicit constructor args always win; fall back to
+        # Django/app settings only for values the caller did not provide.
         cookie_secure = https_only
         cookie_samesite = "Strict"
-        cdomain = cookie_domain
+        cdomain = None if cookie_domain is _UNSET else cookie_domain
         try:
             from app.config.settings import settings  # late import to avoid cycles
 
-            # Prefer explicit settings over constructor defaults
-            cookie_secure = bool(getattr(settings, "COOKIE_SECURE", https_only))
+            if https_only:  # only consult settings when caller didn't force insecure
+                cookie_secure = bool(getattr(settings, "COOKIE_SECURE", True))
             raw_samesite = str(getattr(settings, "COOKIE_SAMESITE", "Strict")).lower()
             if raw_samesite not in ("lax", "strict", "none"):
                 raw_samesite = "lax"
             cookie_samesite = raw_samesite.capitalize()  # store canonical, lower() on set_cookie
-            if cdomain is None:
+            if cookie_domain is _UNSET and https_only:
                 cdomain = getattr(settings, "COOKIE_DOMAIN", None)
         except Exception:
             pass

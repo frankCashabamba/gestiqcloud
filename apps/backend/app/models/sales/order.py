@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
-from app.models.base import BaseTransactionalModel
+from app.models.base import TENANT_UUID, BaseTransactionalModel
 
 
 class SalesOrder(BaseTransactionalModel):
@@ -47,13 +47,11 @@ class SalesOrder(BaseTransactionalModel):
 class SalesOrderItem(Base):
     __tablename__ = "sales_order_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     order_id: Mapped[uuid.UUID] = mapped_column(
-        "sales_order_id", PGUUID(as_uuid=True), nullable=False, index=True
+        "sales_order_id", TENANT_UUID, nullable=False, index=True
     )
-    product_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    product_id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
     qty: Mapped[float] = mapped_column("quantity", Numeric(14, 3), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     tax_rate: Mapped[float] = mapped_column(

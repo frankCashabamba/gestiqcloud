@@ -21,6 +21,8 @@ class POSRegister(BaseTransactionalModel):
     __table_args__ = {"extend_existing": True}
 
     # Additional fields specific to POSRegister
+    name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
     store_id: Mapped[uuid.UUID | None] = mapped_column(
         TENANT_UUID,
         nullable=True,

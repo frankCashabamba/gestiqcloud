@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 ProductionOrderStatus = Literal["DRAFT", "SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
 
@@ -64,6 +64,14 @@ class ProductionOrderBase(BaseModel):
     scheduled_date: datetime | None = None
     notes: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_names(cls, values):
+        if isinstance(values, dict):
+            if "qty_planned" in values and "quantity_planned" not in values:
+                values["quantity_planned"] = values.pop("qty_planned")
+        return values
+
     @property
     def qty_planned(self) -> Decimal:
         return self.quantity_planned
@@ -91,6 +99,16 @@ class ProductionOrderUpdate(BaseModel):
     scheduled_date: datetime | None = None
     notes: str | None = None
     status: ProductionOrderStatus | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_names(cls, values):
+        if isinstance(values, dict):
+            if "qty_produced" in values and "quantity_produced" not in values:
+                values["quantity_produced"] = values.pop("qty_produced")
+            if "waste_qty" in values and "waste_quantity" not in values:
+                values["waste_quantity"] = values.pop("waste_qty")
+        return values
 
     @property
     def qty_produced(self) -> Decimal | None:

@@ -102,7 +102,11 @@ class SIIService:
                 subtotal = Decimal(str(invoice_data.get("subtotal", 0)))
                 vat = Decimal(str(invoice_data.get("total_vat", 0)))
                 calculated_rate = vat / subtotal if subtotal > 0 else Decimal("0")
-                valid_rates = resolve_country_tax_rates(db, country) if db is not None else []
+                valid_rates = resolve_country_tax_rates(db, country) if db is not None else None
+                if valid_rates is None:
+                    # Fallback to standard Spanish rates when no DB available
+                    if country == "ES":
+                        valid_rates = [Decimal("0.21"), Decimal("0.10"), Decimal("0.04")]
                 if valid_rates and calculated_rate not in valid_rates and calculated_rate > 0:
                     errors.append(f"vat_rate_invalid: {calculated_rate}")
 

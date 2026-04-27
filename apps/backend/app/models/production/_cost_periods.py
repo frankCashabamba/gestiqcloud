@@ -17,7 +17,7 @@ Con esto se calcula:
     - electricity_per_hour = $100 / 160h = $0.625/h
 """
 
-from sqlalchemy import Boolean, Column, DateTime, Index, Numeric, String, text
+from sqlalchemy import Boolean, Column, DateTime, Index, Numeric, String, event, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -67,11 +67,6 @@ class CostPeriod(BaseModel):
     labor_burden_factor = Column(
         Numeric(8, 4),
         comment="COMPUTED: labor_paid_hours / NULLIF(touch_hours_total, 0) si touch_hours medido, else 1.0",
-        server_default=text(
-            "CASE WHEN touch_hours_total > 0 "
-            "THEN labor_paid_hours / touch_hours_total "
-            "ELSE 1.0 END"
-        ),
     )
 
     # ========== ENERGÍA ==========
@@ -84,11 +79,6 @@ class CostPeriod(BaseModel):
     electricity_per_hour = Column(
         Numeric(12, 4),
         comment="COMPUTED: electricity_cost / labor_paid_hours",
-        server_default=text(
-            "CASE WHEN labor_paid_hours > 0 "
-            "THEN electricity_cost / labor_paid_hours "
-            "ELSE 0 END"
-        ),
     )
 
     # ========== DIÉSEL (HORNO) ==========
@@ -107,11 +97,6 @@ class CostPeriod(BaseModel):
     diesel_per_oven_hour = Column(
         Numeric(12, 4),
         comment="COMPUTED: diesel_cost_month / NULLIF(oven_hours_total, 0)",
-        server_default=text(
-            "CASE WHEN oven_hours_total > 0 "
-            "THEN diesel_cost_month / oven_hours_total "
-            "ELSE 0 END"
-        ),
     )
 
     # ========== CONFIGURACIÓN AVANZADA ==========
@@ -189,3 +174,24 @@ class CostPeriodValidation(BaseModel):
 
     def __repr__(self):
         return f"<CostPeriodValidation {self.validation_type} ({self.severity})>"
+
+
+@event.listens_for(CostPeriod, "before_insert")
+def _compute_cost_period_fields(mapper, connection, target):
+    """Compute derived columns in Python so the model is SQLite-compatible."""
+    if target.labor_burden_factor is None:
+        touch = float(target.touch_hours_total or 0)
+        paid = float(target.labor_paid_hours or 0)
+        target.labor_burden_factor = (paid / touch) if touch > 0 else 1.0
+
+    if target.electricity_per_hour is None:
+        paid = float(target.labor_paid_hours or 0)
+        target.electricity_per_hour = (
+            float(target.electricity_cost or 0) / paid if paid > 0 else 0.0
+        )
+
+    if target.diesel_per_oven_hour is None:
+        oven = float(target.oven_hours_total or 0)
+        target.diesel_per_oven_hour = (
+            float(target.diesel_cost_month or 0) / oven if oven > 0 else 0.0
+        )

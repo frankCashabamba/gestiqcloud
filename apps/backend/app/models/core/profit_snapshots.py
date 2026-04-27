@@ -4,27 +4,21 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
-
-UUID = PGUUID(as_uuid=True)
-
-from sqlalchemy import String as _String  # noqa: E402
-
-TENANT_UUID = PGUUID(as_uuid=True).with_variant(_String(36), "sqlite")
+from app.models.base import TENANT_UUID
 
 
 class ProfitSnapshotDaily(Base):
     __tablename__ = "profit_snapshots_daily"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID, ForeignKey("tenants.id"), nullable=False, index=True
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    location_id: Mapped[uuid.UUID | None] = mapped_column(UUID, nullable=True)
+    location_id: Mapped[uuid.UUID | None] = mapped_column(TENANT_UUID, nullable=True)
     total_sales: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
     total_cogs: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
     gross_profit: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
@@ -46,13 +40,15 @@ class ProfitSnapshotDaily(Base):
 class ProductProfitSnapshot(Base):
     __tablename__ = "product_profit_snapshots"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID, ForeignKey("tenants.id"), nullable=False, index=True
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    product_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("products.id"), nullable=False)
-    location_id: Mapped[uuid.UUID | None] = mapped_column(UUID, nullable=True)
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        TENANT_UUID, ForeignKey("products.id"), nullable=False
+    )
+    location_id: Mapped[uuid.UUID | None] = mapped_column(TENANT_UUID, nullable=True)
     revenue: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
     cogs: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
     gross_profit: Mapped[float] = mapped_column(Numeric(14, 2), default=0)

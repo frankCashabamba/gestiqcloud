@@ -30,7 +30,7 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     ).fetchall()
 
     return {
-        "module": "Purchases",
+        "modulo": "Compras",
         "pending_orders": dict(pending._mapping) if pending else {},
         "recent_orders": [dict(r._mapping) for r in recent],
     }

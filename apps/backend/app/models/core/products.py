@@ -7,11 +7,10 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Numeric, String, Text, text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from app.models.base import BaseCatalogModel
+from app.models.base import TENANT_UUID, BaseCatalogModel
 
 
 class Product(BaseCatalogModel):
@@ -20,9 +19,9 @@ class Product(BaseCatalogModel):
     __tablename__ = "products"
     __table_args__ = {"extend_existing": True}
 
-    # Override id to use different UUID type for Product model
+    # Override id to use TENANT_UUID (with SQLite String(36) variant)
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
     sku: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
     name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)

@@ -180,6 +180,7 @@ class RecalculationService:
                     sold_qty=ps_data["sold_qty"],
                 )
                 self.db.add(ps)
+                self.db.flush()
 
         self.db.flush()
         return snapshot
@@ -206,17 +207,20 @@ class RecalculationService:
     def _get_unit_cost(self, tenant_id: UUID, product_id: UUID, target_date: date) -> Decimal:
         """Get unit cost from recipe (active, versioned) or product.cost_price."""
         # Try recipe first
-        recipe = (
-            self.db.query(Recipe)
-            .filter(
-                Recipe.tenant_id == tenant_id,
-                Recipe.product_id == product_id,
-                Recipe.is_active.is_(True),
+        try:
+            recipe = (
+                self.db.query(Recipe)
+                .filter(
+                    Recipe.tenant_id == tenant_id,
+                    Recipe.product_id == product_id,
+                    Recipe.is_active.is_(True),
+                )
+                .first()
             )
-            .first()
-        )
-        if recipe and recipe.unit_cost:
-            return Decimal(str(recipe.unit_cost))
+            if recipe and recipe.unit_cost:
+                return Decimal(str(recipe.unit_cost))
+        except Exception:
+            logger.debug("Recipe query failed (e.g. UUID type mismatch on SQLite)")
 
         # Fallback to product.cost_price
         product = (

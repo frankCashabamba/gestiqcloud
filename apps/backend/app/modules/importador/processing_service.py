@@ -32,6 +32,7 @@ from .document_fields import safe_floatish
 from .document_pipeline_router import ImportPipelineDecision, decide_import_pipeline
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .invoice_ocr_rescue import invoice_rescue_from_ocr
+from .local_document_parsers import parse_local_document
 from .ocr_quality import estimate_text_quality as _estimate_text_quality
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
@@ -1075,6 +1076,38 @@ def _merge_text_fallback_fields(
             datos_extraidos[key] = value
             changed = True
 
+    return changed
+
+
+def _merge_local_parser_fields(target: dict[str, Any], parsed_fields: dict[str, Any]) -> bool:
+    changed = False
+    for key, value in (parsed_fields or {}).items():
+        if value in (None, "", [], {}):
+            continue
+        current = target.get(key)
+        if key == "line_items":
+            if isinstance(value, list) and value and not current:
+                target[key] = value
+                changed = True
+            continue
+        if key in {"total_amount", "subtotal", "tax_amount"}:
+            parsed_value = safe_floatish(value)
+            current_value = safe_floatish(current)
+            if parsed_value is None:
+                continue
+            if current_value is None or abs(float(current_value) - float(parsed_value)) > max(
+                1.0, abs(float(parsed_value)) * 0.02
+            ):
+                target[key] = parsed_value
+                changed = True
+            continue
+        if current in (None, "", [], {}) or _prefer_text_candidate_over_existing(
+            field_name=key,
+            existing=current,
+            candidate=value,
+        ):
+            target[key] = value
+            changed = True
     return changed
 
 
@@ -2381,6 +2414,50 @@ async def _process_run_document(
                 _pipeline_decision.vision_first,
                 list(_pipeline_decision.reasons),
             )
+            if _pipeline_decision.action in {"LOCAL_PARSER", "VISION_FALLBACK", "TEXT_OR_DEFAULT"}:
+                try:
+                    _local_parse = parse_local_document(
+                        text,
+                        family=_pipeline_decision.family,
+                        existing_fields=_pre_fields,
+                    )
+                    if _local_parse.fields and _merge_local_parser_fields(
+                        _pre_fields,
+                        _local_parse.fields,
+                    ):
+                        _pre_fields = _repair_pre_extracted_fields(
+                            _pre_fields,
+                            content=text,
+                            format_hint=_doc_format,
+                            prompt_config=prompt_config,
+                            ocr_runtime=ocr_runtime,
+                        )
+                        _pre_decision = _pre_extract_route_decision(
+                            pre_fields=_pre_fields,
+                            processing_cfg=processing_cfg,
+                        )
+                        _pipeline_decision = decide_import_pipeline(
+                            doc_format=_doc_format,
+                            tipo_archivo=tipo_archivo,
+                            text=text,
+                            has_structured=has_structured,
+                            has_vision=bool(vision_image_bytes),
+                            ocr_quality_score=_ocr_quality_score,
+                            pre_fields=_pre_fields,
+                            processing_cfg=processing_cfg,
+                        )
+                        logger.info(
+                            "local_parser_applied filename=%s family=%s fields=%s "
+                            "confidence=%.2f reasons=%s next_action=%s",
+                            filename,
+                            _pipeline_decision.family,
+                            sorted(_local_parse.fields.keys()),
+                            _local_parse.confidence,
+                            list(_local_parse.reasons),
+                            _pipeline_decision.action,
+                        )
+                except Exception as _exc:
+                    logger.debug("local parser error (non-fatal): %s", _exc)
             _has_total = bool(_pre_decision["has_total"])
             _has_date = bool(_pre_decision["has_date"])
             _has_doc = bool(_pre_decision["has_doc"])
@@ -2475,8 +2552,7 @@ async def _process_run_document(
             )
 
             _low_evidence_visual = (
-                _pipeline_decision is not None
-                and _pipeline_decision.action == "REJECT_LOW_QUALITY"
+                _pipeline_decision is not None and _pipeline_decision.action == "REJECT_LOW_QUALITY"
             )
 
             if _low_evidence_visual:
@@ -2604,9 +2680,7 @@ async def _process_run_document(
         if not _pre_skipped_ai:
             # ── Llamada al LLM ────────────────────────────────────────────────
             ai_primary_started_at = time.perf_counter()
-            _pipeline_force_vision = bool(
-                _pipeline_decision and _pipeline_decision.force_vision
-            )
+            _pipeline_force_vision = bool(_pipeline_decision and _pipeline_decision.force_vision)
             _pipeline_vision_first = (
                 bool(_pipeline_decision.vision_first)
                 if _pipeline_decision and _pipeline_decision.force_vision

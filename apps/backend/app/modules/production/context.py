@@ -21,6 +21,6 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     ).fetchone()
 
     return {
-        "module": "Production",
+        "modulo": "Producción",
         "active_orders": int(active[0]) if active else 0,
     }

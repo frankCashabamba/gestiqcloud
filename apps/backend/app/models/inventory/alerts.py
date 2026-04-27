@@ -7,7 +7,18 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import ARRAY, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    ARRAY,
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -29,17 +40,17 @@ class AlertConfig(Base):
     threshold_value = Column(Float, nullable=True)
 
     # Filters
-    warehouse_ids = Column(ARRAY(PGUUID(as_uuid=True)), default=list)
-    category_ids = Column(ARRAY(PGUUID(as_uuid=True)), default=list)
-    product_ids = Column(ARRAY(PGUUID(as_uuid=True)), default=list)
+    warehouse_ids = Column(ARRAY(PGUUID(as_uuid=True)).with_variant(JSON, "sqlite"), default=list)
+    category_ids = Column(ARRAY(PGUUID(as_uuid=True)).with_variant(JSON, "sqlite"), default=list)
+    product_ids = Column(ARRAY(PGUUID(as_uuid=True)).with_variant(JSON, "sqlite"), default=list)
 
     # Notification channels
     notify_email = Column(Boolean, default=False)
-    email_recipients = Column(ARRAY(String), default=list)
+    email_recipients = Column(ARRAY(String).with_variant(JSON, "sqlite"), default=list)
     notify_whatsapp = Column(Boolean, default=False)
-    whatsapp_numbers = Column(ARRAY(String), default=list)
+    whatsapp_numbers = Column(ARRAY(String).with_variant(JSON, "sqlite"), default=list)
     notify_telegram = Column(Boolean, default=False)
-    telegram_chat_ids = Column(ARRAY(String), default=list)
+    telegram_chat_ids = Column(ARRAY(String).with_variant(JSON, "sqlite"), default=list)
 
     # Schedule
     check_frequency_minutes = Column(Integer, default=60)

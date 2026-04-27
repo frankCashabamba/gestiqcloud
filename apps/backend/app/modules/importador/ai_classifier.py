@@ -340,14 +340,16 @@ def _finalize_analysis_payload(
         fields = {}
         result["fields"] = fields
 
-    field_confidences = _build_field_confidences(
-        fields,
-        content=content,
-        format_hint=format_hint,
-        ai_runtime=ai_runtime,
-        ocr_runtime=ocr_runtime,
-        analysis_path=analysis_path or str(result.get("analysis_path") or ""),
-    )
+    field_confidences = result.get("field_confidences")
+    if not isinstance(field_confidences, dict) or not field_confidences:
+        field_confidences = _build_field_confidences(
+            fields,
+            content=content,
+            format_hint=format_hint,
+            ai_runtime=ai_runtime,
+            ocr_runtime=ocr_runtime,
+            analysis_path=analysis_path or str(result.get("analysis_path") or ""),
+        )
     result["field_confidences"] = field_confidences
 
     weak_fields = [
@@ -2075,19 +2077,24 @@ def _apply_invoice_ocr_rescue(
 
     doc_type = str(parsed.get("doc_type") or "").strip().upper()
     text_normalized = _normalize_evidence_text(content)
-    invoice_like = doc_type in {
-        "INVOICE",
-        "SUPPLIER_INVOICE",
-        "PURCHASE_INVOICE",
-        "COMMERCIAL_INVOICE",
-    } or any(
-        token in text_normalized
-        for token in ("factura", "invoice", "nota de venta", "comprobante", "boleta")
-    ) or (
-        ("ruc" in text_normalized or re.search(r"\b\d{3}-\d{3}-\d{6,12}\b", content))
-        and any(
+    invoice_like = (
+        doc_type
+        in {
+            "INVOICE",
+            "SUPPLIER_INVOICE",
+            "PURCHASE_INVOICE",
+            "COMMERCIAL_INVOICE",
+        }
+        or any(
             token in text_normalized
-            for token in ("valor total", "subtotal", "sub total", "datos del cliente")
+            for token in ("factura", "invoice", "nota de venta", "comprobante", "boleta")
+        )
+        or (
+            ("ruc" in text_normalized or re.search(r"\b\d{3}-\d{3}-\d{6,12}\b", content))
+            and any(
+                token in text_normalized
+                for token in ("valor total", "subtotal", "sub total", "datos del cliente")
+            )
         )
     )
     if not invoice_like:
@@ -3284,6 +3291,18 @@ async def analyze_document(
                 parsed.setdefault("fields", {})
                 parsed.setdefault("confidence", 0.7)
                 parsed.setdefault("reasoning", "")
+                # Compute field confidences on original AI fields before OCR
+                # repairs mutate them; _finalize_analysis_payload will reuse
+                # these pre-computed values instead of re-scoring repaired
+                # fields.
+                parsed["field_confidences"] = _build_field_confidences(
+                    parsed.get("fields"),
+                    content=content,
+                    format_hint=format_hint,
+                    ai_runtime=ai_runtime,
+                    ocr_runtime=ocr_runtime,
+                    analysis_path="ai_text",
+                )
                 _apply_low_evidence_guard(
                     parsed,
                     content=content,
