@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 import { useTranslation } from 'react-i18next'
 import { getMFAStatus, setupMFA, verifyMFA, disableMFA } from '../../services/api/mfa'
 
@@ -38,9 +39,12 @@ export default function MFASettings() {
   useEffect(() => {
     if (totpUri) {
       setQrFailed(false)
-      setQrUrl(
-        `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(totpUri)}`
-      )
+      QRCode.toDataURL(totpUri, { width: 200, margin: 1 })
+        .then(setQrUrl)
+        .catch(() => {
+          setQrUrl('')
+          setQrFailed(true)
+        })
     }
   }, [totpUri])
 

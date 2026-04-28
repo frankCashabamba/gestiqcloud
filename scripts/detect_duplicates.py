@@ -29,7 +29,7 @@ class DuplicateDetector:
 
     def analyze(self) -> Dict:
         """Run complete analysis and return findings."""
-        print("🔍 Analyzing code duplication patterns...")
+        print(" Analyzing code duplication patterns...")
 
         self.analyze_backend_models()
         self.analyze_backend_schemas()
@@ -40,7 +40,7 @@ class DuplicateDetector:
 
     def analyze_backend_models(self):
         """Analyze SQLAlchemy models for catalog patterns."""
-        print("  📊 Analyzing backend models...")
+        print("   Analyzing backend models...")
 
         model_files = list(self.backend_root.rglob("models/**/*.py"))
 
@@ -121,7 +121,7 @@ class DuplicateDetector:
 
     def analyze_backend_schemas(self):
         """Analyze Pydantic schemas for duplication."""
-        print("  📋 Analyzing backend schemas...")
+        print("   Analyzing backend schemas...")
 
         schema_files = list(self.backend_root.rglob("schemas/**/*.py"))
 
@@ -165,7 +165,7 @@ class DuplicateDetector:
 
     def analyze_frontend_types(self):
         """Analyze TypeScript types for duplication."""
-        print("  🎨 Analyzing frontend types...")
+        print("  Analyzing frontend types...")
 
         admin_types = list(self.admin_root.rglob("types/**/*.ts"))
         tenant_types = list(self.tenant_root.rglob("types/**/*.ts"))
@@ -204,7 +204,7 @@ class DuplicateDetector:
 
     def analyze_validation_patterns(self):
         """Analyze validation patterns for duplication."""
-        print("  ✅ Analyzing validation patterns...")
+        print("  Analyzing validation patterns...")
 
         # Look for manual UUID validation patterns
         python_files = list(self.backend_root.rglob("**/*.py"))
@@ -332,22 +332,36 @@ class DuplicateDetector:
         # Recommendations
         report.append("## Recommendations")
         report.append("")
-        report.append("1. **High Priority**: Apply BaseCatalogModel to all catalog models")
-        report.append("2. **High Priority**: Use schema_generator for all catalog schemas")
-        report.append("3. **High Priority**: Replace manual validations with decorators")
-        report.append("4. **Medium Priority**: Centralize frontend types in @packages/api-types")
-        report.append("5. **Low Priority**: Implement automated duplicate detection in CI")
-        report.append("")
 
-        return "\n".join(report)
+        recommendations = []
+
+        if self.findings["backend_models"]:
+            recommendations.append("**High Priority**: Apply BaseCatalogModel to catalog models")
+
+        if self.findings["backend_schemas"]:
+            recommendations.append("**High Priority**: Use schema_generator for catalog schemas")
+
+        if self.findings["validation_patterns"]:
+            recommendations.append("**High Priority**: Replace manual validations with decorators")
+
+        if self.findings["frontend_types"]:
+            recommendations.append("**Medium Priority**: Centralize frontend types in @packages/api-types")
+
+        if not recommendations:
+            report.append("No duplication issues found.")
+
+        for index, recommendation in enumerate(recommendations, start=1):
+            report.append(f"{index}. {recommendation}")
+
+        report.append("")
 
 
 def main():
     """Main function to run the duplicate detection."""
     project_root = Path(__file__).parent.parent
 
-    print("🚀 Starting Code Duplication Detection")
-    print(f"📁 Project Root: {project_root}")
+    print(" Starting Code Duplication Detection")
+    print(f" Project Root: {project_root}")
     print("")
 
     detector = DuplicateDetector(str(project_root))
@@ -362,9 +376,9 @@ def main():
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write(report)
 
-    print(f"✅ Report saved to: {report_path}")
+    print(f" Report saved to: {report_path}")
     print("")
-    print("📊 Summary:")
+    print(" Summary:")
     for category, issues in findings.items():
         print(f"  {category}: {len(issues)} issues")
 

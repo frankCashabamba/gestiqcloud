@@ -18,7 +18,7 @@ class DocumentConverter:
 
     def sales_order_to_invoice(
         self,
-        sales_order_id: int,
+        sales_order_id: UUID,
         tenant_id: str | UUID,
         invoice_data: dict[str, Any] | None = None,
     ) -> UUID:

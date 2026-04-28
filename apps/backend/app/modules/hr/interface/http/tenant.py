@@ -246,6 +246,11 @@ class PayrollCreateRequest(BaseModel):
     payroll_date: date
 
 
+class PayrollUpdateRequest(BaseModel):
+    payroll_month: str | None = None
+    payroll_date: date | None = None
+
+
 class PaymentSlipResponse(BaseModel):
     """Respuesta de boleta de pago."""
 
@@ -1089,6 +1094,40 @@ async def get_payroll(
     # Cargar detalles
     details = db.query(PayrollDetail).filter_by(payroll_id=payroll_id).all()
 
+    return _serialize_payroll(payroll, details)
+
+
+@router.put("/payroll/{payroll_id}", response_model=PayrollResponse)
+async def update_payroll(
+    payroll_id: UUID,
+    payload: PayrollUpdateRequest,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> PayrollResponse:
+    """Actualiza metadatos editables de una nomina en borrador."""
+    tenant_id = _as_uuid(claims["tenant_id"])
+
+    payroll = db.get(Payroll, payroll_id)
+    if not payroll or not _same_identifier(payroll.tenant_id, tenant_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payroll not found",
+        )
+    if payroll.status != "DRAFT":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only draft payrolls can be updated",
+        )
+
+    if payload.payroll_month is not None:
+        payroll.payroll_month = payload.payroll_month
+    if payload.payroll_date is not None:
+        payroll.payroll_date = payload.payroll_date
+
+    db.add(payroll)
+    db.commit()
+    db.refresh(payroll)
+    details = db.query(PayrollDetail).filter_by(payroll_id=payroll_id).all()
     return _serialize_payroll(payroll, details)
 
 

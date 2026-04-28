@@ -122,16 +122,21 @@ def get_current_shift(register_id: str, request: Request, db: Session = Depends(
     """Obtiene el turno abierto (si existe) para un registro."""
     ensure_guc_from_request(request, db, persist=True)
     rid = validate_uuid(register_id, "Register ID")
+    tenant_id = get_tenant_id(request)
 
     shift = db.execute(
         text(
-            "SELECT id, register_id, opened_by, opened_at, closed_at, opening_float, "
-            "closing_total, status "
-            "FROM pos_shifts "
-            "WHERE register_id = :rid AND status = 'open' "
-            "ORDER BY opened_at DESC LIMIT 1"
-        ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
-        {"rid": rid},
+            "SELECT ps.id, ps.register_id, ps.opened_by, ps.opened_at, ps.closed_at, "
+            "ps.opening_float, ps.closing_total, ps.status "
+            "FROM pos_shifts ps "
+            "JOIN pos_registers pr ON pr.id = ps.register_id "
+            "WHERE ps.register_id = :rid AND pr.tenant_id = :tid AND ps.status = 'open' "
+            "ORDER BY ps.opened_at DESC LIMIT 1"
+        ).bindparams(
+            bindparam("rid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"rid": rid, "tid": tenant_id},
     ).first()
 
     if not shift:
@@ -164,24 +169,28 @@ def list_shifts(
 ):
     """Lista turnos POS con filtros opcionales."""
     ensure_guc_from_request(request, db, persist=True)
+    tenant_id = get_tenant_id(request)
 
     sql_parts = [
-        "SELECT id, register_id, opened_at, closed_at, opening_float, closing_cash, status, opened_by "
-        "FROM pos_shifts WHERE 1=1"
+        "SELECT ps.id, ps.register_id, ps.opened_at, ps.closed_at, ps.opening_float, "
+        "ps.closing_cash, ps.status, ps.opened_by "
+        "FROM pos_shifts ps "
+        "JOIN pos_registers pr ON pr.id = ps.register_id "
+        "WHERE pr.tenant_id = :tid"
     ]
-    params: dict = {}
+    params: dict = {"tid": tenant_id}
 
     if status:
-        sql_parts.append("AND status = :st")
+        sql_parts.append("AND ps.status = :st")
         params["st"] = status
     if since:
-        sql_parts.append("AND opened_at >= :since")
+        sql_parts.append("AND ps.opened_at >= :since")
         params["since"] = since
     if until:
-        sql_parts.append("AND opened_at <= :until")
+        sql_parts.append("AND ps.opened_at <= :until")
         params["until"] = until
 
-    sql_parts.append("ORDER BY opened_at DESC LIMIT :lim")
+    sql_parts.append("ORDER BY ps.opened_at DESC LIMIT :lim")
     params["lim"] = min(limit, 1000)
 
     try:
@@ -270,9 +279,9 @@ def get_shift_summary(
                     "SELECT si.product_id, si.warehouse_id, w.name as warehouse_name, si.qty "
                     "FROM stock_items si "
                     "LEFT JOIN warehouses w ON w.id = si.warehouse_id "
-                    "WHERE si.product_id = ANY(:product_ids)"
+                    "WHERE si.product_id = ANY(:product_ids) AND si.tenant_id = :tid"
                 ),
-                {"product_ids": product_ids},
+                {"product_ids": product_ids, "tid": tenant_id},
             ).fetchall()
             for row in stock_rows:
                 pid = str(row[0])
@@ -325,10 +334,15 @@ def get_shift_summary(
         payments_breakdown = {row[0]: float(row[1] or 0) for row in payments_breakdown_rows}
 
         shift_opening = db.execute(
-            text("SELECT opening_float FROM pos_shifts WHERE id = :sid").bindparams(
-                bindparam("sid", type_=PGUUID(as_uuid=True))
+            text(
+                "SELECT ps.opening_float FROM pos_shifts ps "
+                "JOIN pos_registers pr ON pr.id = ps.register_id "
+                "WHERE ps.id = :sid AND pr.tenant_id = :tid"
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"sid": shift_uuid},
+            {"sid": shift_uuid, "tid": tenant_id},
         ).scalar()
         opening_float_val = float(shift_opening or 0)
         cash_sales_val = payments_breakdown.get("cash", 0)
@@ -433,10 +447,15 @@ def close_shift(
 
     try:
         shift = db.execute(
-            text("SELECT status FROM pos_shifts WHERE id = :sid FOR UPDATE").bindparams(
-                bindparam("sid", type_=PGUUID(as_uuid=True))
+            text(
+                "SELECT ps.status FROM pos_shifts ps "
+                "JOIN pos_registers pr ON pr.id = ps.register_id "
+                "WHERE ps.id = :sid AND pr.tenant_id = :tid FOR UPDATE"
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"sid": shift_uuid},
+            {"sid": shift_uuid, "tid": token_tenant_id},
         ).first()
 
         if not shift:

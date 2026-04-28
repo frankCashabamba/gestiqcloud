@@ -51,14 +51,14 @@ class InvoiceFromOrderResponse(BaseModel):
     """Response de creación de factura"""
 
     invoice_id: str
-    order_id: int
+    order_id: str
     status: str
     message: str
 
 
 @router.post("/{order_id}/invoice", response_model=InvoiceFromOrderResponse, status_code=201)
 def create_invoice_from_sales_order(
-    order_id: int,
+    order_id: UUID,
     request: Request,
     payload: InvoiceFromOrderRequest | None = None,
     db: Session = Depends(get_db),
@@ -122,7 +122,7 @@ def create_invoice_from_sales_order(
 
         return InvoiceFromOrderResponse(
             invoice_id=str(invoice_id),
-            order_id=order_id,
+            order_id=str(order_id),
             status="created",
             message=f"Factura {numero} creada exitosamente desde orden {order_id}",
         )
@@ -138,7 +138,7 @@ def create_invoice_from_sales_order(
 
 
 @router.get("/{order_id}/invoice")
-def get_invoice_from_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+def get_invoice_from_order(order_id: UUID, request: Request, db: Session = Depends(get_db)):
     """
     Obtiene la factura asociada a una orden de venta.
 

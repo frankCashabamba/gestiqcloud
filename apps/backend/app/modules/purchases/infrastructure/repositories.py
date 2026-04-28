@@ -1,16 +1,17 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.crud_base import CRUDBase
-from app.models.purchases import Purchase
+from app.models.purchases import Purchase, PurchaseLine
 
 
 @dataclass
 class PurchaseCreateDTO:
-    tenant_id: int | None = None
+    tenant_id: UUID | str | None = None
     date: str | None = None
-    supplier_id: int | None = None
+    supplier_id: UUID | str | None = None
     total: float | None = None
     status: str | None = None
 
@@ -71,18 +72,69 @@ class PurchaseRepo:
         tenant_id,
         *,
         date,
-        supplier_id: int | None,
+        supplier_id: str | None,
         total: float,
         status: str | None,
+        lines: list | None = None,
+        subtotal: float | None = None,
+        taxes: float | None = None,
+        notes: str | None = None,
+        delivery_date=None,
+        user_id=None,
     ) -> Purchase:
-        dto = PurchaseCreateDTO(
+        number = self._next_number(tenant_id)
+        purchase = Purchase(
             tenant_id=tenant_id,
+            number=number,
             date=date,
             supplier_id=supplier_id,
-            total=total,
-            status=status,
+            subtotal=subtotal or 0,
+            taxes=taxes or 0,
+            total=total or 0,
+            status=status or "draft",
+            notes=notes,
+            delivery_date=delivery_date,
+            user_id=user_id,
         )
-        return self.crud.create(self.db, dto)
+        try:
+            self.db.add(purchase)
+            self.db.flush()
+
+            for line in lines or []:
+                quantity = float(getattr(line, "quantity", 0) or 0)
+                unit_price = float(getattr(line, "unit_price", 0) or 0)
+                line_total = float(getattr(line, "subtotal", 0) or 0) or quantity * unit_price
+                self.db.add(
+                    PurchaseLine(
+                        purchase_id=purchase.id,
+                        product_id=getattr(line, "product_id", None),
+                        quantity=quantity,
+                        unit_price=unit_price,
+                        tax_rate=0,
+                        total=line_total,
+                    )
+                )
+            self.db.commit()
+            self.db.refresh(purchase)
+        except Exception:
+            self.db.rollback()
+            raise
+        return purchase
+
+    def _next_number(self, tenant_id) -> str:
+        prefix = "PO-"
+        last = (
+            self.db.query(Purchase.number)
+            .filter(Purchase.tenant_id == tenant_id, Purchase.number.like(f"{prefix}%"))
+            .order_by(Purchase.number.desc())
+            .first()
+        )
+        if not last or not last[0]:
+            return f"{prefix}000001"
+        try:
+            return f"{prefix}{int(str(last[0]).split('-')[-1]) + 1:06d}"
+        except ValueError:
+            return f"{prefix}000001"
 
     def update(
         self,

@@ -310,7 +310,10 @@ def _get_default_recipient(channel: NotificationChannel) -> str:
     config = channel.config
 
     if channel.channel_type == "email":
-        return config.get("default_recipient", "admin@example.com")
+        recipient = config.get("default_recipient")
+        if not recipient:
+            raise ValueError("ai_agent_default_recipient_not_configured")
+        return recipient
     elif channel.channel_type == "whatsapp":
         return config.get("phone", "+1234567890")
     elif channel.channel_type == "telegram":

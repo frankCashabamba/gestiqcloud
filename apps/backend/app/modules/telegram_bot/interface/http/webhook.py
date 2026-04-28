@@ -210,10 +210,12 @@ async def telegram_webhook(
 
     # 2. Validar secret (almacenado en config del canal, no en env)
     webhook_secret: str | None = tg_config.get("webhook_secret")
-    if webhook_secret:
-        if x_telegram_bot_api_secret_token != webhook_secret:
-            logger.warning("[telegram_bot] Secret inválido [tenant=%s]", tenant_id)
-            raise HTTPException(status_code=403, detail="Forbidden")
+    if not webhook_secret:
+        logger.warning("[telegram_bot] webhook_secret no configurado [tenant=%s]", tenant_id)
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if x_telegram_bot_api_secret_token != webhook_secret:
+        logger.warning("[telegram_bot] Secret inválido [tenant=%s]", tenant_id)
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     # 3. Parsear Update
     try:
@@ -280,6 +282,8 @@ async def register_telegram_webhook(
         raise HTTPException(status_code=400, detail="Bot token no configurado.")
 
     webhook_secret: str | None = tg_config.get("webhook_secret") or None
+    if not webhook_secret:
+        raise HTTPException(status_code=400, detail="Webhook secret no configurado.")
 
     if body.custom_base_url:
         base = body.custom_base_url.rstrip("/")
@@ -295,9 +299,7 @@ async def register_telegram_webhook(
 
     webhook_url = f"{base}/api/v1/telegram/webhook/{tenant_id}"
 
-    payload: dict = {"url": webhook_url}
-    if webhook_secret:
-        payload["secret_token"] = webhook_secret
+    payload: dict = {"url": webhook_url, "secret_token": webhook_secret}
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:

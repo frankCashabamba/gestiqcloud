@@ -2007,7 +2007,9 @@ async def _process_run_document(
     force_clean_reimport = bool(recipe_context.force_clean_reimport or deep_reprocess)
 
     extraction_started_at = time.perf_counter()
-    extraction = await extract_text_fn(file_bytes, filename, bypass_cache=deep_reprocess)
+    extraction = await extract_text_fn(
+        file_bytes, filename, bypass_cache=deep_reprocess, tenant_id=str(tenant_id)
+    )
     _set_stage_timing(stage_timings, "ocr_extract", extraction_started_at)
 
     text = extraction.get("text", "")

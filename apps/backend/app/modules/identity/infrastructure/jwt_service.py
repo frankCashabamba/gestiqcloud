@@ -151,9 +151,7 @@ class JwtService:
         try:
             payload = jwt.decode(token, self.cfg.secret, algorithms=[self.cfg.algorithm])
         except Exception as e:
-            logger.error(
-                f"JWT decode failed: {type(e).__name__}: {e}, secret_len={len(self.cfg.secret)}, secret_first_10={self.cfg.secret[:10]}, secret_hash={hash(self.cfg.secret)}"
-            )
+            logger.error("JWT decode failed: %s: %s", type(e).__name__, e)
             raise
 
         if expected_kind is not None:

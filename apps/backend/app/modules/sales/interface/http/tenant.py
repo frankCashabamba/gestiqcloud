@@ -501,7 +501,7 @@ def confirm_order(
         raise HTTPException(status_code=404, detail="order_not_found")
     if so.status != "draft":
         raise HTTPException(status_code=400, detail="invalid_status")
-    items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == order_id).all()
+    items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == so_id).all()
     if not items:
         raise HTTPException(status_code=400, detail="no_items")
     for it in items:
@@ -561,7 +561,7 @@ deliveries_router = APIRouter(
 
 
 class DeliveryCreateIn(BaseModel):
-    order_id: int
+    order_id: UUID
 
 
 @deliveries_router.post("/", response_model=dict, status_code=201)

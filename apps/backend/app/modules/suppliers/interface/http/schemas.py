@@ -106,3 +106,5 @@ class SupplierListOut(BaseModel):
     trade_name: str | None = None
     email: EmailStr | None = None
     phone: str | None = None
+
+    model_config = {"from_attributes": True}

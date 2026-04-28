@@ -65,8 +65,10 @@ def _ocr_cache_dir() -> Path:
     return raw_dir
 
 
-def _ocr_cache_path(file_bytes: bytes) -> Path:
-    file_hash = hashlib.sha256(file_bytes).hexdigest()
+def _ocr_cache_path(file_bytes: bytes, tenant_id: str | None = None) -> Path:
+    tenant_key = str(tenant_id or "global").strip() or "global"
+    cache_key = f"{tenant_key}:{hashlib.sha256(file_bytes).hexdigest()}"
+    file_hash = hashlib.sha256(cache_key.encode("utf-8")).hexdigest()
     return _ocr_cache_dir() / f"{file_hash}.json"
 
 
@@ -130,8 +132,10 @@ def _can_cache_extraction(extraction: dict[str, Any]) -> bool:
     )
 
 
-def _load_cached_extraction(file_bytes: bytes) -> dict[str, Any] | None:
-    cache_path = _ocr_cache_path(file_bytes)
+def _load_cached_extraction(
+    file_bytes: bytes, tenant_id: str | None = None
+) -> dict[str, Any] | None:
+    cache_path = _ocr_cache_path(file_bytes, tenant_id)
     if not cache_path.exists():
         return None
     try:
@@ -144,10 +148,12 @@ def _load_cached_extraction(file_bytes: bytes) -> dict[str, Any] | None:
     return _deserialize_cached_extraction(payload)
 
 
-def _store_cached_extraction(file_bytes: bytes, extraction: dict[str, Any]) -> None:
+def _store_cached_extraction(
+    file_bytes: bytes, extraction: dict[str, Any], tenant_id: str | None = None
+) -> None:
     if not _can_cache_extraction(extraction):
         return
-    cache_path = _ocr_cache_path(file_bytes)
+    cache_path = _ocr_cache_path(file_bytes, tenant_id)
     payload = _serialize_cached_extraction(extraction)
     tmp_path = cache_path.with_suffix(".tmp")
     try:
@@ -768,6 +774,7 @@ async def extract_text_from_file(
     filename: str,
     *,
     bypass_cache: bool = False,
+    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """Extrae texto de cualquier archivo soportado.
     Returns: {"text": str, "pages": int, "structured_data": list[dict] | None, "format": str}
@@ -776,7 +783,7 @@ async def extract_text_from_file(
     if bypass_cache:
         logger.info("OCR cache bypassed for %s", Path(filename).name)
     else:
-        cached = _load_cached_extraction(file_bytes)
+        cached = _load_cached_extraction(file_bytes, tenant_id)
         if cached is not None:
             logger.info("OCR cache hit for %s", Path(filename).name)
             result = dict(cached)
@@ -827,7 +834,7 @@ async def extract_text_from_file(
     extraction["_cache_hit"] = False
     extraction["_cache_bypassed"] = bool(bypass_cache)
     if not bypass_cache:
-        _store_cached_extraction(file_bytes, extraction)
+        _store_cached_extraction(file_bytes, extraction, tenant_id)
     return extraction
 
 

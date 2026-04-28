@@ -12,7 +12,7 @@ from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 
 from ...infrastructure.repositories import SupplierRepo
-from .schemas import SupplierCreate, SupplierOut, SupplierUpdate
+from .schemas import SupplierCreate, SupplierListOut, SupplierOut, SupplierUpdate
 
 router = APIRouter(
     prefix="/suppliers",
@@ -75,7 +75,7 @@ def _prepare_payload(
     return data
 
 
-@router.get("", response_model=list[SupplierOut])
+@router.get("", response_model=list[SupplierListOut])
 def list_suppliers(request: Request, db: Session = Depends(get_db)):
     tenant_id = _tenant_id(request)
     return SupplierRepo(db).list(tenant_id)
