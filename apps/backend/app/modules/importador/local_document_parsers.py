@@ -187,7 +187,9 @@ def parse_thermal_receipt(text: str) -> LocalParseResult:
     return LocalParseResult(fields=fields, confidence=confidence, reasons=tuple(reasons))
 
 
-def parse_printed_invoice(text: str, *, existing_fields: dict[str, Any] | None = None) -> LocalParseResult:
+def parse_printed_invoice(
+    text: str, *, existing_fields: dict[str, Any] | None = None
+) -> LocalParseResult:
     rescued = invoice_rescue_from_ocr(text, existing_fields=existing_fields or {})
     reasons = tuple(sorted(rescued.keys()))
     confidence = min(0.58 + len(reasons) * 0.05, 0.84) if rescued else 0.0

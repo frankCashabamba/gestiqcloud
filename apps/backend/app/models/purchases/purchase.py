@@ -71,9 +71,7 @@ class PurchaseLine(Base):
     __tablename__ = "purchase_lines"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     purchase_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("purchases.id", ondelete="CASCADE"),

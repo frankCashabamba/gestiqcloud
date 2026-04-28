@@ -241,6 +241,19 @@ def _normalize_ocr_candidate_text(text: str) -> str:
     return " ".join(str(text or "").split()).strip()
 
 
+def _repair_lost_ocr_titles(text: str) -> str:
+    """Restore high-evidence titles that OCR often drops from photographed receipts."""
+    raw = str(text or "").strip()
+    if not raw:
+        return raw
+    normalized = raw.upper()
+    if "NOTA DE VENTA" not in normalized and all(
+        marker in normalized for marker in ("F.DE PAGO", "DESCRIPCION", "VUNIT")
+    ):
+        return f"NOTA DE VENTA\n{raw}"
+    return raw
+
+
 def _ocr_runtime_config() -> dict[str, Any]:
     return load_ocr_runtime_config(None)
 
@@ -672,7 +685,7 @@ def _best_text_candidate(candidates: list[str], *, ocr_runtime: dict[str, Any]) 
     best_text = ""
     best_key = (-1.0, -1.0, -1.0)
     for candidate in candidates:
-        text = _normalize_ocr_candidate_text(candidate)
+        text = _repair_lost_ocr_titles(_normalize_ocr_candidate_text(candidate))
         if not text:
             continue
         quality = _estimate_text_quality(text, ocr_runtime=ocr_runtime)
@@ -710,6 +723,7 @@ def _ocr_image_candidates(
                 else config["rescue_psm_modes"]
             )
             cleaned = _run_tesseract(variant, psm_modes=psm_modes)
+            cleaned = _repair_lost_ocr_titles(cleaned)
             if cleaned:
                 candidates.append(cleaned)
             if cleaned and not _is_weak_ocr_text(cleaned):

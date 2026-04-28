@@ -10,7 +10,7 @@ import time
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 
 from app.config.database import Base
@@ -28,7 +28,9 @@ class UserMFA(Base):
     )
     totp_secret = Column(String(64), nullable=False)
     is_enabled = Column(Boolean, default=False)
-    recovery_codes = Column(ARRAY(String), default=list)  # hashed codes
+    recovery_codes = Column(
+        ARRAY(String).with_variant(JSON, "sqlite"), default=list
+    )  # hashed codes
     backup_email = Column(String(255), nullable=True)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
