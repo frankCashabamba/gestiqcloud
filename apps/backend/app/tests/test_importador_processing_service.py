@@ -1029,7 +1029,7 @@ def test_noisy_molinos_photo_ocr_repairs_vendor_total_date_and_items():
     assert repaired["doc_number"] == "001-001-000120085"
     assert repaired["vendor_tax_id"] == "1890004195001"
     assert repaired["total_amount"] == 2145.0
-    assert repaired["line_items"][0]["description"] == "HARINA TRADICION PREMIUM 50 KG F"
+    assert repaired["line_items"][0]["description"] == "HARINA TRADICION PREMIUM 50 KG"
     assert repaired["line_items"][0]["quantity"] == 50.0
     assert repaired["line_items"][0]["unit_price"] == 42.9
     assert repaired["line_items"][0]["total_price"] == 2145.0

@@ -73,7 +73,7 @@ def estimate_text_quality(
     weird_chars = sum(
         1
         for ch in normalized
-        if not (ch.isalpha() or ch.isdigit() or ch.isspace() or ch in ".,;:/-_#%()[]{}+*'\"@$")
+        if not (ch.isalpha() or ch.isdigit() or ch.isspace() or ch in ".,;:/-_#%()[]{}+*'\"@$|")
     )
 
     alpha_ratio = alpha_chars / max(alnum_chars, 1)
@@ -103,12 +103,17 @@ def estimate_text_quality(
     if word_count < int(cfg.get("weak_text_min_words") or 4):
         short_penalty += 0.18
 
+    # Use explicit None-check for useful weight so that an explicit 0.0 in the config
+    # (e.g. ai_runtime where the 4 primary weights already sum to 1.0) is respected
+    # instead of being treated as falsy by the `or` operator.
+    _useful_weight_raw = cfg.get("ocr_score_weight_useful")
+    _useful_weight = float(_useful_weight_raw) if _useful_weight_raw is not None else 0.15
     base_score = (
         (length_score * float(cfg.get("ocr_score_weight_length") or 0.30))
         + (word_score * float(cfg.get("ocr_score_weight_words") or 0.25))
         + (alpha_score * float(cfg.get("ocr_score_weight_alpha") or 0.15))
         + (clean_score * float(cfg.get("ocr_score_weight_clean") or 0.15))
-        + (useful_score * float(cfg.get("ocr_score_weight_useful") or 0.15))
+        + (useful_score * _useful_weight)
     )
     score = base_score
     score *= max(0.45, 1.0 - (repetition_penalty * 0.35))

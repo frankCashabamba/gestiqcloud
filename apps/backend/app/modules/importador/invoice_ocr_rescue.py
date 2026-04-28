@@ -381,8 +381,11 @@ def _rescue_vendor(text: str) -> str | None:
 
 
 def _rescue_doc_number(text: str) -> str | None:
+    # Also search a pipe-stripped version so "A | B | No. | FAC-2026-0487" lines match.
+    pipe_stripped = re.sub(r"\s*\|\s*", " ", str(text or ""))
     header_text = "\n".join(_clean_lines(text)[:25])
-    for scope in (header_text, text):
+    pipe_header = "\n".join(_clean_lines(pipe_stripped)[:25])
+    for scope in (header_text, pipe_header, text, pipe_stripped):
         for pattern in _DOC_NUMBER_LABEL_PATTERNS:
             match = re.search(pattern, scope)
             if not match:

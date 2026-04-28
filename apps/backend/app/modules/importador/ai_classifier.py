@@ -1891,7 +1891,9 @@ def _extract_invoice_line_items_from_ocr(
         if not line:
             continue
         normalized = _normalize_evidence_text(line)
-        if any(marker in normalized for marker in skip_markers):
+        # Use space-padded check so "iva" doesn't accidentally match "oliva"
+        norm_padded = f" {normalized} "
+        if any(f" {marker} " in norm_padded for marker in skip_markers):
             continue
 
         tokens = line.split()
@@ -1919,7 +1921,14 @@ def _extract_invoice_line_items_from_ocr(
         if qty_idx >= unit_idx or unit_idx >= total_idx:
             continue
 
-        description = " ".join(tokens[qty_idx + 1 : unit_idx]).strip()
+        # Build description, skipping price-notation markers like "F/" (Latin American
+        # invoices use "F/<price>" to mean "at <price> each"; after stripping "/" only "F" remains)
+        desc_tokens = [
+            tok
+            for tok in tokens[qty_idx + 1 : unit_idx]
+            if not (len(tok.rstrip("/")) <= 1 and tok.rstrip("/").isalpha())
+        ]
+        description = " ".join(desc_tokens).strip()
         # Eliminar monedas/símbolos sueltos al inicio o final y limpiar puntuación
         description = re.sub(r"^[$€£¥]\s*|[$€£¥]\s*$", "", description)
         description = " ".join(description.split()).strip(" -–—|/.,;:()[]{}")
@@ -2031,8 +2040,10 @@ def _repair_total_from_line_items_or_subtotal(fields: dict[str, Any]) -> bool:
     tax_amount = safe_floatish(fields.get("tax_amount"))
 
     preferred: float | None = None
+    preferred_from_line_items = False
     if line_items_total is not None:
         preferred = line_items_total
+        preferred_from_line_items = True
     elif subtotal is not None and (tax_amount is None or abs(float(tax_amount)) <= 0.01):
         preferred = subtotal
 
@@ -2043,7 +2054,14 @@ def _repair_total_from_line_items_or_subtotal(fields: dict[str, Any]) -> bool:
         return True
 
     tolerance = max(5.0, abs(float(current_total)) * 0.02)
-    has_matching_subtotal = subtotal is not None and abs(float(subtotal) - preferred) <= 1.0
+    # has_matching_subtotal only applies when preferred came from line_items_total and
+    # the subtotal independently confirms it. When preferred == subtotal (no line items),
+    # the check would be trivially true and would wrongly overwrite a larger correct total.
+    has_matching_subtotal = (
+        preferred_from_line_items
+        and subtotal is not None
+        and abs(float(subtotal) - float(preferred)) <= 1.0
+    )
     clearly_too_small = float(current_total) < preferred * 0.2
     close_ocr_digit_error = abs(float(current_total) - preferred) <= tolerance
     if has_matching_subtotal or clearly_too_small or close_ocr_digit_error:
