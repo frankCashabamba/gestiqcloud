@@ -147,6 +147,9 @@ function buildInvoicePayload(invoice: Partial<InvoiceCreate | Invoice>): Record<
     total: invoice.total,
     status: invoice.status,
     customer_id: invoice.customer_id,
+    customer_name: invoice.customer_name,
+    description: invoice.description,
+    notes: invoice.notes,
     lines,
   })
 }

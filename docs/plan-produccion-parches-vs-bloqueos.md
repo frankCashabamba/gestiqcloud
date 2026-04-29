@@ -38,6 +38,9 @@ Un modulo queda fuera de produccion si:
 - Importador OCR: cache incluye tenant.
 - Webhooks: validacion anti-SSRF basica.
 - Inventory: ajustes negativos bloqueados; cycle count y sync requieren permisos especificos.
+- Products: purge destructivo por DELETE bloqueado; purge real exige POST con permiso y confirmacion; merge de duplicados exige permiso y solo actualiza tablas con `tenant_id`; deteccion de similares queda limitada por `scan_limit`.
+- Suppliers: `PUT` acepta payload parcial, IBAN se normaliza y valida con checksum, y `tax_id` duplicado por tenant devuelve 409.
+- Billing frontend: `customer_name`, `description` y `notes` ya se envian al backend al crear/editar factura.
 
 ## Modulos candidatos a produccion con parches
 
@@ -99,10 +102,9 @@ Estado: candidato parcial.
 
 Parches pendientes:
 
-- Proteger `purge_products` con confirmacion fuerte y permiso admin.
-- Revisar `merge_similar_products` para filtrar todas las actualizaciones por tenant.
-- Limitar `list_similar_products` o paginar/procesar por lotes.
 - Unificar mecanismo de tenant/auth en endpoints que aun usen helpers antiguos.
+- Agregar pruebas especificas para `duplicates/similar`, `duplicates/merge` y `POST /purge`.
+- Definir si el permiso de purge debe ser solo owner/admin o si `products.delete` es suficiente para v1.
 
 Condicion para subir: CRUD, stock visible, categorias, bulk operations y merge seguro por tenant.
 
@@ -124,11 +126,10 @@ Estado: candidato con advertencias.
 
 Parches pendientes:
 
-- Validar formato IBAN y coincidencia `iban_confirmacion` en frontend/backend.
+- Validar coincidencia `iban_confirmacion` tambien en frontend.
 - Enmascarar IBAN tambien en vistas donde no sea estrictamente necesario.
-- Agregar unicidad `tax_id` por tenant.
+- Definir constraint DB de `tax_id` unico por tenant.
 - Evaluar cifrado en reposo para IBAN antes de usar datos reales.
-- Implementar PATCH real o documentar que el endpoint actual es PUT completo.
 
 Condicion para subir: no exponer IBAN completo en listados y validar datos bancarios.
 
@@ -370,4 +371,3 @@ No subir todavia:
 - Analytics
 - Restaurant
 - Historical
-

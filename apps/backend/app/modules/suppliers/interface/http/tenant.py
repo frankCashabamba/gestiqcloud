@@ -10,6 +10,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.suppliers import Supplier
 
 from ...infrastructure.repositories import SupplierRepo
 from .schemas import SupplierCreate, SupplierListOut, SupplierOut, SupplierUpdate
@@ -58,8 +59,9 @@ def _prepare_payload(
     request: Request,
     current_iban: str | None = None,
 ) -> dict:
-    data = payload.model_dump()
-    confirm = data.pop("iban_confirmation", None)
+    data = payload.model_dump(exclude_unset=isinstance(payload, SupplierUpdate))
+    confirm = getattr(payload, "iban_confirmation", None)
+    data.pop("iban_confirmation", None)
     iban = data.get("iban")
 
     if iban:
@@ -73,6 +75,23 @@ def _prepare_payload(
             status_code=400, detail="IBAN must be provided if confirmation is given"
         )
     return data
+
+
+def _ensure_unique_tax_id(
+    db: Session,
+    tenant_id: UUID,
+    tax_id: str | None,
+    *,
+    exclude_supplier_id: UUID | None = None,
+) -> None:
+    tax_id = (tax_id or "").strip()
+    if not tax_id:
+        return
+    query = db.query(Supplier.id).filter(Supplier.tenant_id == tenant_id, Supplier.tax_id == tax_id)
+    if exclude_supplier_id is not None:
+        query = query.filter(Supplier.id != exclude_supplier_id)
+    if query.first() is not None:
+        raise HTTPException(status_code=409, detail="Supplier tax_id already exists")
 
 
 @router.get("", response_model=list[SupplierListOut])
@@ -99,6 +118,7 @@ def create_supplier(
     tenant_id = _tenant_id(request)
     repo = SupplierRepo(db)
     data = _prepare_payload(payload, request=request)
+    _ensure_unique_tax_id(db, tenant_id, data.get("tax_id"))
     if data.get("iban"):
         data.setdefault("iban_updated_by", _user_id(request))
         data.setdefault("iban_updated_at", _now())
@@ -119,6 +139,7 @@ def update_supplier(
     if not existing:
         raise HTTPException(status_code=404, detail="Supplier not found")
     data = _prepare_payload(payload, request=request, current_iban=existing.iban)
+    _ensure_unique_tax_id(db, tenant_id, data.get("tax_id"), exclude_supplier_id=existing.id)
     supplier = repo.update(tenant_id, _supplier_id(pid), **data)
     return supplier
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
 from app.core.dependencies import get_current_tenant_id
 from app.middleware.tenant import ensure_tenant
 from app.models.core.product_category import ProductCategory
@@ -693,13 +693,18 @@ def list_similar_products(
     db: Session = Depends(get_db),
     threshold: float = Query(default=0.9, ge=0.7, le=1.0),
     limit: int = Query(default=12, ge=1, le=100),
+    scan_limit: int = Query(default=1000, ge=10, le=5000),
 ):
     tenant_id = _empresa_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="missing_tenant")
 
     products = (
-        db.query(Product).filter(Product.tenant_id == tenant_id).order_by(Product.name.asc()).all()
+        db.query(Product)
+        .filter(Product.tenant_id == tenant_id)
+        .order_by(Product.name.asc())
+        .limit(scan_limit)
+        .all()
     )
     if not products:
         return SimilarProductsResponse(groups=[], total_groups=0)
@@ -767,7 +772,11 @@ def list_similar_products(
     return SimilarProductsResponse(groups=groups, total_groups=len(groups))
 
 
-@router.post("/duplicates/merge", response_model=MergeSimilarProductsOut, dependencies=protected)
+@router.post(
+    "/duplicates/merge",
+    response_model=MergeSimilarProductsOut,
+    dependencies=protected + [Depends(require_permission("products.update"))],
+)
 def merge_similar_products(
     payload: MergeSimilarProductsIn,
     request: Request,
@@ -800,32 +809,21 @@ def merge_similar_products(
 
     for loser in losers:
         for table, has_tenant in tables:
+            if not has_tenant:
+                continue
             qtable = _quote_ident(table)
-            if has_tenant:
-                res = db.execute(
-                    text(
-                        f"UPDATE public.{qtable} "
-                        "SET product_id=:winner "
-                        "WHERE tenant_id=:tid AND product_id=:loser"
-                    ),
-                    {
-                        "winner": str(winner.id),
-                        "loser": str(loser.id),
-                        "tid": tenant_id,
-                    },
-                )
-            else:
-                res = db.execute(
-                    text(
-                        f"UPDATE public.{qtable} "
-                        "SET product_id=:winner "
-                        "WHERE product_id=:loser"
-                    ),
-                    {
-                        "winner": str(winner.id),
-                        "loser": str(loser.id),
-                    },
-                )
+            res = db.execute(
+                text(
+                    f"UPDATE public.{qtable} "
+                    "SET product_id=:winner "
+                    "WHERE tenant_id=:tid AND product_id=:loser"
+                ),
+                {
+                    "winner": str(winner.id),
+                    "loser": str(loser.id),
+                    "tid": tenant_id,
+                },
+            )
             updated = int(res.rowcount or 0)
             if updated > 0:
                 moved_refs[table] = moved_refs.get(table, 0) + updated
@@ -1037,8 +1035,14 @@ def update_product(
 # OPERACIONES INDIVIDUALES DE PRODUCTOS
 
 
-@router.delete("/{product_id}", status_code=204, dependencies=protected)
+@router.delete(
+    "/{product_id}",
+    status_code=204,
+    dependencies=protected + [Depends(require_permission("products.delete"))],
+)
 def delete_product(product_id: str, request: Request, db: Session = Depends(get_db)):
+    if product_id == "purge":
+        raise HTTPException(status_code=405, detail="use_post_purge_with_confirmation")
     tenant_id = _empresa_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=403, detail="missing_tenant")
@@ -1050,7 +1054,11 @@ def delete_product(product_id: str, request: Request, db: Session = Depends(get_
     return
 
 
-@router.delete("/purge", status_code=204, dependencies=protected)
+@router.delete(
+    "/purge",
+    status_code=204,
+    dependencies=protected + [Depends(require_permission("products.delete"))],
+)
 def purge_products(request: Request, db: Session = Depends(get_db)):
     """
     Elimina TODOS los productos del tenant actual y su stock asociado.
@@ -1058,6 +1066,7 @@ def purge_products(request: Request, db: Session = Depends(get_db)):
     - Borra productos y categorías del tenant
     Pensado para reiniciar el catálogo antes de una importación.
     """
+    raise HTTPException(status_code=405, detail="use_post_purge_with_confirmation")
     from sqlalchemy import text
 
     tenant_id = _empresa_id_from_request(request)
@@ -1141,7 +1150,11 @@ def _is_owner_or_manager(request: Request) -> bool:
         return False
 
 
-@router.post("/purge", response_model=PurgeResponse, dependencies=protected)
+@router.post(
+    "/purge",
+    response_model=PurgeResponse,
+    dependencies=protected + [Depends(require_permission("products.delete"))],
+)
 def purge_products_pro(request: Request, payload: PurgeRequest, db: Session = Depends(get_db)):
     from sqlalchemy import text
 

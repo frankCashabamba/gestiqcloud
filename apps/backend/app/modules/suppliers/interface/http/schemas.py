@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, StringConstraints
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator
 
 ContactType = Literal[
     "billing",
@@ -28,6 +28,21 @@ StrCountry = Annotated[str, StringConstraints(strip_whitespace=True, min_length=
 StrLang = Annotated[str, StringConstraints(strip_whitespace=True, max_length=8)]
 StrCurrency = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=3)]
 StrIBAN = Annotated[str, StringConstraints(strip_whitespace=True, max_length=34)]
+
+
+def _normalize_iban(value: str | None) -> str | None:
+    if value is None:
+        return None
+    iban = "".join(str(value).split()).upper()
+    if not iban:
+        return None
+    if len(iban) < 15 or len(iban) > 34 or not iban.isalnum():
+        raise ValueError("Invalid IBAN format")
+    rearranged = iban[4:] + iban[:4]
+    numeric = "".join(str(ord(ch) - 55) if ch.isalpha() else ch for ch in rearranged)
+    if int(numeric) % 97 != 1:
+        raise ValueError("Invalid IBAN checksum")
+    return iban
 
 
 class SupplierContactIn(BaseModel):
@@ -72,13 +87,43 @@ class SupplierBase(BaseModel):
     contacts: list[SupplierContactIn] = Field(default_factory=list)
     addresses: list[SupplierAddressIn] = Field(default_factory=list)
 
+    @field_validator("iban", "iban_confirmation", mode="before")
+    @classmethod
+    def validate_iban(cls, value: str | None) -> str | None:
+        return _normalize_iban(value)
+
 
 class SupplierCreate(SupplierBase):
     pass
 
 
-class SupplierUpdate(SupplierBase):
-    pass
+class SupplierUpdate(BaseModel):
+    name: str | None = None
+    trade_name: str | None = None
+    tax_id: StrNIF | None = None
+    country: StrCountry | None = None
+    language: StrLang | None = None
+
+    tax_type: str | None = None
+    tax_withholding: float | None = Field(default=None, ge=0, le=100)
+    tax_exempt: bool | None = None
+    special_regime: str | None = None
+
+    payment_terms: str | None = None
+    payment_days: int | None = Field(default=None, ge=0, le=365)
+    early_payment_discount: float | None = Field(default=None, ge=0, le=100)
+    currency: StrCurrency | None = None
+    payment_method: str | None = None
+    iban: StrIBAN | None = None
+    iban_confirmation: str | None = Field(default=None, exclude=True)
+
+    contacts: list[SupplierContactIn] | None = None
+    addresses: list[SupplierAddressIn] | None = None
+
+    @field_validator("iban", "iban_confirmation", mode="before")
+    @classmethod
+    def validate_iban(cls, value: str | None) -> str | None:
+        return _normalize_iban(value)
 
 
 class SupplierContactOut(SupplierContactIn):
