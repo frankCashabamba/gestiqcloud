@@ -66,10 +66,10 @@ Estado: candidato fuerte.
 
 Parches pendientes:
 
-- Revisar devolucion parcial si es requerida para el primer release; si no, documentar como fuera de alcance.
-- Alinear permisos frontend con backend para acciones sensibles.
-- Revisar datos personales en `localStorage` del frontend POS.
-- Eliminar o aislar `tpv_pro.html` legacy del build/productivo.
+- [DECISION v1] Devolucion parcial queda fuera de alcance del primer release. FASE 2.
+- [HECHO 2026-04-29] Alinear permisos frontend con backend para acciones sensibles. (ShiftManager, RefundModal y POSPaymentBar usan ProtectedButton con permiso granular)
+- [HECHO 2026-04-29] Revisar datos personales en `localStorage` del frontend POS. (selectedCustomerName eliminado del draft persistido)
+- [HECHO sesion anterior] Eliminar o aislar tpv_pro.html legacy del build/productivo.
 
 Condicion para subir: pruebas de venta, checkout, descuento de stock, cierre de turno e impresion.
 
@@ -79,10 +79,10 @@ Estado: candidato fuerte.
 
 Parches pendientes:
 
-- Exponer o documentar valorizacion de inventario si el negocio la necesita en v1.
-- Confirmar scheduler de alertas o dejar solo ejecucion manual documentada.
+- [DECISION v1] Valorizacion de inventario queda fuera de v1. Solo visible en reports internos cuando este implementado. FASE 2.
+- [DECISION v1] Alertas de stock minimo solo por ejecucion manual en v1. Scheduler Celery queda para FASE 2.
 - Revisar UI para permisos nuevos: `inventory.stock.adjust`, `inventory.cycle_count.manage`, `inventory.stock.sync`.
-- Confirmar que `get_stock` no muestra warehouses cross-tenant en consultas con joins.
+- [HECHO 2026-04-29] Confirmar que `get_stock` no muestra warehouses cross-tenant en consultas con joins. (joins reforzados con filtro tenant_id en Product y Warehouse)
 
 Condicion para subir: pruebas de ajuste, transferencia, cycle count, stock move y stock item.
 
@@ -92,7 +92,7 @@ Estado: candidato con advertencias.
 
 Parches pendientes:
 
-- Definir si el estado `paid` se maneja desde checkout/factura o crear endpoint formal de pago.
+- [HECHO 2026-04-29] Definir si el estado `paid` se maneja desde checkout/factura o crear endpoint formal de pago. (endpoint POST /{order_id}/mark-paid con permiso sales.order.pay)
 - [HECHO 2026-04-29] Agregar paginacion real a listados de ordenes.
 - [HECHO 2026-04-29] Evitar fallback de auditoria con UUID aleatorio en checkout si falta `user_id`.
 - [HECHO 2026-04-29] Marcar use cases stub como deprecated o conectarlos al flujo real para evitar usos futuros incorrectos.
@@ -107,7 +107,7 @@ Parches pendientes:
 
 - [HECHO 2026-04-29] Evitar hard delete si la compra ya tuvo recepciones o stock moves.
 - [HECHO 2026-04-29] Agregar filtros/busqueda basicos.
-- Definir flujo de aprobacion antes de recibir o dejarlo fuera de alcance.
+- [HECHO 2026-04-29] Definir flujo de aprobacion antes de recibir o dejarlo fuera de alcance. (DECISION v1: fuera de alcance, documentado en comentario del router)
 - Validar selector de proveedor en frontend para que `supplier_id` sea real.
 
 Condicion para subir: crear compra con lineas, recibir mercancia, validar stock y costos.
@@ -118,9 +118,9 @@ Estado: candidato parcial.
 
 Parches pendientes:
 
-- Unificar mecanismo de tenant/auth en endpoints que aun usen helpers antiguos.
+- [HECHO 2026-04-29] Unificar mecanismo de tenant/auth en endpoints que aun usen helpers antiguos. (12 endpoints migrados a get_current_tenant_id; _empresa_id_from_request conservado solo en public.py)
 - Agregar pruebas especificas para `duplicates/similar`, `duplicates/merge` y `POST /purge`.
-- Definir si el permiso de purge debe ser solo owner/admin o si `products.delete` es suficiente para v1.
+- [HECHO 2026-04-29] Definir si el permiso de purge debe ser solo owner/admin o si `products.delete` es suficiente para v1. (cambiado a permiso products.purge separado)
 
 Condicion para subir: CRUD, stock visible, categorias, bulk operations y merge seguro por tenant.
 
@@ -131,7 +131,7 @@ Estado: candidato.
 Parches pendientes:
 
 - [HECHO 2026-04-29] Agregar busqueda por nombre/email/identificacion.
-- Tipar dominio con UUID para evitar deuda futura.
+- [TODO FASE 2] Tipar dominio con UUID para evitar deuda futura. (impacto >5 modulos cruzados; documentado en entities.py con TODO)
 - [HECHO 2026-04-29] Definir si historial de compras y saldo/credito entran en v1 o fase posterior. (Decision: FASE 2, documentado en el router)
 
 Condicion para subir: CRUD, paginacion, tenant isolation, update y delete con referencias.
@@ -142,10 +142,10 @@ Estado: candidato con advertencias.
 
 Parches pendientes:
 
-- Validar coincidencia `iban_confirmacion` tambien en frontend.
-- Enmascarar IBAN tambien en vistas donde no sea estrictamente necesario.
+- [HECHO 2026-04-29] Validar coincidencia `iban_confirmacion` tambien en frontend. (Form.tsx muestra error inline y bloquea submit si IBANs no coinciden)
+- [HECHO 2026-04-29] Enmascarar IBAN tambien en vistas donde no sea estrictamente necesario. (Detail.tsx muestra ****XXXX)
 - [HECHO 2026-04-29] Definir constraint DB de `tax_id` unico por tenant. (UniqueConstraint anadido al modelo; 409 en espanol)
-- Evaluar cifrado en reposo para IBAN antes de usar datos reales.
+- [DECISION v1] Cifrado IBAN en reposo queda para FASE 2. En v1 no almacenar IBANs reales hasta implementar cifrado. Documentado en onboarding.
 
 Condicion para subir: no exponer IBAN completo en listados y validar datos bancarios.
 
@@ -158,7 +158,7 @@ Parches pendientes:
 - [HECHO 2026-04-29] Agregar paginacion.
 - [HECHO 2026-04-29] Agregar filtros por fecha/categoria/estado.
 - [HECHO 2026-04-29] Sacar migraciones/commits automaticos de `GET /expenses` a una tarea explicita. (GET es ahora read-only)
-- Adjuntos y aprobacion pueden quedar fuera de v1 si se documenta.
+- [DECISION v1] Adjuntos y aprobacion de gastos fuera de alcance en v1. FASE 2.
 
 Condicion para subir: CRUD, asiento contable, bloqueo de gastos de produccion y supplier tenant validation.
 
@@ -181,9 +181,9 @@ Estado: candidato.
 
 Parches pendientes:
 
-- Documentar que no hay retry automatico o agregar job de retry.
-- Evitar fallback SMTP global si se requiere separacion estricta por tenant.
-- Aclarar que canal SMS actual es WhatsApp/Twilio, no SMS real.
+- [DECISION v1] No hay retry automatico en v1. Los envios fallidos se logean. Retry Celery queda para FASE 2.
+- [HECHO 2026-04-29] Evitar fallback SMTP global si se requiere separacion estricta por tenant. (guard con ALLOW_GLOBAL_SMTP_FALLBACK; log warning si se usa el global)
+- [DECISION v1] El canal SMS usa WhatsApp via Twilio, no SMS directo. Documentado en INTEGRATION.md.
 
 Condicion para subir: email/in-app/telegram con configuracion por tenant verificada.
 
@@ -193,9 +193,9 @@ Estado: candidato con confirmacion operativa.
 
 Parches pendientes:
 
-- Confirmar worker Celery de deliveries en despliegue.
-- Guardar secreto de webhook de forma segura o limitar exposicion.
-- Agregar rotacion/visualizacion controlada del signing secret.
+- [REQUISITO DEPLOY] Worker Celery debe estar activo para deliveries. Ver requirements-celery.txt y render.yaml.
+- [HECHO 2026-04-29] Guardar secreto de webhook de forma segura o limitar exposicion. (GET normal oculta secreto con ***; GET /{id}/secret requiere permiso webhooks.secret.view)
+- [HECHO 2026-04-29] Agregar rotacion/visualizacion controlada del signing secret. (endpoint POST /{id}/rotate-secret con permiso webhooks.secret.rotate)
 
 Condicion para subir: delivery real, retry, firma HMAC y proteccion anti-SSRF.
 
@@ -206,7 +206,7 @@ Estado: candidato.
 Parches pendientes:
 
 - [HECHO 2026-04-29] Manejar tenant sin moneda configurada sin romper dashboard. (_resolve_tenant_currency retorna "USD" como fallback)
-- Exponer boton de convertir lead si frontend lo requiere.
+- [HECHO 2026-04-29] Exponer boton de convertir lead si frontend lo requiere. (boton visible en estados new/qualified en List.tsx y Form.tsx)
 
 Condicion para subir: CRUD leads/oportunidades, dashboard y conversion.
 
@@ -216,9 +216,9 @@ Estado: candidato parcial.
 
 Parches pendientes:
 
-- Aislar aprendizaje ML por tenant en `imp_filename_pattern` e `imp_header_doc_type`.
-- Revisar encoding corrupto en `DocumentDetail.tsx`.
-- Confirmar que cache OCR tenant-aware esta en todos los caminos.
+- [HECHO 2026-04-29] Aislar aprendizaje ML por tenant en `imp_filename_pattern` e `imp_header_doc_type`. (INSERTs bloqueados por defecto; requieren ML_LEARNING_ENABLED=true en env)
+- [HECHO 2026-04-29] Revisar encoding corrupto en `DocumentDetail.tsx`. (6 instancias de mojibake corregidas)
+- [HECHO 2026-04-29] Confirmar que cache OCR tenant-aware esta en todos los caminos. (verificado: clave incluye tenant_id:hash)
 
 Condicion para subir: permitir OCR/revision/guardado, pero bloquear aprendizaje global si no se corrige.
 
@@ -387,3 +387,21 @@ No subir todavia:
 - Analytics
 - Restaurant
 - Historical
+
+## Estado de completitud por modulo (2026-04-29)
+
+| Modulo       | Parches backend | Parches frontend | Decision pendiente | Listo para pruebas |
+|--------------|----------------|-----------------|-------------------|-------------------|
+| POS          | SI              | SI               | NO                | pendiente pruebas  |
+| Inventory    | SI              | pendiente UI     | NO                | pendiente pruebas  |
+| Sales        | SI              | N/A              | NO                | pendiente pruebas  |
+| Purchases    | SI              | pendiente        | NO                | pendiente pruebas  |
+| Products     | SI              | N/A              | pendiente tests   | pendiente pruebas  |
+| Clients      | SI              | N/A              | NO                | pendiente pruebas  |
+| Suppliers    | SI              | SI               | NO                | pendiente pruebas  |
+| Expenses     | SI              | N/A              | NO                | pendiente pruebas  |
+| Billing      | SI              | SI               | NO                | pendiente pruebas  |
+| Notifications| SI              | N/A              | NO                | pendiente pruebas  |
+| Webhooks     | SI              | N/A              | NO                | pendiente pruebas  |
+| CRM          | SI              | SI               | NO                | pendiente pruebas  |
+| Importador   | SI              | SI               | NO                | pendiente pruebas  |

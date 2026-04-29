@@ -1,6 +1,7 @@
 """Business logic for webhooks module."""
 
 import logging
+import secrets
 import uuid
 from datetime import UTC, datetime
 from uuid import UUID
@@ -258,6 +259,62 @@ class RetryFailedDeliveryUseCase:
 
         logger.info(f"Queued delivery for retry: {delivery_id}")
         return delivery
+
+
+class GetWebhookSecretUseCase:
+    """Return the real signing secret for a webhook (privileged)."""
+
+    def execute(
+        self,
+        *,
+        webhook_id: UUID,
+        tenant_id: UUID,
+        db_session: Session,
+    ) -> WebhookSubscription:
+        """Fetch the subscription; caller is responsible for permission checks."""
+        subscription = (
+            db_session.query(WebhookSubscription)
+            .filter(
+                WebhookSubscription.id == webhook_id,
+                WebhookSubscription.tenant_id == tenant_id,
+            )
+            .first()
+        )
+        if not subscription:
+            raise WebhookNotFound(f"Webhook {webhook_id} not found")
+        return subscription
+
+
+class RotateWebhookSecretUseCase:
+    """Generate and persist a new signing secret for a webhook."""
+
+    def execute(
+        self,
+        *,
+        webhook_id: UUID,
+        tenant_id: UUID,
+        db_session: Session,
+    ) -> tuple[WebhookSubscription, str]:
+        """Rotate secret, return (subscription, new_secret)."""
+        subscription = (
+            db_session.query(WebhookSubscription)
+            .filter(
+                WebhookSubscription.id == webhook_id,
+                WebhookSubscription.tenant_id == tenant_id,
+            )
+            .first()
+        )
+        if not subscription:
+            raise WebhookNotFound(f"Webhook {webhook_id} not found")
+
+        new_secret = secrets.token_hex(32)
+        subscription.secret = new_secret
+        subscription.updated_at = datetime.now(UTC)
+        db_session.commit()
+        db_session.refresh(subscription)
+
+        logger.info(f"Rotated signing secret for webhook: {webhook_id}")
+        return subscription, new_secret
 
 
 class TestWebhookSubscriptionUseCase:

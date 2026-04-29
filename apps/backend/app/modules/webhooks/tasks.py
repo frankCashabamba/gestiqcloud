@@ -44,6 +44,7 @@ def _sign(secret: str, payload: dict[str, Any]) -> str:
     return f"sha256={sig}"
 
 
+# REQUISITO DEPLOY: el worker Celery debe estar activo para que los deliveries se procesen. Ver requirements-celery.txt.
 @shared_task(
     name="apps.backend.app.modules.webhooks.tasks.deliver",
     bind=True,

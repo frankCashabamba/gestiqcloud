@@ -73,7 +73,7 @@ type LineItemPageGroup = {
   line_items: Record<string, unknown>[]
 }
 
-// EditableLineItem es dinÃ¡mico: slot â†’ value
+// EditableLineItem es dinámico: slot → value
 type EditableLineItem = Record<string, string>
 
 function getEditableLineItems(data: Record<string, unknown>, slots: LineItemSlot[]): EditableLineItem[] {
@@ -101,7 +101,7 @@ function formatLineCellValue(value: unknown): string {
   return text
 }
 
-// Slots numÃ©ricos que se alinean a la derecha
+// Slots numéricos que se alinean a la derecha
 const _NUMERIC_SLOTS = new Set(['quantity', 'unit_price', 'total_price'])
 const _MONO_SLOTS = new Set(['supplier_ref'])
 
@@ -475,7 +475,7 @@ export default function DocumentDetail() {
     }
   }, [doc?.estado, load])
 
-  // SelecciÃ³n automÃ¡tica de hoja cuando llega un documento nuevo
+  // Selección automática de hoja cuando llega un documento nuevo
   useEffect(() => {
     const datos = getDocumentData(doc)
     const sheetMap = datos?.filas_por_hoja && typeof datos.filas_por_hoja === 'object'
@@ -637,7 +637,7 @@ export default function DocumentDetail() {
 
   const startEdit = () => {
     const data = (doc?.datos_extraidos || {}) as Record<string, unknown>
-    // No editar tablas (tipo inventario/nomina) â€” solo campos escalares
+    // No editar tablas (tipo inventario/nomina) – solo campos escalares
     if (data.filas && Array.isArray(data.filas)) {
       setError('Este tipo de documento no se puede editar manualmente. Usa "Reprocesar" para rehacer el analisis.')
       return
@@ -1155,7 +1155,7 @@ export default function DocumentDetail() {
             </>
           )}
 
-          {/* BANK / INVENTORY / PAYROLL / OTHER â€” confirm + reject */}
+          {/* BANK / INVENTORY / PAYROLL / OTHER – confirm + reject */}
           {(docCategory === 'bank' || docCategory === 'inventory' || docCategory === 'payroll' || docCategory === 'other') && (
             <>
               {advancedActionsVisible && docCategory === 'other' && saveEnabled && (
@@ -1414,7 +1414,7 @@ export default function DocumentDetail() {
                 const allRows = activeSheetRows
                 const normKeys = activeNormKeys
                 const displayNames = activeDisplayNames
-                // Filtrar columnas que no tienen ningÃºn dato real en las primeras 30 filas
+                // Filtrar columnas que no tienen ningún dato real en las primeras 30 filas
                 const visibleIdxs = normKeys.reduce<number[]>((acc, key, i) => {
                   const vals = allRows.slice(0, 30).map(r => r[key])
                   if (vals.some(v => v !== null && v !== undefined && v !== '' && v !== 0)) acc.push(i)

@@ -555,11 +555,8 @@ def list_raw_materials(
     _tid: str = Depends(ensure_tenant),
 ):
     """List only raw material products (is_raw_material=True)."""
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        return []
-
-    tid_uuid = UUID(tenant_id)
+    tid_uuid = get_current_tenant_id(request)
+    tenant_id = str(tid_uuid)
 
     stock_subq = (
         select(
@@ -695,9 +692,7 @@ def list_similar_products(
     limit: int = Query(default=12, ge=1, le=100),
     scan_limit: int = Query(default=1000, ge=10, le=5000),
 ):
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
 
     products = (
         db.query(Product)
@@ -782,9 +777,7 @@ def merge_similar_products(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
     loser_ids = [pid for pid in payload.loser_ids if pid != payload.winner_id]
     if not loser_ids:
         raise HTTPException(status_code=400, detail="empty_loser_ids")
@@ -847,9 +840,7 @@ def get_product(
     db: Session = Depends(get_db),
     _tid: str = Depends(ensure_tenant),
 ):
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=403, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
     obj = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="product_not_found")
@@ -894,9 +885,7 @@ def _generate_next_sku(db: Session, tenant_id: str, categoria: str | None) -> st
 @router.post("", response_model=ProductOut, status_code=201, dependencies=protected)
 def create_product(payload: ProductCreate, request: Request, db: Session = Depends(get_db)):
     ensure_products_raw_material_column(db)
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
     validate_raw_material_unit(
         db,
         tenant_id=tenant_id,
@@ -952,7 +941,7 @@ def update_product(
 ):
     """Actualizar producto (soporta UUID)"""
     ensure_products_raw_material_column(db)
-    tenant_id = _empresa_id_from_request(request)
+    tenant_id = str(get_current_tenant_id(request))
 
     # Intentar UUID primero
     try:
@@ -1043,9 +1032,7 @@ def update_product(
 def delete_product(product_id: str, request: Request, db: Session = Depends(get_db)):
     if product_id == "purge":
         raise HTTPException(status_code=405, detail="use_post_purge_with_confirmation")
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=403, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
     obj = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
     if not obj:
         return  # idempotent
@@ -1069,9 +1056,7 @@ def purge_products(request: Request, db: Session = Depends(get_db)):
     raise HTTPException(status_code=405, detail="use_post_purge_with_confirmation")
     from sqlalchemy import text
 
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
 
     # Orden: movimientos -> stock -> productos -> categorías (evitar referencias)
     db.execute(text("DELETE FROM stock_moves WHERE tenant_id = :tid"), {"tid": tenant_id})
@@ -1153,15 +1138,15 @@ def _is_owner_or_manager(request: Request) -> bool:
 @router.post(
     "/purge",
     response_model=PurgeResponse,
-    dependencies=protected + [Depends(require_permission("products.delete"))],
+    dependencies=protected + [Depends(require_permission("products.purge"))],
 )
 def purge_products_pro(request: Request, payload: PurgeRequest, db: Session = Depends(get_db)):
     from sqlalchemy import text
 
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
 
+    # DECISIÓN: purge requiere products.purge (declarado en Depends) + rol owner/manager/admin
+    # El doble gate garantiza que ni permisos granulares sin rol elevado pueden ejecutar el purge.
     if not _is_owner_or_manager(request):
         raise HTTPException(status_code=403, detail="forbidden")
 
@@ -1260,9 +1245,7 @@ def bulk_set_active(payload: BulkActiveIn, request: Request, db: Session = Depen
     """
     from sqlalchemy import select
 
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
     if not payload.ids:
         return {"updated": 0}
 
@@ -1293,9 +1276,7 @@ def bulk_assign_category(payload: BulkCategoryIn, request: Request, db: Session 
     """
     from sqlalchemy import select
 
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
     if not payload.ids:
         return {"updated": 0, "category_created": False}
 
@@ -1334,9 +1315,7 @@ def bulk_assign_category(payload: BulkCategoryIn, request: Request, db: Session 
 @router.post("/bulk/generate-skus", dependencies=protected)
 def bulk_generate_missing_skus(request: Request, db: Session = Depends(get_db)):
     """Genera SKU automático para todos los productos del tenant que no tienen código."""
-    tenant_id = _empresa_id_from_request(request)
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+    tenant_id = str(get_current_tenant_id(request))
 
     products_without_sku = (
         db.query(Product)

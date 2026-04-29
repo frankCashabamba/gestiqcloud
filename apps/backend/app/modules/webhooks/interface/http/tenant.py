@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.auth_dependencies import get_current_user
+from app.core.authz import require_permission
 from app.modules.webhooks.application.schemas import (
     CreateWebhookRequest,
     DeliveryListResponse,
@@ -17,6 +18,7 @@ from app.modules.webhooks.application.schemas import (
     UpdateWebhookRequest,
     WebhookListResponse,
     WebhookResponse,
+    WebhookSecretResponse,
     WebhookTestRequest,
     WebhookTestResponse,
 )
@@ -24,8 +26,10 @@ from app.modules.webhooks.application.use_cases import (
     CreateWebhookSubscriptionUseCase,
     DeleteWebhookSubscriptionUseCase,
     GetWebhookDeliveryHistoryUseCase,
+    GetWebhookSecretUseCase,
     ListWebhooksUseCase,
     RetryFailedDeliveryUseCase,
+    RotateWebhookSecretUseCase,
     TestWebhookSubscriptionUseCase,
     UpdateWebhookSubscriptionUseCase,
 )
@@ -222,6 +226,56 @@ async def retry_delivery(
             db_session=db,
         )
         return DeliveryResponse.from_orm(delivery)
+    except WebhookNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{webhook_id}/secret", response_model=WebhookSecretResponse)
+async def get_webhook_secret(
+    webhook_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    _authz: dict = Depends(require_permission("webhooks.secret.view")),
+    db: Session = Depends(get_db),
+):
+    """Return the real signing secret. Requires permission webhooks.secret.view."""
+    try:
+        use_case = GetWebhookSecretUseCase()
+        subscription = use_case.execute(
+            webhook_id=webhook_id,
+            tenant_id=current_user["tenant_id"],
+            db_session=db,
+        )
+        return WebhookSecretResponse(
+            webhook_id=subscription.id,
+            signing_secret=subscription.secret,
+        )
+    except WebhookNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{webhook_id}/rotate-secret", response_model=WebhookSecretResponse)
+async def rotate_webhook_secret(
+    webhook_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    _authz: dict = Depends(require_permission("webhooks.secret.rotate")),
+    db: Session = Depends(get_db),
+):
+    """Generate and persist a new signing secret. Requires permission webhooks.secret.rotate."""
+    try:
+        use_case = RotateWebhookSecretUseCase()
+        subscription, new_secret = use_case.execute(
+            webhook_id=webhook_id,
+            tenant_id=current_user["tenant_id"],
+            db_session=db,
+        )
+        return WebhookSecretResponse(
+            webhook_id=subscription.id,
+            signing_secret=new_secret,
+        )
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

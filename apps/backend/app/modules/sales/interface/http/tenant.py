@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
 from app.core.dependencies import get_tenant_uuid
 from app.db.rls import ensure_rls
 from app.models.core.clients import Client
@@ -727,6 +727,56 @@ def cancel_order(
         else None
     )
     return _order_out(so, customer_name_c)
+
+
+@router.post(
+    "/{order_id}/mark-paid",
+    response_model=OrderOut,
+    dependencies=[Depends(require_permission("sales.order.pay"))],
+)
+def mark_order_paid(
+    order_id: str = Path(
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    """Marcar una orden de venta como pagada (estado confirmed o invoiced → paid)."""
+    if request is None:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+
+    tenant_uuid = get_tenant_uuid(request)
+
+    try:
+        so_id = UUID(str(order_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+
+    so = (
+        db.query(SalesOrder)
+        .filter(SalesOrder.id == so_id, SalesOrder.tenant_id == tenant_uuid)
+        .first()
+    )
+    if not so:
+        raise HTTPException(status_code=404, detail="order_not_found")
+
+    if so.status not in {"confirmed", "invoiced"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid_status_for_payment: current status is '{so.status}', expected 'confirmed' or 'invoiced'",
+        )
+
+    so.status = "paid"
+    db.add(so)
+    db.commit()
+    db.refresh(so)
+
+    customer_name = (
+        db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+        if so.customer_id
+        else None
+    )
+    return _order_out(so, customer_name, db=db)
 
 
 def _notify_new_order_telegram(

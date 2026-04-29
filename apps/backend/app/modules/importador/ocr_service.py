@@ -66,6 +66,7 @@ def _ocr_cache_dir() -> Path:
 
 
 def _ocr_cache_path(file_bytes: bytes, tenant_id: str | None = None) -> Path:
+    # VERIFICADO: cache OCR incluye tenant_id en la clave
     tenant_key = str(tenant_id or "global").strip() or "global"
     cache_key = f"{tenant_key}:{hashlib.sha256(file_bytes).hexdigest()}"
     file_hash = hashlib.sha256(cache_key.encode("utf-8")).hexdigest()

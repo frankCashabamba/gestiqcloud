@@ -6,6 +6,7 @@ Funciones de envío síncronas compartidas entre:
 
 from __future__ import annotations
 
+import logging
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -13,6 +14,8 @@ from email.mime.text import MIMEText
 from typing import Any
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Email (SMTP)
@@ -31,6 +34,21 @@ def send_smtp(
     Config keys (todos opcionales — caen a env vars):
       smtp_host, smtp_port, smtp_user, smtp_password, from_email, use_tls
     """
+    # Determinar si la config proviene del tenant o hay que caer al global
+    tenant_has_smtp = bool(config.get("smtp_host") or config.get("smtp_user"))
+
+    if not tenant_has_smtp:
+        allow_fallback = os.getenv("ALLOW_GLOBAL_SMTP_FALLBACK", "false").lower() == "true"
+        if not allow_fallback:
+            raise ValueError(
+                "El tenant no tiene SMTP configurado y ALLOW_GLOBAL_SMTP_FALLBACK está deshabilitado. "
+                "Configure el SMTP del tenant o active el fallback global."
+            )
+        tenant_id_hint = config.get("_tenant_id", "desconocido")
+        logger.warning(
+            "Usando SMTP global para tenant=%s — revisar config de tenant", tenant_id_hint
+        )
+
     smtp_host = config.get("smtp_host") or os.getenv("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(config.get("smtp_port") or os.getenv("SMTP_PORT", "587"))
     smtp_user = config.get("smtp_user") or os.getenv("SMTP_USER")

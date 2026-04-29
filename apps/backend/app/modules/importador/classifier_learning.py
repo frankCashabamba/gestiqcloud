@@ -126,6 +126,7 @@ def learn_from_confirmation(
     pre_class_doc_type: str | None,
     headers_norm: list[str],
     field_aliases: dict[str, list[str]],
+    tenant_id: UUID | None = None,
 ) -> dict[str, int]:
     """
     Main learning entry point. Call after user confirms a document.
@@ -216,21 +217,25 @@ def _learn_filename(
     escaped = re.escape(anchor)
     learning_cfg = load_learning_config(db)
     base_confidence = learning_cfg.get("filename_pattern_base_confidence", 0.65)
-    try:
-        db.execute(
-            sa_text(
-                "INSERT INTO imp_filename_pattern "
-                "    (pattern, doc_type, base_confidence, confirmed_count, source) "
-                "VALUES (:pattern, :doc_type, :base_confidence, 1, 'learned') "
-                "ON CONFLICT (pattern, doc_type) DO UPDATE "
-                "    SET confirmed_count = imp_filename_pattern.confirmed_count + 1, "
-                "        updated_at = now()"
-            ),
-            {"pattern": escaped, "doc_type": confirmed_type, "base_confidence": base_confidence},
-        )
-        updated += 1
-    except Exception as exc:
-        logger.debug("Could not upsert learned filename pattern '%s': %s", anchor, exc)
+
+    # BLOQUEO PRODUCCION: aprendizaje ML es global (no aislado por tenant).
+    # Desactivar hasta añadir columna tenant_id a la migración de imp_filename_pattern.
+    if os.getenv("ML_LEARNING_ENABLED", "false") == "true":
+        try:
+            db.execute(
+                sa_text(
+                    "INSERT INTO imp_filename_pattern "
+                    "    (pattern, doc_type, base_confidence, confirmed_count, source) "
+                    "VALUES (:pattern, :doc_type, :base_confidence, 1, 'learned') "
+                    "ON CONFLICT (pattern, doc_type) DO UPDATE "
+                    "    SET confirmed_count = imp_filename_pattern.confirmed_count + 1, "
+                    "        updated_at = now()"
+                ),
+                {"pattern": escaped, "doc_type": confirmed_type, "base_confidence": base_confidence},
+            )
+            updated += 1
+        except Exception as exc:
+            logger.debug("Could not upsert learned filename pattern '%s': %s", anchor, exc)
 
     return updated
 
@@ -257,6 +262,11 @@ def _learn_header_mapping(
 
     fhash = _canonical_fields_hash(sorted(matched))
     from sqlalchemy import text as sa_text
+
+    # BLOQUEO PRODUCCION: aprendizaje ML es global (no aislado por tenant).
+    # Desactivar hasta añadir columna tenant_id a la migración de imp_header_doc_type.
+    if os.getenv("ML_LEARNING_ENABLED", "false") != "true":
+        return 0
 
     try:
         db.execute(

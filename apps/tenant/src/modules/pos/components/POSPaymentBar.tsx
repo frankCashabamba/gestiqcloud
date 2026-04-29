@@ -62,18 +62,18 @@ export function POSPaymentBar({
       </ProtectedButton>
 
       <div className="mt-2 grid grid-cols-4 gap-2 text-xs md:hidden">
-        <button onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-green-600 hover:bg-green-700 px-2 py-1 rounded disabled:opacity-50">
+        <ProtectedButton permission="pos:create" onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-green-600 hover:bg-green-700 px-2 py-1 rounded disabled:opacity-50" unstyled>
           Efectivo
-        </button>
-        <button onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded disabled:opacity-50">
+        </ProtectedButton>
+        <ProtectedButton permission="pos:create" onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded disabled:opacity-50" unstyled>
           Tarjeta
-        </button>
-        <button onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-cyan-700 hover:bg-cyan-800 px-2 py-1 rounded disabled:opacity-50">
+        </ProtectedButton>
+        <ProtectedButton permission="pos:create" onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-cyan-700 hover:bg-cyan-800 px-2 py-1 rounded disabled:opacity-50" unstyled>
           Transferencia
-        </button>
-        <button onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-slate-600 hover:bg-slate-700 px-2 py-1 rounded disabled:opacity-50">
+        </ProtectedButton>
+        <ProtectedButton permission="pos:create" onClick={onPayClick} disabled={cartIsEmpty || isLoading} className="flex-1 bg-slate-600 hover:bg-slate-700 px-2 py-1 rounded disabled:opacity-50" unstyled>
           Mas opciones
-        </button>
+        </ProtectedButton>
       </div>
 
       <p className="text-[11px] text-gray-400 mt-1 md:hidden">

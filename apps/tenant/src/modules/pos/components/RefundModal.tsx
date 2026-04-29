@@ -9,6 +9,7 @@ import type { POSReceipt, RefundRequest } from '../../../types/pos'
 import { useSectorPlaceholder } from '../../../hooks/useSectorPlaceholders'
 import { useCompany } from '../../../contexts/CompanyContext'
 import { useToast } from '../../../shared/toast'
+import ProtectedButton from '../../../components/ProtectedButton'
 
 interface RefundModalProps {
   receipt: POSReceipt | null
@@ -187,13 +188,15 @@ export default function RefundModal({
           >
             {t('pos:refund.cancel')}
           </button>
-          <button
+          <ProtectedButton
+            permission="pos:refund"
             onClick={handleRefund}
             disabled={loading || !reason.trim()}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+            unstyled
           >
             {loading ? t('pos:refund.processing') : t('pos:refund.processRefund')}
-          </button>
+          </ProtectedButton>
         </div>
       </div>
     </div>

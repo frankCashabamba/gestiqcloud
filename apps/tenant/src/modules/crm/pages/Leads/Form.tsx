@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createLead, getLead, updateLead, type Lead } from '../../services'
+import { createLead, getLead, updateLead, convertLead, type Lead } from '../../services'
 import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { LeadStatus, LeadSource } from '../../types'
@@ -23,11 +23,28 @@ export default function LeadForm() {
     assigned_to: '',
   })
   const { success, error } = useToast()
+  const [converting, setConverting] = useState(false)
 
   useEffect(() => {
     if (!id) return
     getLead(id).then((x)=> setForm({ ...x }))
   }, [id])
+
+  const canConvert = !!id && (form.status === LeadStatus.NEW || form.status === LeadStatus.QUALIFIED)
+
+  const handleConvert = async () => {
+    if (!id) return
+    setConverting(true)
+    try {
+      await convertLead(id, { create_opportunity: true })
+      success(t('leads.converted'))
+      nav('..')
+    } catch (e: any) {
+      error(getErrorMessage(e))
+    } finally {
+      setConverting(false)
+    }
+  }
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
@@ -155,8 +172,18 @@ export default function LeadForm() {
             rows={4}
           />
         </div>
-        <div className="pt-2">
+        <div className="pt-2 flex flex-wrap items-center gap-2">
           <button type="submit" className="gc-btn gc-btn--primary">{t('leads.save')}</button>
+          {canConvert && (
+            <button
+              type="button"
+              className="gc-btn gc-btn--secondary"
+              onClick={handleConvert}
+              disabled={converting}
+            >
+              {converting ? '...' : t('leads.convert')}
+            </button>
+          )}
           <button type="button" className="gc-btn gc-btn--ghost" onClick={()=> nav('..')}>{t('leads.cancel')}</button>
         </div>
       </form>

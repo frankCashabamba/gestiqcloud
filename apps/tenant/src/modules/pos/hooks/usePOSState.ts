@@ -331,7 +331,7 @@ export function usePOSState() {
                 buyerIdType,
                 isWholesaleCustomer,
                 selectedCustomerId: selectedClient ? String(selectedClient.id) : null,
-                selectedCustomerName: selectedClient?.name || null,
+                // selectedCustomerName omitido: dato personal del comprador, no se persiste en localStorage
             }
             if ((draft.cart?.length || 0) === 0 && !draft.ticketNotes) {
                 localStorage.removeItem(POS_DRAFT_KEY)

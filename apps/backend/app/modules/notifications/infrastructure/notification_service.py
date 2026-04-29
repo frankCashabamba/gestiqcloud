@@ -143,7 +143,7 @@ class NotificationService:
             return await loop.run_in_executor(None, send_telegram, config, recipient, body)
 
         if channel == "sms":
-            # SMS usa el mismo transporte que WhatsApp (Twilio) con número normal
+            # ACLARACION: el canal 'sms' en este módulo usa WhatsApp/Twilio, no SMS real
             return await loop.run_in_executor(None, send_whatsapp, config, recipient, body)
 
         if channel == "in_app":
@@ -175,7 +175,10 @@ class NotificationService:
             .first()
         )
 
-        return channel_row.config if channel_row else {}
+        base_config: dict = dict(channel_row.config) if channel_row else {}
+        # Inyectar tenant_id como hint para logs de fallback en _transport.py
+        base_config.setdefault("_tenant_id", str(self.tenant_id))
+        return base_config
 
     # ------------------------------------------------------------------
     # Audit log

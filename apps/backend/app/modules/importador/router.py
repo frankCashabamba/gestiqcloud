@@ -1769,6 +1769,7 @@ def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id:
                 headers_norm=(headers_norm if isinstance(headers_norm, list) else [])
                 + line_item_col_names,
                 field_aliases=field_aliases,
+                tenant_id=getattr(doc, "tenant_id", None),
             )
     except Exception as exc:
         logger.warning("Pre-classifier learning error (non-fatal): %s", exc)

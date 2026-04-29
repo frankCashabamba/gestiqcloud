@@ -10,6 +10,7 @@ import { POS_DEFAULTS } from '../../../constants/defaults'
 import { useToast } from '../../../shared/toast'
 import { useAuth } from '../../../auth/AuthContext'
 import { usePermission } from '../../../hooks/usePermission'
+import ProtectedButton from '../../../components/ProtectedButton'
 
 interface ShiftManagerProps {
     register: POSRegister
@@ -242,10 +243,12 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
 
                         {/* Footer */}
                         <div className="px-6 pb-6">
-                            <button
+                            <ProtectedButton
+                                permission="pos:update"
                                 onClick={handleOpenShift}
                                 disabled={loading}
                                 className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold py-3 rounded-xl text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                unstyled
                             >
                                 {loading ? (
                                     <>
@@ -258,7 +261,7 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                 ) : (
                                     t('pos:shiftManager.openShift')
                                 )}
-                            </button>
+                            </ProtectedButton>
                         </div>
                     </div>
                 </div>
@@ -276,12 +279,14 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                 {t('pos:shiftManager.fund')}: {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
                             </p>
                         </div>
-                        <button
+                        <ProtectedButton
+                            permission="pos:update"
                             onClick={handleShowCloseModal}
                             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                            unstyled
                         >
                             {t('pos:shiftManager.closeShift')}
-                        </button>
+                        </ProtectedButton>
                     </div>
                 )}
 
@@ -470,13 +475,15 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                             </div>
 
                             <div className="flex gap-2 mt-6">
-                                <button
+                                <ProtectedButton
+                                    permission="pos:update"
                                     onClick={handleCloseShift}
                                     disabled={loading || (summary?.pending_receipts ?? 0) > 0}
                                     className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    unstyled
                                 >
                                     {loading ? t('pos:shiftManager.closing') : t('pos:shiftManager.closeCash')}
-                                </button>
+                                </ProtectedButton>
                                 <button
                                     onClick={() => {
                                         setShowCloseModal(false)

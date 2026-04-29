@@ -165,7 +165,7 @@ export default function ProveedorDetail() {
           {proveedor.iban && (
             <div className="sm:col-span-3">
               <span className="font-medium text-slate-600">{t('suppliers:form.iban')}:</span>
-              <p className="text-slate-900 font-mono text-xs">{proveedor.iban}</p>
+              <p className="text-slate-900 font-mono text-xs">{'****' + proveedor.iban.slice(-4)}</p>
             </div>
           )}
         </div>

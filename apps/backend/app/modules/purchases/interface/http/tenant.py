@@ -1,3 +1,7 @@
+# DECISION v1: El flujo de aprobación de compras queda fuera del alcance del primer release.
+# Las compras pasan directamente de 'draft' a 'received' sin etapa de aprobación formal.
+# FASE 2: implementar endpoint POST /{id}/approve con workflow de doble firma.
+
 from datetime import date
 from uuid import UUID
 

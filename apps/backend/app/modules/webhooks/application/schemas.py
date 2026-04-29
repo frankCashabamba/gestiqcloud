@@ -103,3 +103,10 @@ class WebhookTestResponse(BaseModel):
     response_body: str | None = None
     success: bool
     message: str
+
+
+class WebhookSecretResponse(BaseModel):
+    """Response containing the real signing secret (privileged endpoint)."""
+
+    webhook_id: UUID
+    signing_secret: str

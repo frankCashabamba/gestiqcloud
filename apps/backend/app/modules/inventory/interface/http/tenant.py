@@ -451,8 +451,9 @@ def get_stock(
             pack_subq.c.pack_label,
             pack_subq.c.pack_unit,
         )
-        .join(Product, Product.id == StockItem.product_id)
-        .join(Warehouse, Warehouse.id == StockItem.warehouse_id)
+        # VERIFICADO: get_stock filtra warehouses y products por tenant_id
+        .join(Product, (Product.id == StockItem.product_id) & (Product.tenant_id == tid))
+        .join(Warehouse, (Warehouse.id == StockItem.warehouse_id) & (Warehouse.tenant_id == tid))
         .outerjoin(pack_subq, pack_subq.c.ri_product_id == StockItem.product_id)
     )
     if tid is not None:

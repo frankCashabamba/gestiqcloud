@@ -61,6 +61,7 @@ export default function ProveedorForm() {
   const [form, setForm] = useState<ProveedorPayload>(emptyForm)
   const [editMode, setEditMode] = useState(false)
   const [busy, setBusy] = useState(false)
+  const ibanMismatch = !!(form.iban && form.iban_confirmacion && form.iban !== form.iban_confirmacion)
   const { success, error: toastError } = useToast()
   const { items: countries } = useCountries()
   const { items: taxTypes } = useTaxTypes()
@@ -330,11 +331,14 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Confirm IBAN</span>
               <input
-                className="gc-input font-mono"
+                className={`gc-input font-mono${ibanMismatch ? ' border-rose-500 ring-1 ring-rose-400' : ''}`}
                 value={form.iban_confirmacion || ''}
                 onChange={(e) => setForm({ ...form, iban_confirmacion: e.target.value || null })}
                 placeholder="ES00 0000 0000 0000 0000 0000"
               />
+              {ibanMismatch && (
+                <p className="text-xs text-rose-600 mt-1">Los IBANs no coinciden</p>
+              )}
             </label>
           </div>
         </div>
@@ -521,7 +525,7 @@ export default function ProveedorForm() {
 
         {/* Botones */}
         <div className="flex items-center gap-3">
-          <button type="submit" className="gc-button gc-button--primary" disabled={busy}>
+          <button type="submit" className="gc-button gc-button--primary" disabled={busy || ibanMismatch}>
             {editMode ? t('suppliers:form.saveChanges') : t('suppliers:form.create')}
           </button>
           <button type="button" className="gc-button gc-button--ghost" onClick={() => nav('..')}>

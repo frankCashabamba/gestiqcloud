@@ -130,7 +130,9 @@ export default function LeadsList() {
               <td>{c.assigned_to || '-'}</td>
               <td>
                 <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('leads.edit')}</Link>
-                <button className="text-green-700 mr-3" onClick={() => setConvertTarget(c)}>{t('leads.convert')}</button>
+                {(c.status === LeadStatus.QUALIFIED || c.status === LeadStatus.NEW) && (
+                  <button className="text-green-700 mr-3" onClick={() => setConvertTarget(c)}>{t('leads.convert')}</button>
+                )}
                 <button className="text-red-700" onClick={() => setDeleteTarget(c)}>{t('leads.deleteBtn')}</button>
               </td>
             </tr>
