@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
@@ -480,7 +480,11 @@ def get_stock(
     return out
 
 
-@router.post("/stock/adjust", response_model=StockItemOut)
+@router.post(
+    "/stock/adjust",
+    response_model=StockItemOut,
+    dependencies=[Depends(require_permission("inventory.stock.adjust"))],
+)
 def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends(get_db)):
     # Find or create stock item
     tid = _require_tenant_id(request)
@@ -510,16 +514,9 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
             auto_pick_first=payload.lote is None,
         )
         if not row:
-            row = StockItem(
-                warehouse_id=payload.warehouse_id,
-                product_id=payload.product_id,
-                qty=0,
-                tenant_id=tid,
-                lot=lot,
-                expires_at=payload.expires_at,
-            )
-            db.add(row)
-            db.flush()
+            raise HTTPException(status_code=400, detail="insufficient_stock")
+        if float(row.qty or 0) < abs(float(payload.delta or 0)):
+            raise HTTPException(status_code=400, detail="insufficient_stock")
 
     qty_abs = abs(payload.delta)
     qty_dec = _dec(qty_abs)
@@ -566,7 +563,7 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
                 str(payload.warehouse_id),
                 str(payload.product_id),
                 qty=qty_dec,
-                allow_negative=True,
+                allow_negative=False,
                 lot=row.lot,
                 expires_at=row.expires_at,
             )
@@ -577,7 +574,7 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
                 str(payload.warehouse_id),
                 str(payload.product_id),
                 qty=qty_dec,
-                allow_negative=True,
+                allow_negative=False,
                 lot=row.lot,
                 expires_at=row.expires_at,
             )
@@ -588,7 +585,7 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
                 str(payload.warehouse_id),
                 str(payload.product_id),
                 qty=qty_dec,
-                allow_negative=True,
+                allow_negative=False,
                 initial_qty=_dec(row.qty),
                 initial_avg_cost=fallback_cost,
             )
@@ -842,7 +839,11 @@ class CycleCountIn(BaseModel):
     expires_at: date | None = None
 
 
-@router.post("/stock/cycle_count", response_model=StockItemOut)
+@router.post(
+    "/stock/cycle_count",
+    response_model=StockItemOut,
+    dependencies=[Depends(require_permission("inventory.cycle_count.manage"))],
+)
 def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(get_db)):
     tid = _require_tenant_id(request)
     lot = _normalize_lot(payload.lote)
@@ -917,7 +918,7 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
                     str(payload.warehouse_id),
                     str(payload.product_id),
                     qty=qty_dec,
-                    allow_negative=True,
+                    allow_negative=False,
                     lot=item.lot,
                     expires_at=item.expires_at,
                 )
@@ -928,7 +929,7 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
                     str(payload.warehouse_id),
                     str(payload.product_id),
                     qty=qty_dec,
-                    allow_negative=True,
+                    allow_negative=False,
                     lot=item.lot,
                     expires_at=item.expires_at,
                 )
@@ -939,7 +940,7 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
                     str(payload.warehouse_id),
                     str(payload.product_id),
                     qty=qty_dec,
-                    allow_negative=True,
+                    allow_negative=False,
                     initial_qty=_dec(item.qty),
                     initial_avg_cost=fallback_cost,
                 )
@@ -1396,7 +1397,10 @@ def list_alert_history(
     ]
 
 
-@router.post("/sync-from-products")
+@router.post(
+    "/sync-from-products",
+    dependencies=[Depends(require_permission("inventory.stock.sync"))],
+)
 def sync_stock_from_products(request: Request, db: Session = Depends(get_db)):
     """Sincroniza stock_items desde products.stock para todos los productos del tenant.
     Crea o actualiza la fila en stock_items usando el primer almacén activo.

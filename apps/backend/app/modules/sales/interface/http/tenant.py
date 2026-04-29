@@ -1,7 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from html import escape
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
@@ -187,7 +188,7 @@ def list_orders(
     limit: int = 100,
     offset: int = 0,
 ):
-    """Listar órdenes de venta"""
+    """Listar Ã³rdenes de venta"""
     tenant_uuid = get_tenant_uuid(request)
     query = (
         db.query(SalesOrder, Client.name)
@@ -347,7 +348,7 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
         else None
     )
 
-    # Notificación Telegram nuevo pedido (best-effort, non-blocking)
+    # NotificaciÃ³n Telegram nuevo pedido (best-effort, non-blocking)
     try:
         product_ids = [_uuid_or_none(it.product_id) for it in payload.items if it.product_id]
         product_names: dict = {}
@@ -429,7 +430,7 @@ def update_order(
             raise HTTPException(status_code=400, detail="invalid_status")
         so.status = payload.status
 
-    # Actualizar líneas si se envían
+    # Actualizar lÃ­neas si se envÃ­an
     if payload.items is not None:
         db.query(SalesOrderItem).filter(SalesOrderItem.order_id == so_id).delete()
         default_tax_rate = resolve_tenant_default_tax_rate(db, tenant_uuid)
@@ -738,10 +739,7 @@ def _notify_new_order_telegram(
     payment_method: str | None,
     notes: str | None,
 ) -> None:
-    """
-    Envía notificación Telegram cuando se crea un nuevo pedido.
-    Solo actúa si el tenant tiene un canal Telegram activo con default_recipient.
-    """
+    """Envia notificacion Telegram cuando se crea un nuevo pedido."""
     from app.models.ai.incident import NotificationChannel
     from app.modules.notifications.infrastructure._transport import send_telegram
 
@@ -762,17 +760,26 @@ def _notify_new_order_telegram(
     if not chat_id:
         return
 
-    cliente_line = f"👤 Cliente: <b>{customer_name}</b>\n" if customer_name else ""
-    metodo_line = f"💳 Pago: {payment_method}\n" if payment_method else ""
-    notas_line = f"📝 Notas: {notes}\n" if notes else ""
-    items_lines = "".join(f"  • {it['name']} x{it['qty']:g}\n" for it in items)
+    safe_customer = escape(str(customer_name)) if customer_name else ""
+    safe_payment = escape(str(payment_method)) if payment_method else ""
+    safe_notes = escape(str(notes)) if notes else ""
+    safe_order_number = escape(str(order_number))
+    safe_currency = escape(str(currency))
+    items_lines = "".join(
+        f"  - {escape(str(it.get('name', '')))} x{float(it.get('qty') or 0):g}\n"
+        for it in items
+    )
+
+    cliente_line = f"Cliente: <b>{safe_customer}</b>\n" if safe_customer else ""
+    metodo_line = f"Pago: {safe_payment}\n" if safe_payment else ""
+    notas_line = f"Notas: {safe_notes}\n" if safe_notes else ""
 
     message = (
-        "🛒 <b>Nuevo Pedido</b>\n"
-        f"📋 Número: <b>{order_number}</b>\n"
+        "<b>Nuevo Pedido</b>\n"
+        f"Numero: <b>{safe_order_number}</b>\n"
         f"{cliente_line}"
-        f"📦 Productos:\n{items_lines}"
-        f"💰 Total: <b>{currency} {total:,.2f}</b>\n"
+        f"Productos:\n{items_lines}"
+        f"Total: <b>{safe_currency} {total:,.2f}</b>\n"
         f"{metodo_line}"
         f"{notas_line}"
     )

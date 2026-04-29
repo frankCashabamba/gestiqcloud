@@ -361,11 +361,13 @@ def get_balances(
         .subquery()
     )
     bancos_row = db.execute(
-        select(func.coalesce(func.sum(BankMovement.new_balance), 0)).join(
+        select(func.coalesce(func.sum(BankMovement.new_balance), 0))
+        .join(
             latest_sub,
             (BankMovement.account_id == latest_sub.c.account_id)
             & (BankMovement.created_at == latest_sub.c.max_created_at),
         )
+        .where(BankMovement.tenant_id == tenant_id)
     ).scalar()
     bancos_total = float(bancos_row or 0)
 

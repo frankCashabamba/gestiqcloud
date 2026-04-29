@@ -6,12 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
 from app.db.rls import ensure_rls
 from app.models.core.products import Product
 from app.models.expenses.expense import Expense
 from app.models.production._cost_drivers import ProductionOrderCost
 from app.models.production.production_order import ProductionOrder
+from app.models.suppliers.supplier import Supplier
 
 from ...application.journal import ExpenseJournalService
 from ...infrastructure.repositories import ExpenseRepo
@@ -26,6 +27,28 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
+
+
+def _claim_uuid(claims: dict, key: str, fallback: str | None = None) -> UUID:
+    raw = claims.get(key) or (claims.get(fallback) if fallback else None)
+    if not raw:
+        raise HTTPException(status_code=401, detail=f"missing_{key}")
+    try:
+        return UUID(str(raw))
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=f"invalid_{key}") from exc
+
+
+def _validate_supplier_belongs_to_tenant(
+    db: Session, tenant_id: UUID, supplier_id: UUID | None
+) -> None:
+    if supplier_id is None:
+        return
+    exists = db.execute(
+        select(Supplier.id).where(Supplier.id == supplier_id, Supplier.tenant_id == tenant_id)
+    ).first()
+    if not exists:
+        raise HTTPException(status_code=400, detail="supplier_not_found_for_tenant")
 
 
 def _is_sale_production_expense(expense: Expense) -> bool:
@@ -205,7 +228,7 @@ def _sync_production_expense(db: Session, tenant_id: UUID, expense: Expense) -> 
 
 @router.get("", response_model=list[ExpenseOut])
 def list_expenses(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
-    tenant_id = UUID(claims["tenant_id"])
+    tenant_id = _claim_uuid(claims, "tenant_id")
     items = ExpenseRepo(db).list(tenant_id)
     changed = False
     for expense in items:
@@ -222,7 +245,7 @@ def get_expense_stats(db: Session = Depends(get_db), claims: dict = Depends(with
     from sqlalchemy import case
     from sqlalchemy import func as sqlfunc
 
-    tenant_id = UUID(claims["tenant_id"])
+    tenant_id = _claim_uuid(claims, "tenant_id")
     row = (
         db.query(
             sqlfunc.coalesce(sqlfunc.sum(Expense.total), 0).label("total"),
@@ -328,7 +351,7 @@ def get_expense_production_detail(
     expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     """Return ingredient breakdown for a production expense."""
-    tenant_id = UUID(claims["tenant_id"])
+    tenant_id = _claim_uuid(claims, "tenant_id")
     expense = ExpenseRepo(db).get(tenant_id, expense_id)
     if not expense:
         raise HTTPException(404, "Expense not found")
@@ -388,7 +411,7 @@ def get_expense_production_detail(
 def get_expense(
     expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
-    tenant_id = UUID(claims["tenant_id"])
+    tenant_id = _claim_uuid(claims, "tenant_id")
     obj = ExpenseRepo(db).get(tenant_id, expense_id)
     if not obj:
         raise HTTPException(404, "Not found")
@@ -405,10 +428,12 @@ def create_expense(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    tenant_id = claims["tenant_id"]
-    user_id = claims["user_id"]
-    expense = ExpenseRepo(db).create(tenant_id, user_id=user_id, **payload.model_dump())
-    ExpenseJournalService(db, UUID(tenant_id), UUID(user_id)).on_create(expense)
+    tenant_id = _claim_uuid(claims, "tenant_id")
+    user_id = _claim_uuid(claims, "user_id", fallback="sub")
+    data = payload.model_dump()
+    _validate_supplier_belongs_to_tenant(db, tenant_id, data.get("supplier_id"))
+    expense = ExpenseRepo(db).create(tenant_id, user_id=user_id, **data)
+    ExpenseJournalService(db, tenant_id, user_id).on_create(expense)
     db.commit()
     return expense
 
@@ -420,16 +445,18 @@ def update_expense(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    tenant_id = claims["tenant_id"]
-    user_id = claims["user_id"]
+    tenant_id = _claim_uuid(claims, "tenant_id")
+    user_id = _claim_uuid(claims, "user_id", fallback="sub")
     current = ExpenseRepo(db).get(tenant_id, expense_id)
     if not current:
         raise HTTPException(404, "Not found")
     if _is_locked_production_expense(current):
         raise HTTPException(403, "Production expenses are system-generated and cannot be edited")
     try:
-        updated = ExpenseRepo(db).update(tenant_id, expense_id, **payload.model_dump())
-        ExpenseJournalService(db, UUID(tenant_id), UUID(user_id)).on_update(updated)
+        data = payload.model_dump()
+        _validate_supplier_belongs_to_tenant(db, tenant_id, data.get("supplier_id"))
+        updated = ExpenseRepo(db).update(tenant_id, expense_id, **data)
+        ExpenseJournalService(db, tenant_id, user_id).on_update(updated)
         db.commit()
         return updated
     except ValueError:
@@ -440,12 +467,12 @@ def update_expense(
 def delete_expense(
     expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
-    tenant_id = claims["tenant_id"]
-    user_id = claims["user_id"]
+    tenant_id = _claim_uuid(claims, "tenant_id")
+    user_id = _claim_uuid(claims, "user_id", fallback="sub")
     expense = ExpenseRepo(db).get(tenant_id, expense_id)
     if not expense:
         raise HTTPException(404, "Not found")
-    ExpenseJournalService(db, UUID(tenant_id), UUID(user_id)).on_delete(expense)
+    ExpenseJournalService(db, tenant_id, user_id).on_delete(expense)
     try:
         ExpenseRepo(db).delete(tenant_id, expense_id)
     except ValueError:
@@ -454,7 +481,11 @@ def delete_expense(
     return {"success": True}
 
 
-@router.post("/backfill-journal", status_code=200)
+@router.post(
+    "/backfill-journal",
+    status_code=200,
+    dependencies=[Depends(require_permission("accounting.journal.manage"))],
+)
 def backfill_journal_entries(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
@@ -467,8 +498,8 @@ def backfill_journal_entries(
 
     from app.models.accounting.chart_of_accounts import JournalEntry
 
-    tenant_id = UUID(claims["tenant_id"])
-    user_id = UUID(claims["user_id"])
+    tenant_id = _claim_uuid(claims, "tenant_id")
+    user_id = _claim_uuid(claims, "user_id", fallback="sub")
 
     # IDs de gastos que ya tienen asiento
     existing_ids_stmt = sa_select(JournalEntry.ref_doc_id).where(

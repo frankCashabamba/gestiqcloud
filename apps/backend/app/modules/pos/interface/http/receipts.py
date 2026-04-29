@@ -1212,13 +1212,18 @@ def _build_fallback_receipt_html(
     width,
 ) -> str:
     """HTML mínimo de respaldo si el template Jinja2 no está disponible."""
+    from html import escape
+
+    def esc(value) -> str:
+        return escape(str(value or ""), quote=True)
+
     max_w = "80mm" if width == "80mm" else "48mm"
     lines_html = "".join(
-        f'<div class="line"><span>{ln["qty"]:.2f}x {ln["product_name"]}</span><span>${ln["line_total"]:.2f}</span></div>'
+        f'<div class="line"><span>{float(ln["qty"]):.2f}x {esc(ln["product_name"])}</span><span>${float(ln["line_total"]):.2f}</span></div>'
         for ln in lines_data
     )
     payments_html = "".join(
-        f'<div class="line"><span>{p["method"].upper()}</span><span>${p["amount"]:.2f}</span></div>'
+        f'<div class="line"><span>{esc(str(p["method"]).upper())}</span><span>${float(p["amount"]):.2f}</span></div>'
         for p in payments_data
     )
     gross = float(receipt[2] or 0)
@@ -1229,20 +1234,27 @@ def _build_fallback_receipt_html(
         else ""
     )
     logo_html = (
-        f'<img src="{empresa["logo"]}" style="max-height:50px;max-width:60mm;" /><br/>'
+        f'<img src="{esc(empresa["logo"])}" style="max-height:50px;max-width:60mm;" /><br/>'
         if empresa.get("logo")
         else ""
     )
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ticket {receipt[1]}</title>
+    company_name = esc(empresa.get("nombre"))
+    company_ruc = esc(empresa.get("ruc"))
+    company_address = esc(empresa.get("direccion"))
+    receipt_number = esc(receipt[1] or "N/A")
+    footer = esc(footer_message)
+    receipt = list(receipt)
+    receipt[1] = receipt_number
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ticket {receipt_number}</title>
 <style>@page{{size:{width} auto;margin:0}}*{{margin:0;padding:0;box-sizing:border-box}}
 body{{width:100%;max-width:{max_w};font-family:'Courier New',monospace;font-size:9pt;margin:0 auto;padding:3mm 2mm}}
 .center{{text-align:center;margin:2px 0}}.bold{{font-weight:bold}}
 .line{{display:flex;justify-content:space-between;margin:1px 0;font-size:8pt}}
 hr{{border:none;border-top:1px dashed #000;margin:4px 0}}.total{{font-weight:bold;font-size:11pt}}
 @media print{{body{{margin:0;padding:2mm;max-width:none}}}}</style></head><body>
-<div class="center">{logo_html}<span class="bold" style="font-size:12pt">{empresa["nombre"]}</span></div>
-{"<div class='center' style='font-size:8pt'>RUC: " + empresa["ruc"] + "</div>" if empresa.get("ruc") else ""}
-{"<div class='center' style='font-size:8pt'>" + empresa["direccion"] + "</div>" if empresa.get("direccion") else ""}
+<div class="center">{logo_html}<span class="bold" style="font-size:12pt">{company_name}</span></div>
+{"<div class='center' style='font-size:8pt'>RUC: " + company_ruc + "</div>" if company_ruc else ""}
+{"<div class='center' style='font-size:8pt'>" + company_address + "</div>" if company_address else ""}
 <div class="center" style="font-size:8pt">Nº {receipt[1] or "N/A"}</div>
 <div class="center" style="font-size:7pt">{receipt[4].strftime("%d/%m/%Y %H:%M:%S") if receipt[4] else ""}</div>
 <hr><div>{lines_html}</div><hr>
@@ -1250,6 +1262,6 @@ hr{{border:none;border-top:1px dashed #000;margin:4px 0}}.total{{font-weight:bol
 <div class="line"><span>IVA</span><span>${tax:.2f}</span></div>
 <div class="total line"><span>TOTAL</span><span>${gross:.2f}</span></div>
 {"<hr>" + payments_html + change_html if payments_data else ""}
-<hr><div class="center" style="margin-top:6px;font-size:8pt">{footer_message}</div>
+<hr><div class="center" style="margin-top:6px;font-size:8pt">{footer}</div>
 <script>window.addEventListener('load',function(){{setTimeout(function(){{window.print();}},500);}});</script>
 </body></html>"""

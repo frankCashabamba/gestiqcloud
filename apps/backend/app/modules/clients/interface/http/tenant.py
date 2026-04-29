@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -69,6 +70,32 @@ router = APIRouter(
 )
 
 
+def _tenant_uuid(request: Request) -> UUID:
+    claims = getattr(request.state, "access_claims", {}) or {}
+    raw = claims.get("tenant_id")
+    if not raw:
+        raise HTTPException(status_code=401, detail="missing_tenant_id")
+    try:
+        return UUID(str(raw))
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="invalid_tenant_id") from exc
+
+
+def _client_has_references(db: Session, tenant_id: UUID, client_id: UUID) -> bool:
+    row = db.execute(
+        text(
+            """
+            SELECT
+              EXISTS(SELECT 1 FROM invoices WHERE tenant_id = :tid AND customer_id = :cid)
+              OR EXISTS(SELECT 1 FROM sales_orders WHERE tenant_id = :tid AND customer_id = :cid)
+              OR EXISTS(SELECT 1 FROM pos_receipts WHERE tenant_id = :tid AND customer_id = :cid)
+            """
+        ),
+        {"tid": str(tenant_id), "cid": str(client_id)},
+    ).scalar()
+    return bool(row)
+
+
 @router.get("", response_model=list[ClienteOutSchema])
 @router.get("/", response_model=list[ClienteOutSchema])
 def listar_clientes(
@@ -77,8 +104,7 @@ def listar_clientes(
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
-    claims = request.state.access_claims
-    tenant_id = claims.get("tenant_id")
+    tenant_id = _tenant_uuid(request)
     use = ListarClientes(SqlAlchemyClienteRepo(db))
     items: list[ClienteOut] = list(use.execute(tenant_id=tenant_id, limit=limit, offset=offset))
     return [_dto_to_schema(item) for item in items]
@@ -87,8 +113,7 @@ def listar_clientes(
 @router.post("", response_model=ClienteOutSchema)
 @router.post("/", response_model=ClienteOutSchema)
 def crear_cliente(payload: ClienteInSchema, request: Request, db: Session = Depends(get_db)):
-    claims = request.state.access_claims
-    tenant_id = claims.get("tenant_id")
+    tenant_id = _tenant_uuid(request)
     use = CrearCliente(SqlAlchemyClienteRepo(db))
     created = use.execute(tenant_id=tenant_id, data=_schema_to_dto(payload))
     return _dto_to_schema(created)
@@ -96,8 +121,7 @@ def crear_cliente(payload: ClienteInSchema, request: Request, db: Session = Depe
 
 @router.get("/{cliente_id}", response_model=ClienteOutSchema)
 def obtener_cliente(cliente_id: UUID, request: Request, db: Session = Depends(get_db)):
-    claims = request.state.access_claims
-    tenant_id = claims.get("tenant_id")
+    tenant_id = _tenant_uuid(request)
     use = ObtenerCliente(SqlAlchemyClienteRepo(db))
     try:
         item = use.execute(id=cliente_id, tenant_id=tenant_id)
@@ -113,8 +137,7 @@ def actualizar_cliente(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    claims = request.state.access_claims
-    tenant_id = claims.get("tenant_id")
+    tenant_id = _tenant_uuid(request)
     use = ActualizarCliente(SqlAlchemyClienteRepo(db))
     try:
         updated = use.execute(id=cliente_id, tenant_id=tenant_id, data=_schema_to_dto(payload))
@@ -125,8 +148,9 @@ def actualizar_cliente(
 
 @router.delete("/{cliente_id}")
 def eliminar_cliente(cliente_id: UUID, request: Request, db: Session = Depends(get_db)):
-    claims = request.state.access_claims
-    tenant_id = claims.get("tenant_id")
+    tenant_id = _tenant_uuid(request)
+    if _client_has_references(db, tenant_id, cliente_id):
+        raise HTTPException(status_code=409, detail="client_has_related_documents")
     use = EliminarCliente(SqlAlchemyClienteRepo(db))
     use.execute(id=cliente_id, tenant_id=tenant_id)
     return {"ok": True}

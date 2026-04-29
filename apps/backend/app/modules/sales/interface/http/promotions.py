@@ -311,6 +311,7 @@ def validate_promo_code(
             Promotion.promo_code == payload.code.upper(),
             Promotion.is_active == True,  # noqa: E712
         )
+        .with_for_update()
         .first()
     )
 
@@ -330,6 +331,9 @@ def validate_promo_code(
         return ValidateOut(valid=False, discount_amount=0, message="min_purchase_not_met")
 
     discount = _compute_discount(promo, payload.cart_total)
+    promo.usage_count = int(promo.usage_count or 0) + 1
+    promo.updated_at = datetime.utcnow()
+    db.commit()
     return ValidateOut(
         valid=True,
         promotion_id=str(promo.id),
