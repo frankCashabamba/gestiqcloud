@@ -34,6 +34,8 @@ export default function ImportsPage() {
   const navigate = useNavigate()
   const [imports, setImports] = useState<HistImport[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const load = () => {
     setLoading(true)
@@ -45,13 +47,15 @@ export default function ImportsPage() {
 
   useEffect(() => { load() }, [])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta importación y todos sus registros?')) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deleteImport(id)
+      await deleteImport(deleteTarget)
+      setDeleteTarget(null)
+      setDeleteError('')
       load()
     } catch {
-      alert('Error al eliminar la importación')
+      setDeleteError('Error al eliminar la importacion')
     }
   }
 
@@ -109,7 +113,10 @@ export default function ImportsPage() {
                   <td style={td}>{imp.created_at?.slice(0, 10)}</td>
                   <td style={td}>
                     <button
-                      onClick={() => handleDelete(imp.id)}
+                      onClick={() => {
+                        setDeleteTarget(imp.id)
+                        setDeleteError('')
+                      }}
                       style={{
                         padding: '0.3rem 0.6rem',
                         border: '1px solid #fca5a5',
@@ -128,6 +135,32 @@ export default function ImportsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {deleteTarget && (
+        <div style={modalBackdrop}>
+          <div style={modalCard}>
+            <h2 style={{ margin: '0 0 0.5rem', fontSize: 18 }}>Eliminar importacion</h2>
+            <p style={{ color: '#475569', marginTop: 0 }}>
+              Esta accion elimina la importacion historica y sus registros asociados.
+            </p>
+            {deleteError ? <div style={modalError}>{deleteError}</div> : null}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null)
+                  setDeleteError('')
+                }}
+                style={modalCancelButton}
+              >
+                Cancelar
+              </button>
+              <button type="button" onClick={handleDelete} style={modalDeleteButton}>
+                Eliminar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </PageContainer>
@@ -153,4 +186,52 @@ const tdNum: React.CSSProperties = {
   ...td,
   textAlign: 'right',
   fontVariantNumeric: 'tabular-nums',
+}
+
+const modalBackdrop: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 50,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'rgba(15, 23, 42, 0.45)',
+  padding: '1rem',
+}
+
+const modalCard: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 420,
+  background: '#fff',
+  borderRadius: 12,
+  padding: '1.25rem',
+  boxShadow: '0 18px 50px rgba(15, 23, 42, 0.25)',
+}
+
+const modalError: React.CSSProperties = {
+  marginBottom: '0.75rem',
+  padding: '0.6rem 0.75rem',
+  border: '1px solid #fecaca',
+  borderRadius: 8,
+  background: '#fef2f2',
+  color: '#991b1b',
+  fontSize: 13,
+}
+
+const modalCancelButton: React.CSSProperties = {
+  padding: '0.5rem 0.9rem',
+  border: '1px solid #cbd5e1',
+  borderRadius: 8,
+  background: '#fff',
+  color: '#334155',
+  cursor: 'pointer',
+}
+
+const modalDeleteButton: React.CSSProperties = {
+  padding: '0.5rem 0.9rem',
+  border: '1px solid #dc2626',
+  borderRadius: 8,
+  background: '#dc2626',
+  color: '#fff',
+  cursor: 'pointer',
 }

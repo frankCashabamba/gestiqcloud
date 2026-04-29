@@ -44,6 +44,9 @@ Un modulo queda fuera de produccion si:
 - Branches: `assign-warehouse` y `assign-register` validan que sucursal y recurso pertenezcan al tenant antes de enlazar.
 - Users: email/username se validan por tenant y `check-username` deja de ser publico anonimo.
 - Export: CSV/XLSX tienen `limit` con maximo y los joins de stock filtran `warehouses`/`products` por tenant.
+- HR frontend: rechazo de vacaciones ya usa modal React en vez de `window.prompt`; `updateNomina` y delete de nomina fueron verificados contra el estado actual del codigo.
+- POS frontend: eliminado `tpv_pro.html` legacy y el draft local ya no persiste identificacion, nombre ni email del comprador.
+- Frontend legacy/dialogs: eliminados listados muertos de Products/Users con `confirm()`; Historical y Restaurant usan modales React en vez de `confirm`/`alert`/`prompt`.
 
 ## Modulos candidatos a produccion con parches
 

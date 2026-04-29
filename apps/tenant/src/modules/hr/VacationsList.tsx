@@ -50,6 +50,8 @@ export default function VacacionesList() {
   const [estadoFilter, setEstadoFilter] = useState('')
   const [empleadoSearch, setEmpleadoSearch] = useState('')
   const [per, setPer] = useState(10)
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const loadData = async () => {
     try {
@@ -100,11 +102,13 @@ export default function VacacionesList() {
     }
   }
 
-  const handleRechazar = async (id: string) => {
-    const motivo = window.prompt(t('hr:vacations.rejectionReason'))
+  const handleRechazar = async () => {
+    if (!rejectTarget) return
     try {
-      await rechazarVacacion(id, { motivo })
+      await rechazarVacacion(rejectTarget, { motivo: rejectReason.trim() || undefined })
       success(t('hr:vacations.rejected'))
+      setRejectTarget(null)
+      setRejectReason('')
       await loadData()
     } catch (e: any) {
       toastError(getErrorMessage(e))
@@ -288,7 +292,10 @@ export default function VacacionesList() {
                           {t('hr:vacations.approve')}
                         </button>
                         <button
-                          onClick={() => handleRechazar(v.id)}
+                          onClick={() => {
+                            setRejectTarget(v.id)
+                            setRejectReason('')
+                          }}
                           className="gc-btn gc-btn--danger gc-btn--sm"
                         >
                           {t('hr:vacations.reject')}
@@ -311,6 +318,42 @@ export default function VacacionesList() {
         </p>
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
+
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="font-semibold text-lg mb-2">{t('hr:vacations.reject')}</h3>
+            <label className="hr-field">
+              <span className="hr-field__label">{t('hr:vacations.rejectionReason')}</span>
+              <textarea
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+                className="gc-input min-h-24"
+                autoFocus
+              />
+            </label>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectTarget(null)
+                  setRejectReason('')
+                }}
+                className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm"
+              >
+                {t('common:cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleRechazar}
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+              >
+                {t('hr:vacations.reject')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

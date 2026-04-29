@@ -277,16 +277,13 @@ export function usePOSState() {
                 setBuyerMode(draft.buyerMode)
             }
             if (typeof draft.buyerIdType === 'string') setBuyerIdType(draft.buyerIdType)
-            if (typeof draft.buyerIdNumber === 'string') setBuyerIdNumber(draft.buyerIdNumber)
-            if (typeof draft.buyerName === 'string') setBuyerName(draft.buyerName)
-            if (typeof draft.buyerEmail === 'string') setBuyerEmail(draft.buyerEmail)
             if (typeof draft.isWholesaleCustomer === 'boolean') {
                 setIsWholesaleCustomer(draft.isWholesaleCustomer)
             }
             if (draft.selectedCustomerId) {
                 setSelectedClient({
                     id: draft.selectedCustomerId,
-                    name: draft.selectedCustomerName || draft.buyerName || 'Customer',
+                    name: draft.selectedCustomerName || 'Customer',
                     is_wholesale: !!draft.isWholesaleCustomer,
                 } as Customer)
             }
@@ -326,20 +323,17 @@ export function usePOSState() {
     // Persistir draft del ticket activo
     useEffect(() => {
         try {
-            const draft: PosDraftState = {
+            const draft: Partial<PosDraftState> = {
                 cart,
                 globalDiscountPct,
                 ticketNotes,
                 buyerMode,
                 buyerIdType,
-                buyerIdNumber,
-                buyerName,
-                buyerEmail,
                 isWholesaleCustomer,
                 selectedCustomerId: selectedClient ? String(selectedClient.id) : null,
                 selectedCustomerName: selectedClient?.name || null,
             }
-            if (draft.cart.length === 0 && !draft.ticketNotes) {
+            if ((draft.cart?.length || 0) === 0 && !draft.ticketNotes) {
                 localStorage.removeItem(POS_DRAFT_KEY)
                 return
             }
@@ -351,9 +345,6 @@ export function usePOSState() {
         ticketNotes,
         buyerMode,
         buyerIdType,
-        buyerIdNumber,
-        buyerName,
-        buyerEmail,
         isWholesaleCustomer,
         selectedClient,
     ])

@@ -25,6 +25,8 @@ export default function TablesView() {
   const [loading, setLoading] = useState(true)
   const [showAddTable, setShowAddTable] = useState(false)
   const [newTable, setNewTable] = useState({ number: 0, name: '', capacity: 4, zone: '' })
+  const [openTableTarget, setOpenTableTarget] = useState<Table | null>(null)
+  const [guestCount, setGuestCount] = useState(2)
 
   const load = async () => {
     setLoading(true)
@@ -52,15 +54,21 @@ export default function TablesView() {
       const order = orders.find(o => o.table_id === table.id)
       if (order) navigate(`orders/${order.id}`)
     } else if (table.status === 'available') {
-      const guests = prompt('Número de comensales:', '2')
-      if (!guests) return
-      try {
-        const res = await openOrder({ table_id: table.id, guests: parseInt(guests) || 1 })
-        success('Comanda abierta')
-        navigate(`orders/${res.id}`)
-      } catch {
-        showError('Error abriendo comanda')
-      }
+      setOpenTableTarget(table)
+      setGuestCount(2)
+    }
+  }
+
+  const handleOpenOrder = async () => {
+    if (!openTableTarget) return
+    const guests = Number.isFinite(guestCount) ? Math.max(1, Math.floor(guestCount)) : 1
+    try {
+      const res = await openOrder({ table_id: openTableTarget.id, guests })
+      success('Comanda abierta')
+      setOpenTableTarget(null)
+      navigate(`orders/${res.id}`)
+    } catch {
+      showError('Error abriendo comanda')
     }
   }
 
@@ -163,6 +171,42 @@ export default function TablesView() {
           </div>
         </div>
       ))}
+      {openTableTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-semibold mb-2">Abrir comanda</h2>
+            <p className="text-sm text-slate-600 mb-4">
+              Mesa {openTableTarget.number}{openTableTarget.name ? ` - ${openTableTarget.name}` : ''}
+            </p>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Numero de comensales</label>
+            <input
+              type="number"
+              min={1}
+              max={openTableTarget.capacity || 99}
+              value={guestCount}
+              onChange={e => setGuestCount(parseInt(e.target.value) || 1)}
+              className="w-full rounded border px-3 py-2 mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setOpenTableTarget(null)}
+                className="rounded bg-slate-200 px-4 py-2 text-sm hover:bg-slate-300"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenOrder}
+                className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+              >
+                Abrir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
