@@ -117,7 +117,8 @@ def create_invoice_from_sales_order(
         from sqlalchemy import text
 
         numero = db.execute(
-            text("SELECT numero FROM invoices WHERE id = :id"), {"id": invoice_id}
+            text("SELECT number FROM invoices WHERE id = :id AND tenant_id = :tid"),
+            {"id": invoice_id, "tid": str(tenant_id)},
         ).scalar()
 
         return InvoiceFromOrderResponse(
@@ -160,10 +161,12 @@ def get_invoice_from_order(order_id: UUID, request: Request, db: Session = Depen
     result = db.execute(
         text(
             """
-            SELECT id::text, numero, fecha_creacion
-            FROM invoices
-            WHERE metadata::jsonb->>'sales_order_id' = :order_id
-            AND tenant_id = :tid
+            SELECT i.id::text, i.number, i.created_at
+            FROM sales_orders so
+            JOIN pos_receipts r ON r.id = so.pos_receipt_id AND r.tenant_id = so.tenant_id
+            JOIN invoices i ON i.id = r.invoice_id AND i.tenant_id = so.tenant_id
+            WHERE so.id = :order_id
+            AND so.tenant_id = :tid
             LIMIT 1
         """
         ),

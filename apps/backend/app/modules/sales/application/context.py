@@ -15,7 +15,7 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     monthly = db.execute(
         text(
             "SELECT date_trunc('month', created_at)::date AS mes, "
-            "count(*) AS pedidos, coalesce(sum(total_amount), 0) AS total "
+            "count(*) AS pedidos, coalesce(sum(total), 0) AS total "
             "FROM sales_orders WHERE tenant_id = :tid "
             "GROUP BY 1 ORDER BY 1 DESC LIMIT 6"
         ),
@@ -24,7 +24,7 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
 
     top_clients = db.execute(
         text(
-            "SELECT c.name, count(*) AS pedidos, coalesce(sum(so.total_amount), 0) AS total "
+            "SELECT c.name, count(*) AS pedidos, coalesce(sum(so.total), 0) AS total "
             "FROM sales_orders so "
             "JOIN clients c ON c.id = so.customer_id "
             "WHERE so.tenant_id = :tid "

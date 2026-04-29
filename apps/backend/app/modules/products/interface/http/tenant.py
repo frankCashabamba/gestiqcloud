@@ -958,7 +958,11 @@ def update_product(
 
     # Intentar UUID primero
     try:
-        obj = db.query(Product).filter(Product.id == product_id).first()
+        obj = (
+            db.query(Product)
+            .filter(Product.id == product_id, Product.tenant_id == tenant_id)
+            .first()
+        )
     except Exception:
         obj = None
 

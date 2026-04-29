@@ -41,7 +41,7 @@ def _build_summary_context(db, tenant_id: str) -> dict[str, Any]:
     # Ventas de órdenes (ventas tradicionales)
     sales = db.execute(
         text(
-            "SELECT count(*) AS pedidos, coalesce(sum(total_amount), 0) AS total "
+            "SELECT count(*) AS pedidos, coalesce(sum(total), 0) AS total "
             "FROM sales_orders WHERE tenant_id = :tid AND created_at::date = :dia"
         ),
         {"tid": tenant_id, "dia": yesterday},
@@ -63,7 +63,7 @@ def _build_summary_context(db, tenant_id: str) -> dict[str, Any]:
     pending_purchases = db.execute(
         text(
             "SELECT count(*) AS compras_pendientes "
-            "FROM purchase_orders WHERE tenant_id = :tid "
+            "FROM purchases WHERE tenant_id = :tid "
             "AND status IN ('sent', 'confirmed')"
         ),
         {"tid": tenant_id},

@@ -40,19 +40,6 @@ class DocumentConverter:
                 f"La orden debe estar confirmada o entregada (estado actual: {order.status})"
             )
 
-        existing_invoice = self.db.execute(
-            text(
-                """
-                SELECT id FROM invoices
-                WHERE metadata::jsonb->>'sales_order_id' = :order_id
-                AND tenant_id = :tid
-                """
-            ),
-            {"order_id": str(sales_order_id), "tid": str(tenant_id)},
-        ).first()
-        if existing_invoice:
-            raise ValueError(f"La orden {sales_order_id} ya tiene factura: {existing_invoice[0]}")
-
         items = (
             self.db.query(SalesOrderItem).filter(SalesOrderItem.order_id == sales_order_id).all()
         )
@@ -97,16 +84,16 @@ class DocumentConverter:
 
         numero = generar_numero_documento(self.db, tenant_id, "invoice")
         invoice = Invoice(
-            numero=numero,
+            number=numero,
             tenant_id=tenant_id,
-            cliente_id=order.customer_id,
+            customer_id=order.customer_id,
             supplier="",
-            fecha_emision=str(self.db.execute(text("SELECT CURRENT_DATE")).scalar()),
-            monto=int(total),
+            issue_date=str(self.db.execute(text("SELECT CURRENT_DATE")).scalar()),
+            amount=float(total),
             subtotal=float(subtotal),
-            iva=float(iva),
+            vat=float(iva),
             total=float(total),
-            estado="draft",
+            status="draft",
         )
         self.db.add(invoice)
         self.db.flush()
@@ -128,7 +115,7 @@ class DocumentConverter:
             line_iva = line_subtotal * line_rate
             self.db.add(
                 LineaFactura(
-                    factura_id=invoice.id,
+                    invoice_id=invoice.id,
                     sector="base",
                     description=_prod_names.get(str(item.product_id)) or str(item.product_id),
                     quantity=item.qty,
@@ -167,16 +154,16 @@ class DocumentConverter:
 
         numero = generar_numero_documento(self.db, tenant_id, "invoice")
         invoice = Invoice(
-            numero=numero,
+            number=numero,
             tenant_id=tenant_id,
-            cliente_id=customer_id,
+            customer_id=customer_id,
             supplier="",
-            fecha_emision=str(receipt.created_at.date()),
-            monto=int(receipt.gross_total),
+            issue_date=str(receipt.created_at.date()),
+            amount=float(receipt.gross_total),
             subtotal=float(receipt.gross_total - receipt.tax_total),
-            iva=float(receipt.tax_total),
+            vat=float(receipt.tax_total),
             total=float(receipt.gross_total),
-            estado="emitida",
+            status="issued",
         )
         self.db.add(invoice)
         self.db.flush()
@@ -185,12 +172,12 @@ class DocumentConverter:
         for line in lines:
             self.db.add(
                 LineaFactura(
-                    factura_id=invoice.id,
+                    invoice_id=invoice.id,
                     sector="pos",
-                    descripcion=f"Producto {line.product_id}",
-                    cantidad=line.qty,
-                    precio_unitario=line.unit_price,
-                    iva=line.tax_amount if hasattr(line, "tax_amount") else 0,
+                    description=f"Producto {line.product_id}",
+                    quantity=line.qty,
+                    unit_price=line.unit_price,
+                    vat=line.tax_amount if hasattr(line, "tax_amount") else 0,
                 )
             )
 
@@ -251,9 +238,9 @@ class DocumentConverter:
                 payments = self.db.execute(
                     text(
                         """
-                        SELECT id, amount, payment_date, payment_method, status
+                        SELECT id, amount, payment_date, method, status
                         FROM payments
-                        WHERE invoice_id = :invoice_id
+                        WHERE ref_doc_type = 'invoice' AND ref_doc_id = :invoice_id
                         ORDER BY payment_date DESC
                         """
                     ),
@@ -285,13 +272,23 @@ class DocumentConverter:
                 invoice = self.db.execute(
                     text(
                         """
-                        SELECT id, numero, estado, fecha_emision
+                        SELECT id, number, status, issue_date
                         FROM invoices
-                        WHERE metadata::jsonb->>'sales_order_id' = :order_id
+                        WHERE tenant_id = :tenant_id
+                          AND id IN (
+                              SELECT invoice_id
+                              FROM pos_receipts
+                              WHERE tenant_id = :tenant_id
+                                AND id = (
+                                    SELECT pos_receipt_id
+                                    FROM sales_orders
+                                    WHERE id = :order_id
+                                )
+                          )
                         LIMIT 1
                         """
                     ),
-                    {"order_id": str(order.id)},
+                    {"order_id": str(order.id), "tenant_id": str(order.tenant_id)},
                 ).first()
 
                 if invoice:

@@ -2,9 +2,12 @@
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import socket
 from typing import Any
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -128,12 +131,40 @@ class WebhookValidator:
         if len(url) > 2048:
             return False, "URL is too long (max 2048 characters)"
 
-        if not url.startswith("https://"):
+        parsed = urlparse(url)
+        if parsed.scheme != "https":
             return False, "URL must use HTTPS protocol"
 
-        # Basic URL format check
-        if not any(c in url for c in [".", "/"]):
+        hostname = (parsed.hostname or "").strip().lower()
+        if not hostname:
             return False, "URL format is invalid"
+
+        if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".localhost"):
+            return False, "URL host is not allowed"
+
+        def _is_blocked_ip(value: str) -> bool:
+            try:
+                ip = ipaddress.ip_address(value)
+            except ValueError:
+                return False
+            return (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
+            )
+
+        if _is_blocked_ip(hostname):
+            return False, "URL host is not allowed"
+
+        try:
+            for family, _, _, _, sockaddr in socket.getaddrinfo(hostname, parsed.port or 443):
+                if family in (socket.AF_INET, socket.AF_INET6) and _is_blocked_ip(sockaddr[0]):
+                    return False, "URL resolves to a private or reserved address"
+        except socket.gaierror:
+            return False, "URL host cannot be resolved"
 
         return True, None
 

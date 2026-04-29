@@ -550,7 +550,7 @@ async def delete_cuenta(
     cuenta = db.execute(stmt).scalar_one_or_none()
     if not cuenta:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta no encontrada")
-    stmt = select(func.count()).select_from(AsientoLinea).where(AsientoLinea.cuenta_id == cuenta_id)
+    stmt = select(func.count()).select_from(AsientoLinea).where(AsientoLinea.account_id == cuenta_id)
     count = db.execute(stmt).scalar_one()
     if count > 0:
         raise HTTPException(
@@ -990,7 +990,7 @@ async def contabilizar_asiento(
     )
 
     for linea in lineas:
-        _recalcular_saldos_cuenta(db, linea.cuenta_id)
+        _recalcular_saldos_cuenta(db, linea.account_id)
 
     db.commit()
     db.refresh(asiento)

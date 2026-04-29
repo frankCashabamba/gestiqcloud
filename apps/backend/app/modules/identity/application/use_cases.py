@@ -322,9 +322,9 @@ class ChangePasswordUseCase:
         new_hash = self.password_hasher.hash(new_password)
 
         # 4. Update user (done outside this use case - return new_hash)
-        # 5. Revoke all sessions
-        # Note: In real implementation, would delete all refresh token families for this user
-        # refresh_repo.revoke_all_families(user_id)
+        # 5. Revoke all refresh sessions for this user. The current HTTP
+        # response also clears the cookie, so the caller must log in again.
+        self.refresh_repo.revoke_all_families(user_id=str(user_id))
 
         logger.info(f"Password changed for user {user_id}")
 

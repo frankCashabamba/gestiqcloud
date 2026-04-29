@@ -141,7 +141,8 @@ def create_invoice_from_pos_receipt(
 
         # Obtener número de factura y recibo generados
         invoice_number = db.execute(
-            text("SELECT numero FROM invoices WHERE id = :id"), {"id": invoice_id}
+            text("SELECT number FROM invoices WHERE id = :id AND tenant_id = :tid"),
+            {"id": invoice_id, "tid": str(tenant_id)},
         ).scalar()
 
         receipt_number = db.execute(
@@ -202,8 +203,8 @@ def get_invoice_from_receipt(receipt_id: str, request: Request, db: Session = De
                 r.id::text as receipt_id,
                 r.number as receipt_number,
                 i.id::text as invoice_id,
-                i.numero as invoice_number,
-                i.fecha_creacion
+                i.number as invoice_number,
+                i.created_at
             FROM pos_receipts r
             LEFT JOIN invoices i ON i.id = r.invoice_id
             WHERE r.id = :rid AND r.tenant_id = :tid
@@ -252,7 +253,7 @@ def unlink_invoice_from_receipt(receipt_id: str, request: Request, db: Session =
     result = db.execute(
         text(
             """
-            SELECT i.estado
+            SELECT i.status
             FROM pos_receipts r
             JOIN invoices i ON i.id = r.invoice_id
             WHERE r.id = :rid AND r.tenant_id = :tid

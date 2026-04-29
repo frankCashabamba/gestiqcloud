@@ -109,11 +109,11 @@ def get_invoice_data(invoice_id: UUID, tenant_id: str, db: Session) -> dict[str,
     query = text(
         """
         SELECT
-            i.id, i.numero, i.total, i.estado,
+            i.id, i.number, i.total, i.status,
             c.name as customer_name,
             c.email as customer_email
         FROM invoices i
-        LEFT JOIN clientes c ON c.id = i.cliente_id
+        LEFT JOIN clients c ON c.id = i.customer_id
         WHERE i.id = :invoice_id
           AND i.tenant_id = :tenant_id
     """
@@ -395,10 +395,10 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
                 update_query = text(
                     """
                     UPDATE invoices
-                    SET estado = 'paid'
+                    SET status = 'paid'
                     WHERE id = :invoice_id
                       AND tenant_id = :tenant_id
-                      AND estado != 'paid'
+                      AND status != 'paid'
                 """
                 )
 
@@ -524,7 +524,7 @@ def get_payment_status(
         SELECT
             pl.id, pl.provider, pl.status, pl.payment_url,
             pl.created_at, pl.completed_at, pl.error_message,
-            i.total, i.estado as invoice_status
+            i.total, i.status as invoice_status
         FROM payment_links pl
         JOIN invoices i ON i.id = pl.invoice_id
         WHERE pl.invoice_id = :invoice_id

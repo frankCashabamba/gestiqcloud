@@ -102,7 +102,6 @@ def with_access_claims(request: Request) -> dict[str, Any]:
 
     try:
         logger.debug(f"Attempting to decode token, token_service_id={id(token_service)}")
-        logger.debug(f"Token (first 50 chars): {token[:50]}...")
         claims = token_service.decode_and_validate(token, expected_type="access")
         logger.debug(f"Token decoded successfully, claims_keys={list(claims.keys())}")
     except ExpiredSignatureError as e:

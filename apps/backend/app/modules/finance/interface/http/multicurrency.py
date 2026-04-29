@@ -81,12 +81,15 @@ def list_currencies(request: Request, db: Session = Depends(get_db)):
 def list_exchange_rates(request: Request, db: Session = Depends(get_db)):
     """Lista los tipos de cambio del tenant."""
     ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
 
     rows = db.execute(
         text(
             "SELECT id, from_currency, to_currency, rate, effective_date, source, created_at "
-            "FROM exchange_rates ORDER BY effective_date DESC, from_currency ASC"
-        )
+            "FROM exchange_rates WHERE tenant_id = :tid "
+            "ORDER BY effective_date DESC, from_currency ASC"
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+        {"tid": tenant_id},
     ).fetchall()
 
     return [
@@ -150,6 +153,8 @@ def convert_amount(
     """Convierte un monto entre monedas usando el tipo de cambio más reciente."""
     ensure_guc_from_request(request, db, persist=True)
 
+    tenant_id = _get_tenant_id(request)
+
     if from_code == to_code:
         return {
             "amount": float(amount),
@@ -162,20 +167,20 @@ def convert_amount(
     rate_row = db.execute(
         text(
             "SELECT rate FROM exchange_rates "
-            "WHERE from_currency = :from_c AND to_currency = :to_c "
+            "WHERE tenant_id = :tid AND from_currency = :from_c AND to_currency = :to_c "
             "ORDER BY effective_date DESC LIMIT 1"
-        ),
-        {"from_c": from_code, "to_c": to_code},
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+        {"tid": tenant_id, "from_c": from_code, "to_c": to_code},
     ).first()
 
     if not rate_row:
         reverse_row = db.execute(
             text(
                 "SELECT rate FROM exchange_rates "
-                "WHERE from_currency = :to_c AND to_currency = :from_c "
+                "WHERE tenant_id = :tid AND from_currency = :to_c AND to_currency = :from_c "
                 "ORDER BY effective_date DESC LIMIT 1"
-            ),
-            {"from_c": from_code, "to_c": to_code},
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            {"tid": tenant_id, "from_c": from_code, "to_c": to_code},
         ).first()
         if not reverse_row:
             raise HTTPException(status_code=404, detail="exchange_rate_not_found")

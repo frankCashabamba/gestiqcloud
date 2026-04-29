@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import literal_column
@@ -35,7 +35,7 @@ def ensure_rls(
 
     Requiere que exista `request.state.access_claims` (p.ej. vía with_access_claims)
     o, en su defecto, `request.state.session` con `tenant_id` y `tenant_user_id`.
-    No falla si no hay claims.
+    Falla si la ruta exige RLS pero no hay tenant/user para setear.
     """
     tenant_id = None
     user_id = None
@@ -43,18 +43,17 @@ def ensure_rls(
     claims = getattr(request.state, "access_claims", None) or {}
     if isinstance(claims, dict):
         tenant_id = claims.get("tenant_id")
-        user_id = claims.get("user_id")
+        user_id = claims.get("user_id") or claims.get("sub")
 
     if tenant_id is None or user_id is None:
         sess = getattr(request.state, "session", {}) or {}
         tenant_id = tenant_id or sess.get("tenant_id")
         user_id = user_id or sess.get("tenant_user_id")
 
-    # Si no hay tenant/user, no setear (admin u open routes)
     t_id = _to_str(tenant_id)
     u_id = _to_str(user_id)
     if t_id is None or u_id is None:
-        return
+        raise HTTPException(status_code=401, detail="RLS tenant/user context missing")
 
     try:
         # Usa SET LOCAL para scope de transacción/request

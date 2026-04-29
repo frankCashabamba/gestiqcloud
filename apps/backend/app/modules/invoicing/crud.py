@@ -3,6 +3,7 @@
 Auto-generated module docstring."""
 
 # app/modulos/facturacion/crud.py
+import json
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -135,7 +136,7 @@ class InvoiceCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
     ):
         tenant_uuid = _tenant_uuid(tenant_id)
         # Load required relationships.
-        query = (
+        stmt = (
             db.query(self.model)
             .options(
                 joinedload(self.model.customer),
@@ -145,11 +146,11 @@ class InvoiceCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         )
 
         if status:
-            query = query.filter(self.model.status == status)
+            stmt = stmt.filter(self.model.status == status)
 
         if query:
             like_pattern = f"%{query.lower()}%"
-            query = query.join(self.model.customer).filter(
+            stmt = stmt.join(self.model.customer).filter(
                 or_(
                     self.model.number.ilike(like_pattern),
                     Cliente.name.ilike(like_pattern),
@@ -160,19 +161,19 @@ class InvoiceCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         if date_from:
             try:
                 start_date = datetime.strptime(date_from, "%Y-%m-%d").date()
-                query = query.filter(self.model.issue_date >= start_date)
+                stmt = stmt.filter(self.model.issue_date >= start_date)
             except ValueError:
                 pass
 
         if date_to:
             try:
                 end_date = datetime.strptime(date_to, "%Y-%m-%d").date()
-                query = query.filter(self.model.issue_date <= end_date)
+                stmt = stmt.filter(self.model.issue_date <= end_date)
             except ValueError:
                 pass
 
         # Newest first.
-        return query.order_by(self.model.issue_date.desc()).all()
+        return stmt.order_by(self.model.issue_date.desc()).all()
 
     def list_invoice_imports(self, db: Session, tenant_id: Any):
         """List temporary invoice imports."""
@@ -239,10 +240,14 @@ class InvoiceCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         # Enqueue webhook delivery invoice.posted (best-effort)
         try:
             payload = {
-                "id": invoice.id,
+                "id": str(invoice.id),
                 "number": invoice.number,
                 "total": getattr(invoice, "total", getattr(invoice, "amount", None)),
-                "customer_id": getattr(invoice, "customer_id", None),
+                "customer_id": (
+                    str(getattr(invoice, "customer_id", ""))
+                    if getattr(invoice, "customer_id", None)
+                    else None
+                ),
             }
             # Insert delivery row (one per active subscription will be created via API normally; here push a generic)
             db.execute(
@@ -251,7 +256,7 @@ class InvoiceCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
                     "SELECT 'invoice.posted', :p::jsonb, s.url, 'PENDING'\n"
                     "FROM webhook_subscriptions s WHERE s.event='invoice.posted' AND s.active"
                 ),
-                {"p": payload},
+                {"p": json.dumps(payload, default=str)},
             )
             db.commit()
             try:

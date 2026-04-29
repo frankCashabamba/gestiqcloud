@@ -123,6 +123,34 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
         )
         self.db.commit()
 
+    def revoke_all_families(self, *, user_id: str) -> None:
+        now = _utcnow()
+        self.db.execute(
+            text(
+                """
+                UPDATE auth_refresh_family
+                   SET revoked_at = :ts
+                 WHERE user_id = :user_id
+                   AND revoked_at IS NULL
+                """
+            ),
+            {"user_id": user_id, "ts": now},
+        )
+        self.db.execute(
+            text(
+                """
+                UPDATE auth_refresh_token
+                   SET revoked_at = :ts
+                 WHERE family_id IN (
+                    SELECT id FROM auth_refresh_family WHERE user_id = :user_id
+                 )
+                   AND revoked_at IS NULL
+                """
+            ),
+            {"user_id": user_id, "ts": now},
+        )
+        self.db.commit()
+
     def get_family(self, *, jti: str) -> str | None:
         row = (
             self.db.execute(

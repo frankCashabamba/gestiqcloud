@@ -206,8 +206,8 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
     if topic == "compras_pendientes":
         where_clause, tenant_params = _tenant_where()
         sql = (
-            "SELECT count(*) AS total, coalesce(sum(total_amount),0) AS monto "
-            f"FROM purchase_orders WHERE {where_clause} AND status IN ('draft','sent','confirmed')"
+            "SELECT count(*) AS total, coalesce(sum(total),0) AS monto "
+            f"FROM purchases WHERE {where_clause} AND status IN ('draft','sent','confirmed')"
         )
         return _safe_topic(
             db, "Compras pendientes", sql, lambda: _fetch_all(db, sql, tenant_params)
@@ -303,8 +303,8 @@ def create_invoice_draft(
     row = db.execute(
         text(
             """
-            INSERT INTO facturas (numero, proveedor, fecha_emision, monto, estado, tenant_id, cliente_id, subtotal, iva, total)
-            VALUES ('DRAFT', :prov, now()::date, :total, 'borrador', :emp, :cli, :sub, :iva, :tot)
+            INSERT INTO invoices (id, number, supplier, issue_date, amount, status, tenant_id, customer_id, subtotal, vat, total)
+            VALUES (gen_random_uuid(), 'DRAFT', :prov, now()::date, :total, 'draft', :emp, :cli, :sub, :iva, :tot)
             RETURNING id
             """
         ),
@@ -326,9 +326,16 @@ def create_order_draft(
 ) -> dict[str, Any]:
     cur = db.execute(
         text(
-            "INSERT INTO sales_orders(customer_id, status, created_at) VALUES (:cid, 'draft', now()) RETURNING id"
+            """
+            INSERT INTO sales_orders(id, tenant_id, number, customer_id, order_date, subtotal, tax, total, status, created_at, updated_at)
+            VALUES (
+                gen_random_uuid(), :tid, concat('DRAFT-', substr(gen_random_uuid()::text, 1, 8)),
+                :cid, CURRENT_DATE, 0, 0, 0, 'draft', now(), now()
+            )
+            RETURNING id
+            """
         ),
-        {"cid": payload.get("customer_id")},
+        {"tid": tenant_id, "cid": payload.get("customer_id")},
     )
     oid = cur.scalar()
     assert oid is not None
@@ -336,7 +343,10 @@ def create_order_draft(
     for it in items:
         db.execute(
             text(
-                "INSERT INTO sales_order_items(order_id, product_id, qty, unit_price) VALUES (:oid, :pid, :qty, :price)"
+                """
+                INSERT INTO sales_order_items(id, sales_order_id, product_id, quantity, unit_price, tax_rate, line_total)
+                VALUES (gen_random_uuid(), :oid, :pid, :qty, :price, 0, (:qty * :price))
+                """
             ),
             {
                 "oid": oid,

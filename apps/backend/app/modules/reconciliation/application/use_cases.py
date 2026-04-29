@@ -154,8 +154,7 @@ class AutoMatchUseCase:
                         """
                         SELECT id, total FROM invoices
                         WHERE tenant_id = :tenant_id
-                        AND (numero = :reference
-                             OR metadata::jsonb->>'reference' = :reference)
+                        AND number = :reference
                         LIMIT 1
                         """
                     ),
@@ -176,8 +175,8 @@ class AutoMatchUseCase:
                     SELECT id, total FROM invoices
                     WHERE tenant_id = :tenant_id
                     AND ABS(total - :amount) < 0.01
-                    AND estado NOT IN ('cancelled', 'draft', 'paid')
-                    AND ABS(fecha_emision - :txn_date) <= 3
+                    AND status NOT IN ('cancelled', 'draft', 'paid')
+                    AND ABS(issue_date::date - :txn_date) <= 3
                     LIMIT 1
                     """
                 ),

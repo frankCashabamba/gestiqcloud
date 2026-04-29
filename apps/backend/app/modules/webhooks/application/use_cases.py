@@ -14,6 +14,7 @@ from app.modules.webhooks.domain.exceptions import (
     WebhookNotFound,
 )
 from app.modules.webhooks.domain.models import EventType, WebhookDelivery, WebhookSubscription
+from app.modules.webhooks.utils import WebhookValidator
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,9 @@ class CreateWebhookSubscriptionUseCase:
         db_session: Session,
     ) -> WebhookSubscription:
         """Create webhook subscription."""
-        if not target_url.startswith(("http://", "https://")):
-            raise InvalidWebhookURL("URL must start with http:// or https://")
+        is_valid_url, url_error = WebhookValidator.validate_url(target_url)
+        if not is_valid_url:
+            raise InvalidWebhookURL(url_error or "Invalid webhook URL")
 
         subscription = WebhookSubscription(
             tenant_id=tenant_id,
@@ -79,8 +81,9 @@ class UpdateWebhookSubscriptionUseCase:
             raise WebhookNotFound(f"Webhook {webhook_id} not found")
 
         if target_url:
-            if not target_url.startswith(("http://", "https://")):
-                raise InvalidWebhookURL("URL must start with http:// or https://")
+            is_valid_url, url_error = WebhookValidator.validate_url(target_url)
+            if not is_valid_url:
+                raise InvalidWebhookURL(url_error or "Invalid webhook URL")
             subscription.target_url = target_url
 
         if secret:

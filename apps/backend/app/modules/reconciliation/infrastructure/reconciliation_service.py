@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -47,7 +47,7 @@ class ReconciliationService:
             invoice = self.db.execute(
                 text(
                     """
-                    SELECT id, numero, total, estado, metadata
+                    SELECT id, number, total, status
                     FROM invoices
                     WHERE id = :invoice_id AND tenant_id = :tenant_id
                 """
@@ -61,18 +61,21 @@ class ReconciliationService:
                     "error": f"Invoice {invoice_id} not found for tenant {tenant_id}",
                 }
 
-            invoice_id_db, invoice_number, invoice_total, invoice_status, metadata = invoice
+            invoice_id_db, invoice_number, invoice_total, invoice_status = invoice
 
             # Check if already paid
             existing_payment = self.db.execute(
                 text(
                     """
                     SELECT id, amount FROM payments
-                    WHERE invoice_id = :invoice_id AND status = 'confirmed'
+                    WHERE ref_doc_id = :invoice_id
+                      AND ref_doc_type = 'invoice'
+                      AND tenant_id = :tenant_id
+                      AND status = 'CONFIRMED'
                     ORDER BY created_at DESC LIMIT 1
                 """
                 ),
-                {"invoice_id": str(invoice_id)},
+                {"invoice_id": str(invoice_id), "tenant_id": str(tenant_id)},
             ).first()
 
             if existing_payment:
@@ -88,23 +91,27 @@ class ReconciliationService:
                 text(
                     """
                     INSERT INTO payments (
-                        id, invoice_id, tenant_id, amount, payment_date,
-                        payment_reference, payment_method, status, created_at
+                        id, ref_doc_id, ref_doc_type, tenant_id, amount, payment_date,
+                        bank_reference, method, status, confirmed_date, description, notes, created_at
                     ) VALUES (
-                        :id, :invoice_id, :tenant_id, :amount, :payment_date,
-                        :payment_reference, :payment_method, 'pending', NOW()
+                        :id, :invoice_id, 'invoice', :tenant_id, :amount, :payment_date,
+                        :payment_reference, :payment_method, 'CONFIRMED',
+                        :confirmed_date, :description, :notes, NOW()
                     )
                     RETURNING id
                 """
                 ),
                 {
-                    "id": str(UUID()),
+                    "id": str(uuid4()),
                     "invoice_id": str(invoice_id),
                     "tenant_id": str(tenant_id),
                     "amount": float(payment_amount),
                     "payment_date": payment_date,
                     "payment_reference": payment_reference,
-                    "payment_method": payment_method,
+                    "payment_method": payment_method.upper(),
+                    "confirmed_date": payment_date.date(),
+                    "description": f"Payment reconciliation {payment_reference}",
+                    "notes": notes,
                 },
             ).scalar()
 
@@ -115,10 +122,10 @@ class ReconciliationService:
 
             # Determine payment status
             if remaining_balance <= 0:
-                payment_status = "completed"
+                payment_status = "CONFIRMED"
                 invoice_payment_status = "paid"
             else:
-                payment_status = "partial"
+                payment_status = "CONFIRMED"
                 invoice_payment_status = "partial_paid"
 
             # Update payment status
@@ -126,11 +133,16 @@ class ReconciliationService:
                 text(
                     """
                     UPDATE payments
-                    SET status = :status, confirmed_at = NOW()
-                    WHERE id = :payment_id
+                    SET status = :status, confirmed_date = :confirmed_date
+                    WHERE id = :payment_id AND tenant_id = :tenant_id
                 """
                 ),
-                {"status": payment_status, "payment_id": str(payment_id)},
+                {
+                    "status": payment_status,
+                    "confirmed_date": payment_date.date(),
+                    "payment_id": str(payment_id),
+                    "tenant_id": str(tenant_id),
+                },
             )
 
             # Update invoice status
@@ -138,11 +150,15 @@ class ReconciliationService:
                 text(
                     """
                     UPDATE invoices
-                    SET estado = :status, updated_at = NOW()
-                    WHERE id = :invoice_id
+                    SET status = :status
+                    WHERE id = :invoice_id AND tenant_id = :tenant_id
                 """
                 ),
-                {"status": invoice_payment_status, "invoice_id": str(invoice_id)},
+                {
+                    "status": invoice_payment_status,
+                    "invoice_id": str(invoice_id),
+                    "tenant_id": str(tenant_id),
+                },
             )
 
             self.db.commit()
@@ -174,15 +190,16 @@ class ReconciliationService:
                 text(
                     """
                     SELECT
-                        inv.numero,
+                        inv.number,
                         inv.total,
-                        inv.estado,
+                        inv.status,
                         COALESCE(SUM(p.amount), 0) as total_paid,
                         COUNT(p.id) as payment_count
                     FROM invoices inv
-                    LEFT JOIN payments p ON inv.id = p.invoice_id
+                    LEFT JOIN payments p
+                      ON inv.id = p.ref_doc_id AND p.ref_doc_type = 'invoice'
                     WHERE inv.id = :invoice_id AND inv.tenant_id = :tenant_id
-                    GROUP BY inv.id, inv.numero, inv.total, inv.estado
+                    GROUP BY inv.id, inv.number, inv.total, inv.status
                 """
                 ),
                 {"invoice_id": str(invoice_id), "tenant_id": str(tenant_id)},
@@ -247,9 +264,9 @@ class ReconciliationService:
                 matched = self.db.execute(
                     text(
                         """
-                        SELECT id, numero, total FROM invoices
+                        SELECT id, number, total FROM invoices
                         WHERE tenant_id = :tenant_id
-                        AND (numero = :reference OR metadata::jsonb->>'reference' = :reference)
+                        AND number = :reference
                         LIMIT 1
                     """
                     ),
@@ -286,18 +303,19 @@ class ReconciliationService:
                     """
                     SELECT
                         inv.id,
-                        inv.numero,
+                        inv.number,
                         inv.total,
-                        inv.estado,
-                        inv.fecha_emision,
+                        inv.status,
+                        inv.issue_date,
                         COALESCE(SUM(p.amount), 0) as paid_amount
                     FROM invoices inv
-                    LEFT JOIN payments p ON inv.id = p.invoice_id
+                    LEFT JOIN payments p
+                      ON inv.id = p.ref_doc_id AND p.ref_doc_type = 'invoice'
                     WHERE inv.tenant_id = :tenant_id
-                    AND inv.estado NOT IN ('cancelled', 'draft')
+                    AND inv.status NOT IN ('cancelled', 'draft')
                     GROUP BY inv.id
                     HAVING COALESCE(SUM(p.amount), 0) < inv.total
-                    ORDER BY inv.fecha_emision ASC
+                    ORDER BY inv.issue_date ASC
                 """
                 ),
                 {"tenant_id": str(tenant_id)},

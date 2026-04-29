@@ -14,7 +14,7 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     """Retorna resumen del estado actual de reportes para el contexto del copilot."""
     sales = db.execute(
         text(
-            "SELECT coalesce(sum(total_amount), 0) AS ventas "
+            "SELECT coalesce(sum(total), 0) AS ventas "
             "FROM sales_orders WHERE tenant_id = :tid "
             "AND created_at > CURRENT_DATE - INTERVAL '30 days'"
         ),

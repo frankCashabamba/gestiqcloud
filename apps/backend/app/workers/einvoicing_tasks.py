@@ -743,15 +743,15 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         query = text(
             """
             SELECT
-                f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
+                f.id, f.number, f.issue_date, f.subtotal, f.vat, f.total,
                 t.name as empresa_nombre, t.tax_id as empresa_ruc,
                 t.address as empresa_direccion,
-                c.name as cliente_nombre, c.identificacion as cliente_ruc,
+                c.name as cliente_nombre, c.tax_id as cliente_ruc,
                 c.email as cliente_email
             FROM invoices f
             JOIN tenants t ON t.id = f.tenant_id
 
-            JOIN clientes c ON c.id = f.cliente_id
+            JOIN clients c ON c.id = f.customer_id
             WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
         """
         )

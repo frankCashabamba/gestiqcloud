@@ -159,10 +159,10 @@ class FinancialReportGenerator(BaseReportGenerator):
                 AND status IN ('paid', 'invoiced')
             """
 
-            # Expenses from purchase orders
+            # Expenses from purchases
             expense_query = """
                 SELECT COALESCE(SUM(total), 0)
-                FROM purchase_orders
+                FROM purchases
                 WHERE tenant_id = :tenant_id
                 AND status != 'cancelled'
             """

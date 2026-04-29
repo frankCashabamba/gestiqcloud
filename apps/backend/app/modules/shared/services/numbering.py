@@ -76,12 +76,19 @@ def generar_numero_fallback(
         "sales_order": "sales_orders",
         "pos_receipt": "pos_receipts",
         "delivery": "deliveries",
-        "purchase_order": "purchase_orders",
+        "purchase_order": "purchases",
+    }
+    columnas_numero = {
+        "invoice": "number",
+        "sales_order": "number",
+        "pos_receipt": "number",
+        "purchase_order": "number",
     }
 
     tabla = tablas.get(tipo)
     if not tabla:
         raise ValueError(f"Tipo de documento desconocido: {tipo}")
+    columna_numero = columnas_numero.get(tipo, "numero")
 
     year = db.execute(text("SELECT EXTRACT(year FROM now())::int")).scalar()
 
@@ -89,9 +96,9 @@ def generar_numero_fallback(
         result = db.execute(
             text(
                 f"""
-                SELECT numero FROM {tabla}
+                SELECT {columna_numero} FROM {tabla}
                 WHERE tenant_id = :tid
-                AND numero LIKE :pattern
+                AND {columna_numero} LIKE :pattern
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """
@@ -118,12 +125,19 @@ def validar_numero_unico(
         "sales_order": "sales_orders",
         "pos_receipt": "pos_receipts",
         "delivery": "deliveries",
-        "purchase_order": "purchase_orders",
+        "purchase_order": "purchases",
+    }
+    columnas_numero = {
+        "invoice": "number",
+        "sales_order": "number",
+        "pos_receipt": "number",
+        "purchase_order": "number",
     }
 
     tabla = tablas.get(tipo)
     if not tabla:
         return False
+    columna_numero = columnas_numero.get(tipo, "numero")
 
     tenant_uuid = str(tenant_id) if isinstance(tenant_id, UUID) else tenant_id
 
@@ -133,7 +147,7 @@ def validar_numero_unico(
                 f"""
                 SELECT EXISTS(
                     SELECT 1 FROM {tabla}
-                    WHERE numero = :numero
+                    WHERE {columna_numero} = :numero
                     AND tenant_id = :tid
                 )
                 """
