@@ -52,8 +52,8 @@ class ActualizarCliente(BaseUseCase[ClienteRepo]):
 
 
 class ListarClientes(BaseUseCase[ClienteRepo]):
-    def execute(self, *, tenant_id: Any, limit: int = 200, offset: int = 0) -> Sequence[ClienteOut]:
-        items = self.repo.list(tenant_id=tenant_id, limit=limit, offset=offset)
+    def execute(self, *, tenant_id: Any, limit: int = 200, offset: int = 0, search: str | None = None) -> Sequence[ClienteOut]:
+        items = self.repo.list(tenant_id=tenant_id, limit=limit, offset=offset, search=search)
         return [
             ClienteOut(
                 id=i.id or 0,

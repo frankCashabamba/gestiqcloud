@@ -447,7 +447,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     """Webhook para eventos de Stripe (subscription lifecycle)."""
     stripe_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
     if not stripe_secret:
-        raise HTTPException(status_code=500, detail="stripe_webhook_not_configured")
+        logger.error("STRIPE_WEBHOOK_SECRET no configurado — rechazando webhook entrante")
+        raise HTTPException(status_code=500, detail="Webhook secret no configurado")
 
     body = await request.body()
     sig = request.headers.get("stripe-signature", "")
@@ -524,5 +525,24 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             },
         )
         db.commit()
+
+    elif event_type == "invoice.payment_failed":
+        stripe_customer_id = data.get("customer")
+        subscription_id = data.get("subscription")
+        logger.warning(
+            "invoice.payment_failed recibido | customer=%s subscription=%s",
+            stripe_customer_id,
+            subscription_id,
+        )
+        if stripe_customer_id:
+            db.execute(
+                text(
+                    "UPDATE tenant_subscriptions "
+                    "SET status = 'past_due', updated_at = CURRENT_TIMESTAMP "
+                    "WHERE stripe_customer_id = :cid"
+                ),
+                {"cid": stripe_customer_id},
+            )
+            db.commit()
 
     return {"received": True}

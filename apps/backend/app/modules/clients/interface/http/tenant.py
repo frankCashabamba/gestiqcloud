@@ -101,12 +101,14 @@ def _client_has_references(db: Session, tenant_id: UUID, client_id: UUID) -> boo
 def listar_clientes(
     request: Request,
     db: Session = Depends(get_db),
-    limit: int = Query(200, ge=1, le=1000),
+    limit: int = Query(200, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    search: str | None = Query(None, description="Búsqueda por nombre, email o identificación"),
 ):
+    # FASE 2: historial de compras y saldo/crédito no expuestos en v1
     tenant_id = _tenant_uuid(request)
     use = ListarClientes(SqlAlchemyClienteRepo(db))
-    items: list[ClienteOut] = list(use.execute(tenant_id=tenant_id, limit=limit, offset=offset))
+    items: list[ClienteOut] = list(use.execute(tenant_id=tenant_id, limit=limit, offset=offset, search=search))
     return [_dto_to_schema(item) for item in items]
 
 

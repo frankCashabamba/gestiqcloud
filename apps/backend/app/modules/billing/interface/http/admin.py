@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -203,6 +206,11 @@ def subscribe_admin(
     db: Session = Depends(get_db),
 ):
     tenant_id = _validate_tenant_id(tenant_id)
+    claims = getattr(request.state, "access_claims", {}) or {}
+    logger.info(
+        "AUDIT billing.subscribe_admin | tenant_id=%s user_id=%s plan_id=%s ts=%s",
+        tenant_id, claims.get("user_id"), payload.plan_id, datetime.now(UTC).isoformat(),
+    )
     set_tenant_guc(db, tenant_id, persist=True)
 
     plan = load_plan(db, payload.plan_id)
@@ -296,8 +304,13 @@ def subscribe_admin(
 
 
 @router.post("/change-plan", response_model=ChangePlanOut)
-def change_plan_admin(tenant_id: str, payload: ChangePlanIn, db: Session = Depends(get_db)):
+def change_plan_admin(tenant_id: str, payload: ChangePlanIn, request: Request, db: Session = Depends(get_db)):
     tenant_id = _validate_tenant_id(tenant_id)
+    claims = getattr(request.state, "access_claims", {}) or {}
+    logger.info(
+        "AUDIT billing.change_plan_admin | tenant_id=%s user_id=%s new_plan_id=%s ts=%s",
+        tenant_id, claims.get("user_id"), payload.new_plan_id, datetime.now(UTC).isoformat(),
+    )
     set_tenant_guc(db, tenant_id, persist=True)
 
     current = db.execute(
@@ -373,8 +386,13 @@ def change_plan_admin(tenant_id: str, payload: ChangePlanIn, db: Session = Depen
 
 
 @router.post("/cancel", response_model=CancelSubscriptionOut)
-def cancel_subscription_admin(tenant_id: str, db: Session = Depends(get_db)):
+def cancel_subscription_admin(tenant_id: str, request: Request, db: Session = Depends(get_db)):
     tenant_id = _validate_tenant_id(tenant_id)
+    claims = getattr(request.state, "access_claims", {}) or {}
+    logger.info(
+        "AUDIT billing.cancel_subscription_admin | tenant_id=%s user_id=%s ts=%s",
+        tenant_id, claims.get("user_id"), datetime.now(UTC).isoformat(),
+    )
     set_tenant_guc(db, tenant_id, persist=True)
 
     current = db.execute(

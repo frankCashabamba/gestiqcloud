@@ -51,14 +51,35 @@ class PurchaseRepo:
         self.db = db
         self.crud = PurchaseCRUD(Purchase)
 
-    def list(self, tenant_id) -> list[Purchase]:
-        return (
+    def list(
+        self,
+        tenant_id,
+        *,
+        supplier_id=None,
+        status: str | None = None,
+        date_from=None,
+        date_to=None,
+        search: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> list[Purchase]:
+        q = (
             self.db.query(Purchase)
             .filter(Purchase.tenant_id == tenant_id)
             .options(joinedload(Purchase.supplier))
-            .order_by(Purchase.date.desc())
-            .all()
         )
+        if supplier_id is not None:
+            q = q.filter(Purchase.supplier_id == supplier_id)
+        if status is not None:
+            q = q.filter(Purchase.status == status)
+        if date_from is not None:
+            q = q.filter(Purchase.date >= date_from)
+        if date_to is not None:
+            q = q.filter(Purchase.date <= date_to)
+        if search is not None:
+            pattern = f"%{search}%"
+            q = q.filter(Purchase.number.ilike(pattern))
+        return q.order_by(Purchase.date.desc()).offset(skip).limit(limit).all()
 
     def get(self, tenant_id, cid) -> Purchase | None:
         return (

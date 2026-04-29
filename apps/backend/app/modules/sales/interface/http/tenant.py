@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
@@ -185,7 +185,8 @@ def list_orders(
     db: Session = Depends(get_db),
     status: str | None = None,
     customer_id: str | None = None,
-    limit: int = 100,
+    limit: int = 50,
+    skip: int = 0,
     offset: int = 0,
 ):
     """Listar Ã³rdenes de venta"""
@@ -202,7 +203,8 @@ def list_orders(
     if customer_id:
         query = query.filter(SalesOrder.customer_id == _uuid_or_none(customer_id))
 
-    rows = query.order_by(SalesOrder.created_at.desc()).offset(offset).limit(limit).all()
+    effective_offset = skip or offset
+    rows = query.order_by(SalesOrder.created_at.desc()).offset(effective_offset).limit(min(limit, 200)).all()
 
     if not rows:
         return []

@@ -91,7 +91,7 @@ def _ensure_unique_tax_id(
     if exclude_supplier_id is not None:
         query = query.filter(Supplier.id != exclude_supplier_id)
     if query.first() is not None:
-        raise HTTPException(status_code=409, detail="Supplier tax_id already exists")
+        raise HTTPException(status_code=409, detail="Ya existe un proveedor con este tax_id en este tenant")
 
 
 @router.get("", response_model=list[SupplierListOut])

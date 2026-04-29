@@ -33,11 +33,30 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[PurchaseOut])
-def list_purchases(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
+def list_purchases(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+    supplier_id: UUID | None = None,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    search: str | None = None,
+    skip: int = 0,
+    limit: int = 50,
+):
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_not_found")
-    return PurchaseRepo(db).list(tenant_id)
+    return PurchaseRepo(db).list(
+        tenant_id,
+        supplier_id=supplier_id,
+        status=status,
+        date_from=date_from,
+        date_to=date_to,
+        search=search,
+        skip=skip,
+        limit=min(limit, 200),
+    )
 
 
 @router.get("/{cid}", response_model=PurchaseOut)
@@ -112,6 +131,15 @@ def delete_purchase(
     cid: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
+    # Bloquear hard delete si ya hay recepciones o movimientos de stock
+    from app.models.purchases.purchase import PurchaseLine as _PL  # noqa: F401
+    from app.models.inventory.stock import StockMove
+    has_moves = db.query(StockMove.id).filter(StockMove.reference == str(cid)).first()
+    if has_moves:
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar una compra que ya tiene recepciones o movimientos de stock",
+        )
     try:
         PurchaseRepo(db).delete(tenant_id, cid)
     except ValueError:

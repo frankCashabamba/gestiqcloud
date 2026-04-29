@@ -22,6 +22,16 @@ Un modulo queda fuera de produccion si:
 - Necesita redisenar modelos, workers, schedulers o permisos.
 - Puede producir datos contables/fiscales incorrectos.
 
+## Ya mitigado en sesion 2026-04-29 (segunda tanda)
+
+- Sales backend: paginacion real en `list_orders` (default 50, max 200, param `skip`); checkout ya no genera UUID aleatorio si falta `user_id` (devuelve 401/400); `ApproveSalesOrderUseCase`, `GetSalesOrderUseCase` y `CancelSalesOrderUseCase` marcados como STUB con comentario explicito.
+- Purchases backend: `delete_purchase` bloquea con 409 si hay `StockMove` asociados; `list_purchases` acepta `supplier_id`, `status`, `date_from`, `date_to`, `search`, `skip`, `limit` (max 200).
+- Expenses backend: `list_expenses` es ahora read-only (eliminado `db.commit()` del GET); acepta `skip`, `limit`, `date_from`, `date_to`, `category`, `status`, `supplier_id`.
+- Clients backend: busqueda por nombre/email/identificacion via `search` (ILIKE OR); limite maximo corregido de 1000 a 200; documentado que historial y credito son FASE 2.
+- CRM backend: `_resolve_tenant_currency()` ya no lanza 500 si el tenant no tiene moneda — retorna "USD" como fallback.
+- Suppliers modelo: `UniqueConstraint("tenant_id", "tax_id")` anadido al modelo SQLAlchemy; mensaje 409 en espanol.
+- Billing backend: webhook ya no usa codigo interno en error de secret — mensaje legible; handler `invoice.payment_failed` anadido (pone `status = 'past_due'`); endpoints admin `subscribe`, `change-plan` y `cancel` emiten log AUDIT con tenant_id, user_id y timestamp.
+
 ## Ya mitigado en las ultimas tandas
 
 - Identity: eliminado log del secreto JWT, `ensure_rls` ya no falla silenciosamente, cambio de password revoca sesiones.
@@ -83,9 +93,9 @@ Estado: candidato con advertencias.
 Parches pendientes:
 
 - Definir si el estado `paid` se maneja desde checkout/factura o crear endpoint formal de pago.
-- Agregar paginacion real a listados de ordenes.
-- Evitar fallback de auditoria con UUID aleatorio en checkout si falta `user_id`.
-- Marcar use cases stub como deprecated o conectarlos al flujo real para evitar usos futuros incorrectos.
+- [HECHO 2026-04-29] Agregar paginacion real a listados de ordenes.
+- [HECHO 2026-04-29] Evitar fallback de auditoria con UUID aleatorio en checkout si falta `user_id`.
+- [HECHO 2026-04-29] Marcar use cases stub como deprecated o conectarlos al flujo real para evitar usos futuros incorrectos.
 
 Condicion para subir: crear, confirmar, cancelar, checkout, factura y promociones probados.
 
@@ -95,8 +105,8 @@ Estado: candidato con parches.
 
 Parches pendientes:
 
-- Evitar hard delete si la compra ya tuvo recepciones o stock moves.
-- Agregar filtros/busqueda basicos.
+- [HECHO 2026-04-29] Evitar hard delete si la compra ya tuvo recepciones o stock moves.
+- [HECHO 2026-04-29] Agregar filtros/busqueda basicos.
 - Definir flujo de aprobacion antes de recibir o dejarlo fuera de alcance.
 - Validar selector de proveedor en frontend para que `supplier_id` sea real.
 
@@ -120,9 +130,9 @@ Estado: candidato.
 
 Parches pendientes:
 
-- Agregar busqueda por nombre/email/identificacion.
+- [HECHO 2026-04-29] Agregar busqueda por nombre/email/identificacion.
 - Tipar dominio con UUID para evitar deuda futura.
-- Definir si historial de compras y saldo/credito entran en v1 o fase posterior.
+- [HECHO 2026-04-29] Definir si historial de compras y saldo/credito entran en v1 o fase posterior. (Decision: FASE 2, documentado en el router)
 
 Condicion para subir: CRUD, paginacion, tenant isolation, update y delete con referencias.
 
@@ -134,7 +144,7 @@ Parches pendientes:
 
 - Validar coincidencia `iban_confirmacion` tambien en frontend.
 - Enmascarar IBAN tambien en vistas donde no sea estrictamente necesario.
-- Definir constraint DB de `tax_id` unico por tenant.
+- [HECHO 2026-04-29] Definir constraint DB de `tax_id` unico por tenant. (UniqueConstraint anadido al modelo; 409 en espanol)
 - Evaluar cifrado en reposo para IBAN antes de usar datos reales.
 
 Condicion para subir: no exponer IBAN completo en listados y validar datos bancarios.
@@ -145,9 +155,9 @@ Estado: candidato.
 
 Parches pendientes:
 
-- Agregar paginacion.
-- Agregar filtros por fecha/categoria/estado.
-- Sacar migraciones/commits automaticos de `GET /expenses` a una tarea explicita.
+- [HECHO 2026-04-29] Agregar paginacion.
+- [HECHO 2026-04-29] Agregar filtros por fecha/categoria/estado.
+- [HECHO 2026-04-29] Sacar migraciones/commits automaticos de `GET /expenses` a una tarea explicita. (GET es ahora read-only)
 - Adjuntos y aprobacion pueden quedar fuera de v1 si se documenta.
 
 Condicion para subir: CRUD, asiento contable, bloqueo de gastos de produccion y supplier tenant validation.
@@ -158,10 +168,10 @@ Estado: candidato si Stripe esta configurado.
 
 Parches pendientes:
 
-- Manejar `invoice.payment_failed`.
-- Agregar auditoria de operaciones administrativas.
-- Confirmar que webhook falla cerrado si falta `STRIPE_WEBHOOK_SECRET`.
-- Corregir frontend para enviar `description` y `customer_name`.
+- [HECHO 2026-04-29] Manejar `invoice.payment_failed`. (pone status = 'past_due' en tenant_subscriptions)
+- [HECHO 2026-04-29] Agregar auditoria de operaciones administrativas. (log AUDIT en subscribe/change-plan/cancel)
+- [HECHO 2026-04-29] Confirmar que webhook falla cerrado si falta `STRIPE_WEBHOOK_SECRET`. (error 500 con mensaje legible)
+- [HECHO sesion anterior] Corregir frontend para enviar `description` y `customer_name`.
 
 Condicion para subir: checkout, cambio de plan, cancelacion, portal y webhooks firmados.
 
@@ -195,7 +205,7 @@ Estado: candidato.
 
 Parches pendientes:
 
-- Manejar tenant sin moneda configurada sin romper dashboard.
+- [HECHO 2026-04-29] Manejar tenant sin moneda configurada sin romper dashboard. (_resolve_tenant_currency retorna "USD" como fallback)
 - Exponer boton de convertir lead si frontend lo requiere.
 
 Condicion para subir: CRUD leads/oportunidades, dashboard y conversion.

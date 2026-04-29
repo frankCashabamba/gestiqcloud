@@ -92,12 +92,35 @@ class ExpenseRepo:
         self.db = db
         self.crud = ExpenseCRUD(Expense)
 
-    def list(self, tenant_id: int | UUID) -> list[Expense]:
+    def list(
+        self,
+        tenant_id: int | UUID,
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        date_from=None,
+        date_to=None,
+        category: str | None = None,
+        status: str | None = None,
+        supplier_id=None,
+    ) -> list[Expense]:
+        limit = min(limit, 200)
         stmt = (
             select(Expense)
             .where(Expense.tenant_id == tenant_id)
             .order_by(Expense.date.desc(), Expense.created_at.desc())
         )
+        if date_from is not None:
+            stmt = stmt.where(Expense.date >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(Expense.date <= date_to)
+        if category is not None:
+            stmt = stmt.where(Expense.category == category)
+        if status is not None:
+            stmt = stmt.where(Expense.status == status)
+        if supplier_id is not None:
+            stmt = stmt.where(Expense.supplier_id == supplier_id)
+        stmt = stmt.offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
     def get(self, tenant_id: int | UUID, expense_id: UUID) -> Expense | None:

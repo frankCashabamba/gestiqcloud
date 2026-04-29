@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,7 +15,10 @@ class Supplier(BaseCatalogModel):
     """Supplier"""
 
     __tablename__ = "suppliers"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "tax_id", name="uq_suppliers_tenant_tax_id"),
+        {"extend_existing": True},
+    )
 
     # Additional fields specific to Supplier
     name: Mapped[str] = mapped_column(String(255), nullable=False)

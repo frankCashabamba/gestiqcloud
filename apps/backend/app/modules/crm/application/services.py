@@ -54,7 +54,7 @@ class CRMService:
                 cur = str(cur).strip().upper()
                 if cur:
                     return cur
-        raise ValueError("currency_not_configured")
+        return "USD"  # fallback: tenant sin moneda configurada
 
     def list_leads(
         self,

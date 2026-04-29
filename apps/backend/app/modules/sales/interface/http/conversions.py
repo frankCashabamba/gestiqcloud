@@ -370,10 +370,12 @@ def checkout_order(
     tenant_id = get_tenant_uuid(request)
     claims = getattr(request.state, "access_claims", {}) or {}
     raw_user_id = claims.get("user_id")
+    if not raw_user_id:
+        raise HTTPException(status_code=401, detail="user_id requerido")
     try:
-        user_id = UUID(str(raw_user_id)) if raw_user_id else uuid.uuid4()
+        user_id = UUID(str(raw_user_id))
     except (ValueError, AttributeError):
-        user_id = uuid.uuid4()
+        raise HTTPException(status_code=400, detail="user_id inválido")
 
     # --- 1. Cargar y validar pedido ---
     try:

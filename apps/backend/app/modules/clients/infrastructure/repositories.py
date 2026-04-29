@@ -103,15 +103,19 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
         )
         return self._to_entity(m) if m else None
 
-    def list(self, *, tenant_id: int, limit: int = 200, offset: int = 0) -> Sequence[Cliente]:
-        ms = (
-            self.db.query(ClienteORM)
-            .filter(ClienteORM.tenant_id == tenant_id)
-            .order_by(ClienteORM.id.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+    def list(self, *, tenant_id: int, limit: int = 200, offset: int = 0, search: str | None = None) -> Sequence[Cliente]:
+        from sqlalchemy import or_
+        q = self.db.query(ClienteORM).filter(ClienteORM.tenant_id == tenant_id)
+        if search:
+            pattern = f"%{search}%"
+            q = q.filter(
+                or_(
+                    ClienteORM.name.ilike(pattern),
+                    ClienteORM.email.ilike(pattern),
+                    ClienteORM.tax_id.ilike(pattern),
+                )
+            )
+        ms = q.order_by(ClienteORM.id.desc()).offset(offset).limit(limit).all()
         return [self._to_entity(m) for m in ms]
 
     def create(self, c: Cliente) -> Cliente:

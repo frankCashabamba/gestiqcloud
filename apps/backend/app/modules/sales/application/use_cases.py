@@ -115,6 +115,8 @@ class CreateSalesOrderUseCase:
 class ApproveSalesOrderUseCase:
     """Aprueba orden de venta."""
 
+    # STUB: no conectado al flujo real — no usar en producción
+
     def __init__(self):
         pass
 
@@ -324,6 +326,8 @@ class CalculateDiscountUseCase:
 class GetSalesOrderUseCase:
     """Obtiene detalle de orden."""
 
+    # STUB: no conectado al flujo real — no usar en producción
+
     def __init__(self):
         pass
 
@@ -362,6 +366,8 @@ class GetSalesOrderUseCase:
 
 class CancelSalesOrderUseCase:
     """Cancela orden de venta."""
+
+    # STUB: no conectado al flujo real — no usar en producción
 
     def __init__(self):
         pass

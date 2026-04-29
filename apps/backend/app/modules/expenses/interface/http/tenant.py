@@ -1,6 +1,7 @@
+from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -227,16 +228,28 @@ def _sync_production_expense(db: Session, tenant_id: UUID, expense: Expense) -> 
 
 
 @router.get("", response_model=list[ExpenseOut])
-def list_expenses(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
+def list_expenses(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    category: str | None = Query(None),
+    status: str | None = Query(None),
+    supplier_id: UUID | None = Query(None),
+):
     tenant_id = _claim_uuid(claims, "tenant_id")
-    items = ExpenseRepo(db).list(tenant_id)
-    changed = False
-    for expense in items:
-        changed = _fix_sale_expense(expense) or changed
-        changed = _sync_production_expense(db, tenant_id, expense) or changed
-    if changed:
-        db.commit()
-    return items
+    return ExpenseRepo(db).list(
+        tenant_id,
+        skip=skip,
+        limit=limit,
+        date_from=date_from,
+        date_to=date_to,
+        category=category,
+        status=status,
+        supplier_id=supplier_id,
+    )
 
 
 @router.get("/stats")
