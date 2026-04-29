@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.models import AssignedModule, CompanyModule, CompanyRole, CompanyUser, CompanyUserRole
 from app.modules.users.infrastructure.schemas import CompanyUserCreate
@@ -33,12 +34,18 @@ def get_user_by_id(db: Session, usuario_id: int, tenant_id: int) -> CompanyUser 
     )
 
 
-def get_user_by_email(db: Session, email: str) -> CompanyUser | None:
-    return db.query(CompanyUser).filter(CompanyUser.email == email).first()
+def get_user_by_email(db: Session, email: str, tenant_id=None) -> CompanyUser | None:
+    query = db.query(CompanyUser).filter(func.lower(CompanyUser.email) == str(email).lower())
+    if tenant_id is not None:
+        query = query.filter(CompanyUser.tenant_id == tenant_id)
+    return query.first()
 
 
-def get_user_by_username(db: Session, username: str) -> CompanyUser | None:
-    return db.query(CompanyUser).filter(CompanyUser.username == username).first()
+def get_user_by_username(db: Session, username: str, tenant_id=None) -> CompanyUser | None:
+    query = db.query(CompanyUser).filter(func.lower(CompanyUser.username) == str(username).lower())
+    if tenant_id is not None:
+        query = query.filter(CompanyUser.tenant_id == tenant_id)
+    return query.first()
 
 
 def insert_company_user(

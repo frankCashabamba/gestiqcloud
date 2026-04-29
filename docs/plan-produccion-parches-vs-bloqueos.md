@@ -41,6 +41,9 @@ Un modulo queda fuera de produccion si:
 - Products: purge destructivo por DELETE bloqueado; purge real exige POST con permiso y confirmacion; merge de duplicados exige permiso y solo actualiza tablas con `tenant_id`; deteccion de similares queda limitada por `scan_limit`.
 - Suppliers: `PUT` acepta payload parcial, IBAN se normaliza y valida con checksum, y `tax_id` duplicado por tenant devuelve 409.
 - Billing frontend: `customer_name`, `description` y `notes` ya se envian al backend al crear/editar factura.
+- Branches: `assign-warehouse` y `assign-register` validan que sucursal y recurso pertenezcan al tenant antes de enlazar.
+- Users: email/username se validan por tenant y `check-username` deja de ser publico anonimo.
+- Export: CSV/XLSX tienen `limit` con maximo y los joins de stock filtran `warehouses`/`products` por tenant.
 
 ## Modulos candidatos a produccion con parches
 

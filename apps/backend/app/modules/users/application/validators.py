@@ -4,18 +4,20 @@ from sqlalchemy.orm import Session
 from app.modules.users.infrastructure import repositories as repo
 
 
-def ensure_email_unique(db: Session, email: str, *, exclude_user_id: int | None = None) -> None:
-    usuario = repo.get_user_by_email(db, email)
+def ensure_email_unique(
+    db: Session, email: str, tenant_id, *, exclude_user_id: int | None = None
+) -> None:
+    usuario = repo.get_user_by_email(db, email, tenant_id)
     if usuario and usuario.id != exclude_user_id:
         raise HTTPException(status_code=400, detail="Email already registered.")
 
 
 def ensure_username_unique(
-    db: Session, username: str | None, *, exclude_user_id: int | None = None
+    db: Session, username: str | None, tenant_id, *, exclude_user_id: int | None = None
 ) -> None:
     if not username:
         return
-    usuario = repo.get_user_by_username(db, username)
+    usuario = repo.get_user_by_username(db, username, tenant_id)
     if usuario and usuario.id != exclude_user_id:
         raise HTTPException(status_code=400, detail="Username already in use.")
 

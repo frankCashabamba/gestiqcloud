@@ -4,7 +4,7 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -42,16 +42,20 @@ def _csv(rows, header):
 
 
 @router.get("/products.csv", response_class=Response)
-def export_products(request: Request, db: Session = Depends(get_db)):
+def export_products(
+    request: Request,
+    db: Session = Depends(get_db),
+    limit: int = Query(default=10000, ge=1, le=50000),
+):
     tenant_id = tenant_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=403, detail="missing_tenant")
     rows = db.execute(
         text(
             "SELECT id, COALESCE(sku,'') AS sku, name, price, unit "
-            "FROM products WHERE tenant_id=:tid ORDER BY id"
+            "FROM products WHERE tenant_id=:tid ORDER BY id LIMIT :limit"
         ),
-        {"tid": tenant_id},
+        {"tid": tenant_id, "limit": limit},
     )
     items = [dict(r) for r in rows.mappings().all()]
     data = _csv(items, ["id", "sku", "name", "price", "unit"])
@@ -63,7 +67,11 @@ def export_products(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/clients.csv", response_class=Response)
-def export_clients(request: Request, db: Session = Depends(get_db)):
+def export_clients(
+    request: Request,
+    db: Session = Depends(get_db),
+    limit: int = Query(default=10000, ge=1, le=50000),
+):
     tenant_id = tenant_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=403, detail="missing_tenant")
@@ -71,9 +79,9 @@ def export_clients(request: Request, db: Session = Depends(get_db)):
         text(
             "SELECT id, nombre, COALESCE(email,'') AS email, "
             "COALESCE(telefono,'') AS telefono FROM clients "
-            "WHERE tenant_id=:tid ORDER BY id"
+            "WHERE tenant_id=:tid ORDER BY id LIMIT :limit"
         ),
-        {"tid": tenant_id},
+        {"tid": tenant_id, "limit": limit},
     )
     items = [dict(r) for r in rows.mappings().all()]
     data = _csv(items, ["id", "nombre", "email", "telefono"])
@@ -85,18 +93,22 @@ def export_clients(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/stock.csv", response_class=Response)
-def export_stock(request: Request, db: Session = Depends(get_db)):
+def export_stock(
+    request: Request,
+    db: Session = Depends(get_db),
+    limit: int = Query(default=10000, ge=1, le=50000),
+):
     tenant_id = tenant_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=403, detail="missing_tenant")
     rows = db.execute(
         text(
             "SELECT w.code, p.sku, p.name, s.qty FROM stock_items s "
-            "LEFT JOIN warehouses w ON s.warehouse_id = w.id "
-            "LEFT JOIN products p ON s.product_id = p.id "
-            "WHERE s.tenant_id=:tid ORDER BY w.code, p.sku"
+            "LEFT JOIN warehouses w ON s.warehouse_id = w.id AND w.tenant_id = :tid "
+            "LEFT JOIN products p ON s.product_id = p.id AND p.tenant_id = :tid "
+            "WHERE s.tenant_id=:tid ORDER BY w.code, p.sku LIMIT :limit"
         ),
-        {"tid": tenant_id},
+        {"tid": tenant_id, "limit": limit},
     )
     items = [dict(r) for r in rows.mappings().all()]
     data = _csv(items, ["code", "sku", "name", "qty"])
@@ -108,7 +120,11 @@ def export_stock(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/stock.xlsx", response_class=Response)
-def export_stock_xlsx(request: Request, db: Session = Depends(get_db)):
+def export_stock_xlsx(
+    request: Request,
+    db: Session = Depends(get_db),
+    limit: int = Query(default=10000, ge=1, le=50000),
+):
     """Export stock inventory as Excel"""
     if not HAS_OPENPYXL:
         raise HTTPException(status_code=500, detail="Excel export not available")
@@ -121,11 +137,11 @@ def export_stock_xlsx(request: Request, db: Session = Depends(get_db)):
         text(
             "SELECT w.code, p.sku, p.name, s.qty, p.price, (s.qty * p.price) as total "
             "FROM stock_items s "
-            "LEFT JOIN warehouses w ON s.warehouse_id = w.id "
-            "LEFT JOIN products p ON s.product_id = p.id "
-            "WHERE s.tenant_id=:tid ORDER BY w.code, p.sku"
+            "LEFT JOIN warehouses w ON s.warehouse_id = w.id AND w.tenant_id = :tid "
+            "LEFT JOIN products p ON s.product_id = p.id AND p.tenant_id = :tid "
+            "WHERE s.tenant_id=:tid ORDER BY w.code, p.sku LIMIT :limit"
         ),
-        {"tid": tenant_id},
+        {"tid": tenant_id, "limit": limit},
     ).fetchall()
 
     wb = Workbook()

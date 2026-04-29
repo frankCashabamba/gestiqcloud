@@ -123,8 +123,8 @@ def create_company_user(
     *,
     asignado_por_id: int | None = None,
 ) -> CompanyUserOut:
-    val.ensure_email_unique(db, data.email)
-    val.ensure_username_unique(db, data.username)
+    val.ensure_email_unique(db, data.email, tenant_id)
+    val.ensure_username_unique(db, data.username, tenant_id)
 
     modules = list(data.modules)
     roles = list(data.roles)
@@ -178,11 +178,11 @@ def update_company_user(
         raise HTTPException(status_code=404, detail="user_not_found")
 
     if data.email and data.email != usuario.email:
-        val.ensure_email_unique(db, data.email, exclude_user_id=usuario.id)
+        val.ensure_email_unique(db, data.email, tenant_id, exclude_user_id=usuario.id)
         usuario.email = data.email
 
     if data.username is not None and data.username != usuario.username:
-        val.ensure_username_unique(db, data.username, exclude_user_id=usuario.id)
+        val.ensure_username_unique(db, data.username, tenant_id, exclude_user_id=usuario.id)
         usuario.username = data.username
 
     if data.first_name is not None:
@@ -240,8 +240,8 @@ def toggle_user_active(
     return update_company_user(db, tenant_id, usuario_id, payload)
 
 
-def check_username_availability(db: Session, username: str) -> bool:
-    return repo.get_user_by_username(db, username) is None
+def check_username_availability(db: Session, tenant_id: int, username: str) -> bool:
+    return repo.get_user_by_username(db, username, tenant_id) is None
 
 
 def list_company_modules(db: Session, tenant_id: int) -> list[ModuleOption]:

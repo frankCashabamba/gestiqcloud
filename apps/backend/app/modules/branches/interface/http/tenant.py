@@ -35,7 +35,29 @@ def _get_tenant_id(request: Request) -> UUID:
     tid = claims.get("tenant_id")
     if not tid:
         raise HTTPException(status_code=401, detail="tenant_id_not_found")
-    return UUID(str(tid))
+    try:
+        return UUID(str(tid))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="invalid_tenant_id")
+
+
+def _ensure_uuid(value: str, detail: str) -> UUID:
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=detail)
+
+
+def _ensure_branch_exists(db: Session, tenant_id: UUID, branch_id: UUID) -> None:
+    branch = db.execute(
+        text("SELECT id FROM branches WHERE id = :bid AND tenant_id = :tid").bindparams(
+            bindparam("bid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"bid": branch_id, "tid": tenant_id},
+    ).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="branch_not_found")
 
 
 # --- Schemas ---
@@ -304,13 +326,28 @@ def assign_warehouse(
 ):
     """Vincula un almacén a una sucursal."""
     ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
+    branch_uuid = _ensure_uuid(branch_id, "invalid_branch_id")
+    warehouse_uuid = _ensure_uuid(warehouse_id, "invalid_warehouse_id")
+
+    _ensure_branch_exists(db, tenant_id, branch_uuid)
+    warehouse = db.execute(
+        text("SELECT id FROM warehouses WHERE id = :wid AND tenant_id = :tid").bindparams(
+            bindparam("wid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"wid": warehouse_uuid, "tid": tenant_id},
+    ).first()
+    if not warehouse:
+        raise HTTPException(status_code=404, detail="warehouse_not_found")
 
     db.execute(
-        text("UPDATE warehouses SET branch_id = :bid WHERE id = :wid").bindparams(
+        text("UPDATE warehouses SET branch_id = :bid WHERE id = :wid AND tenant_id = :tid").bindparams(
             bindparam("bid", type_=PGUUID(as_uuid=True)),
             bindparam("wid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
         ),
-        {"bid": branch_id, "wid": warehouse_id},
+        {"bid": branch_uuid, "wid": warehouse_uuid, "tid": tenant_id},
     )
     db.commit()
     return {"status": "assigned", "warehouse_id": warehouse_id, "branch_id": branch_id}
@@ -322,13 +359,30 @@ def assign_register(
 ):
     """Vincula un registro POS a una sucursal."""
     ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
+    branch_uuid = _ensure_uuid(branch_id, "invalid_branch_id")
+    register_uuid = _ensure_uuid(register_id, "invalid_register_id")
+
+    _ensure_branch_exists(db, tenant_id, branch_uuid)
+    register = db.execute(
+        text("SELECT id FROM pos_registers WHERE id = :rid AND tenant_id = :tid").bindparams(
+            bindparam("rid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"rid": register_uuid, "tid": tenant_id},
+    ).first()
+    if not register:
+        raise HTTPException(status_code=404, detail="register_not_found")
 
     db.execute(
-        text("UPDATE pos_registers SET branch_id = :bid WHERE id = :rid").bindparams(
+        text(
+            "UPDATE pos_registers SET branch_id = :bid WHERE id = :rid AND tenant_id = :tid"
+        ).bindparams(
             bindparam("bid", type_=PGUUID(as_uuid=True)),
             bindparam("rid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
         ),
-        {"bid": branch_id, "rid": register_id},
+        {"bid": branch_uuid, "rid": register_uuid, "tid": tenant_id},
     )
     db.commit()
     return {"status": "assigned", "register_id": register_id, "branch_id": branch_id}

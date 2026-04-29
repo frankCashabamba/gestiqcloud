@@ -27,7 +27,15 @@ router = APIRouter(
     ],
 )
 
-public_router = APIRouter(prefix="/users", tags=["Users"])
+public_router = APIRouter(
+    prefix="/users",
+    tags=["Users"],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
+)
 
 
 def _tenant_id(request: Request) -> UUID:
@@ -144,6 +152,7 @@ def get_user(
 
 
 @public_router.get("/check-username/{username}")
-def check_username(username: str, db: Session = Depends(get_db)):
-    disponible = services.check_username_availability(db, username)
+def check_username(username: str, request: Request, db: Session = Depends(get_db)):
+    tenant_id = _tenant_id(request)
+    disponible = services.check_username_availability(db, tenant_id, username)
     return {"available": disponible}
