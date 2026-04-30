@@ -556,7 +556,6 @@ def list_raw_materials(
 ):
     """List only raw material products (is_raw_material=True)."""
     tid_uuid = get_current_tenant_id(request)
-    tenant_id = str(tid_uuid)
 
     stock_subq = (
         select(

@@ -19,7 +19,8 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | Documents/Quotes | Funcional solo para Ecuador, sin quotes           | Pequeño-Mediano        | Documentos España con formato Ecuador incorrecto          |
 | AI Agent       | Funcional con credenciales, auto-resolve es mock    | Mediano                | Incidentes marcados como resueltos sin serlo              |
 | Restaurant     | Router no montado — inaccesible desde API           | Grande                 | 404 en todo el módulo; sin integración fiscal             |
-| Historical     | Funcional, sin RLS, upload bloqueante               | Mediano                | Cross-tenant data leak; bloqueo de servidor               |
+| Historical     | Funcional, RLS añadido, upload aún bloqueante       | Mediano                | Upload grande puede bloquear servidor                     |
+| Analytics      | Módulo vacío / no validado como producto            | Pequeño-Mediano        | Registrar un módulo sin funcionalidad real                |
 
 ---
 
@@ -80,7 +81,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 3. **Asientos automáticos no integrados**: ventas, compras y caja no llaman a `create_posted_entry()` automáticamente — el usuario crea asientos manualmente. Contabilidad siempre desactualizda si no hay disciplina manual.
 
-4. **Bug de variable `status` (línea ~819)**: el router usa `Query(None, pattern="^(DRAFT|POSTED)$")` pero el alias `list_movimientos` pasa `status="POSTED"` hardcodeado. El nombre `status` puede shadowing el import `from fastapi import status` — `TypeError` en Python 3.12.
+4. **[HECHO 2026-04-30] Variable `status` renombrada internamente**: el query param público sigue siendo `status`, pero el parámetro Python ahora es `entry_status` para evitar shadowing con `fastapi.status`.
 
 5. **Inconsistencia de nombres de campos**: `_recalcular_saldos_cuenta` usa `saldo_debe`/`saldo_haber` (español); `journal_service.py` usa `debit_balance`/`credit_balance` (inglés). Pueden ser campos distintos o aliases — introduce riesgo de saldos duplicados o no actualizados.
 
@@ -91,7 +92,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 ### D) Riesgos si se activa hoy
 
 - Contabilidad siempre incompleta si el usuario no crea asientos manualmente por cada transacción.
-- El bug de `status` puede causar `TypeError` en Python 3.12 bloqueando el listado de asientos.
+- El listado de asientos ya no usa `status` como variable interna; quedan pendientes los riesgos contables funcionales.
 
 ---
 
@@ -109,7 +110,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1. **Sin RLS de Postgres**: usa `ensure_tenant` pero no `ensure_rls`. Si RLS activo en BD → queries fallan. Si RLS inactivo → JWT manipulado con otro `tenant_id` puede ver extractos de otros tenants.
 
-2. **Sin verificación de firma HMAC en webhooks de pago**: `handle_webhook` en `payments.py` no verifica la firma de Stripe ni Kushki antes de procesar — cualquiera puede hacer POST con `status: "paid"` y un `invoice_id` cualquiera.
+2. **[HECHO 2026-04-30] Webhooks de pago fallan cerrado sin firma/secret**: Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin header de firma. Queda pendiente validar con payloads reales de cada proveedor.
 
 3. **`payments.py` línea 145**: `_safe_json_loads()` devuelve `{}` silenciosamente en errores — el webhook puede procesar payloads vacíos y marcar facturas como pagadas con datos incorrectos.
 
@@ -117,11 +118,11 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### C) Estimación de esfuerzo
 
-**Mediano (semanas)**: El matching funciona. Los bloqueantes son la verificación HMAC (crítico de seguridad) y el RLS/tenant isolation.
+**Mediano (semanas)**: El matching funciona. Bloqueantes restantes: RLS/tenant isolation, upload de extractos y validación formal de providers/refunds.
 
 ### D) Riesgos si se activa hoy
 
-- **Crítico**: un atacante puede forjar webhooks y marcar facturas como pagadas sin pago real.
+- Los webhooks de pago ya fallan cerrado sin firma/secret; queda pendiente validarlos contra payloads reales de Stripe, Kushki y PayPhone.
 - Cross-tenant data leak en extractos bancarios con JWT manipulado.
 
 ---
@@ -138,23 +139,23 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **Scheduled reports sin Celery beat**: `ScheduleReportUseCase` crea registros con `next_scheduled_at = None`. No hay tarea Celery beat que ejecute ni envíe los reportes — las alertas programadas nunca disparan.
+1. **[PARCHEADO 2026-04-30] Scheduled reports bloqueados por defecto**: `POST /reports/schedule` devuelve HTTP 503 salvo que `REPORTS_SCHEDULER_ENABLED=true`. Sigue faltando Celery beat real que ejecute y envíe los reportes.
 
 2. **`SalesReportGenerator` usa tabla `sales_orders`**: si la tabla no existe (ventas van por POS o `sales`), lanza excepción capturada silenciosamente — el usuario recibe HTTP 500 sin explicación.
 
 3. **Tabla `reports` puede no existir**: `use_cases.py` tiene `try/except` con log `"table may not exist yet"` — confirma que la tabla puede faltar en producción sin migración explícita.
 
-4. **Sin RLS**: usa `ensure_tenant` pero no `ensure_rls` — misma exposición que Reconciliation.
+4. **[HECHO 2026-04-30] RLS añadido al router tenant**: el router usa `with_access_claims`, `require_scope("tenant")` y `ensure_rls`.
 
 5. **`RealProfitReport.tsx` sin endpoint de margen real**: el backend calcula `SUM(invoices.total) - SUM(purchases.total)`, no costo real por producto. El margen mostrado es aproximado.
 
 ### C) Estimación de esfuerzo
 
-**Mediano (semanas)**: Generadores básicos funcionan. Falta: confirmar nombres de tablas, migraciones de `reports`/`scheduled_reports`, Celery beat para envíos, RLS.
+**Mediano (semanas)**: Generadores básicos funcionan. Falta: confirmar nombres de tablas, migraciones de `reports`/`scheduled_reports` y Celery beat para envíos.
 
 ### D) Riesgos si se activa hoy
 
-- Reportes programados se crean pero nunca se ejecutan — el usuario cree tener alertas activas pero no las tiene.
+- Reportes programados no deben activarse hasta implementar Celery beat real. El endpoint de creación queda cerrado por defecto para evitar falsas alertas.
 - `SalesReportGenerator` puede devolver reportes vacíos sin advertencia si `sales_orders` no existe.
 
 ---
@@ -269,13 +270,13 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **Sin RLS**: `interface/http/tenant.py` línea 18 usa `with_access_claims` y `require_scope("tenant")` pero no `ensure_rls`. Los queries pasan `tenant_id` como parámetro pero si RLS no está activo en Postgres, un JWT manipulado puede leer histórico de otros tenants.
+1. **[HECHO 2026-04-30] RLS añadido al router**: `interface/http/tenant.py` ahora usa `with_access_claims`, `require_scope("tenant")` y `ensure_rls`.
 
 2. **Upload bloqueante en hilo principal**: `UploadHistoricalFileUseCase.execute()` es síncrono con pandas. El endpoint `POST /upload` es `async def` pero no usa `run_in_executor` — bloquea el event loop de FastAPI para todos los usuarios durante el upload.
 
 3. **`except Exception: pass` en línea 676**: errores de upsert en maestros silenciados — si hay constraint violation, se pierde en silencio.
 
-4. **Sin límite de tamaño de archivo**: un CSV de 500 MB puede colapsar la memoria del servidor — no hay validación de MB en el upload.
+4. **[HECHO 2026-04-30] Límite de tamaño de archivo añadido**: `POST /upload` rechaza archivos de más de 10 MB con HTTP 413. Sigue pendiente mover el procesamiento a background/Celery.
 
 5. **`fecha` default a `date.today()`** (líneas 643-646, 704-708, 760-765): si la columna de fecha no se detecta, todos los registros se importan con fecha de hoy — datos históricos pierden su dimensión temporal.
 
@@ -285,13 +286,38 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### C) Estimación de esfuerzo
 
-**Mediano (semanas)**: El núcleo de importación funciona. Bloqueantes: RLS, upload asíncrono con Celery, deduplicación por hash de archivo, límite de tamaño.
+**Mediano (semanas)**: El núcleo de importación funciona. Bloqueantes restantes: upload asíncrono con Celery, deduplicación por hash de archivo y manejo estricto de fechas.
 
 ### D) Riesgos si se activa hoy
 
-- Cross-tenant data leak del histórico de ventas sin RLS.
 - Upload de archivos grandes bloquea el servidor FastAPI causando timeouts generales.
 - Doble upload duplica todos los datos históricos corrompiendo métricas del dashboard.
+
+---
+
+## 9. Analytics
+
+### A) Qué está implementado
+
+- El plan de producción lo identifica como módulo existente en la matriz de módulos bloqueados.
+- No hay evidencia en esta auditoría de un flujo funcional listo para tenant, dashboard productivo, endpoints validados ni pruebas de negocio.
+
+### B) Qué falta o está roto
+
+1. **Sin definición funcional cerrada**: no consta qué métricas, dashboards o segmentos son parte del producto v1.
+
+2. **Sin validación técnica en este desglose**: no se ha confirmado router, aislamiento por tenant, permisos, migraciones ni frontend productivo.
+
+3. **Riesgo de registro prematuro**: si se registra como módulo disponible, el usuario puede ver una funcionalidad vacía o incompleta.
+
+### C) Estimación de esfuerzo
+
+**Pequeño-Mediano** si solo se desactiva/oculta. **Mediano o mayor** si se quiere convertir en módulo productivo con métricas, permisos, endpoints y pruebas.
+
+### D) Riesgos si se activa hoy
+
+- Módulo visible sin valor real para el usuario.
+- Falsa señal comercial de que existe analítica avanzada cuando todavía no está especificada ni validada.
 
 ---
 
@@ -301,9 +327,9 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 | # | Módulo | Acción | Fichero |
 |---|--------|--------|---------|
-| 1 | Reconciliation | Añadir verificación HMAC en webhooks Stripe/Kushki | `modules/reconciliation/interface/http/payments.py` |
-| 2 | Historical | Añadir `ensure_rls` al router | `modules/historical/interface/http/tenant.py` |
-| 3 | Reports | Añadir `ensure_rls` al router | `modules/reports/interface/http/tenant.py` |
+| 1 | Reconciliation | [HECHO 2026-04-30] Añadir verificación HMAC/fail-closed en webhooks Stripe/Kushki/PayPhone | `services/payments/*_provider.py` |
+| 2 | Historical | [HECHO 2026-04-30] Añadir `ensure_rls` al router | `modules/historical/interface/http/tenant.py` |
+| 3 | Reports | [HECHO 2026-04-30] Añadir `ensure_rls` al router | `modules/reports/interface/http/tenant.py` |
 | 4 | Einvoicing | Conectar tasks Celery al worker real (eliminar stubs) | `modules/einvoicing/tasks.py` |
 | 5 | Einvoicing | Eliminar `einvoice_service.sign_xml()` fake | `infrastructure/einvoice_service.py` línea 300 |
 
@@ -315,9 +341,9 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | 7 | Restaurant | Integrar `close` con módulo de caja/facturación |
 | 8 | Accounting | Crear endpoints P&G y Balance de situación |
 | 9 | Accounting | Integrar asientos automáticos con ventas/compras/caja |
-| 10 | Historical | Hacer upload asíncrono con Celery + límite de tamaño |
+| 10 | Historical | Hacer upload asíncrono con Celery ([HECHO 2026-04-30] límite de tamaño) |
 | 11 | Historical | Añadir deduplicación por hash de archivo |
-| 12 | Reports | Implementar Celery beat para scheduled reports |
+| 12 | Reports | Implementar Celery beat para scheduled reports ([PARCHEADO 2026-04-30] creación cerrada por defecto) |
 | 13 | Documents | Añadir soporte España (EspañaPack) |
 
 ### Prioridad BAJA (mejoras y bloqueantes externos)
@@ -330,7 +356,8 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | 17 | AI Agent | Diseñar sandbox aislada para auto-resolve (Docker/VM) |
 | 18 | AI Agent | Configurar credenciales reales (SMTP, Twilio, Telegram) |
 | 19 | Restaurant | Implementar Kitchen Display System (KDS) |
-| 20 | Accounting | Corrección bug variable `status` shadowing |
+| 20 | Accounting | [HECHO 2026-04-30] Corrección bug variable `status` shadowing |
+| 21 | Analytics | Definir alcance o mantener oculto por feature flag |
 
 ### Bloqueantes externos (no dependen solo de código)
 

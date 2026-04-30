@@ -550,7 +550,9 @@ async def delete_cuenta(
     cuenta = db.execute(stmt).scalar_one_or_none()
     if not cuenta:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta no encontrada")
-    stmt = select(func.count()).select_from(AsientoLinea).where(AsientoLinea.account_id == cuenta_id)
+    stmt = (
+        select(func.count()).select_from(AsientoLinea).where(AsientoLinea.account_id == cuenta_id)
+    )
     count = db.execute(stmt).scalar_one()
     if count > 0:
         raise HTTPException(
@@ -804,7 +806,7 @@ async def list_asientos(
     page_size: int = Query(50, ge=1, le=500),
     fecha_desde: date | None = None,
     fecha_hasta: date | None = None,
-    status: str | None = Query(None, pattern="^(DRAFT|POSTED)$"),
+    entry_status: str | None = Query(None, alias="status", pattern="^(DRAFT|POSTED)$"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -815,8 +817,8 @@ async def list_asientos(
         stmt = stmt.where(AsientoContable.date >= fecha_desde)
     if fecha_hasta:
         stmt = stmt.where(AsientoContable.date <= fecha_hasta)
-    if status:
-        stmt = stmt.where(AsientoContable.status == status)
+    if entry_status:
+        stmt = stmt.where(AsientoContable.status == entry_status)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = db.execute(count_stmt).scalar_one()
@@ -1015,7 +1017,7 @@ async def list_movimientos(
         page_size=page_size,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
-        status="POSTED",
+        entry_status="POSTED",
         db=db,
         claims=claims,
     )

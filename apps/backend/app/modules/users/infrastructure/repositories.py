@@ -1,8 +1,8 @@
 from collections import defaultdict
 from collections.abc import Iterable
 
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.models import AssignedModule, CompanyModule, CompanyRole, CompanyUser, CompanyUserRole
 from app.modules.users.infrastructure.schemas import CompanyUserCreate

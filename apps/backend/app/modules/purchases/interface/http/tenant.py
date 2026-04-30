@@ -136,8 +136,9 @@ def delete_purchase(
 ):
     tenant_id = claims["tenant_id"]
     # Bloquear hard delete si ya hay recepciones o movimientos de stock
-    from app.models.purchases.purchase import PurchaseLine as _PL  # noqa: F401
     from app.models.inventory.stock import StockMove
+    from app.models.purchases.purchase import PurchaseLine as _PL  # noqa: F401
+
     has_moves = db.query(StockMove.id).filter(StockMove.reference == str(cid)).first()
     if has_moves:
         raise HTTPException(

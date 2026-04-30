@@ -342,7 +342,9 @@ def assign_warehouse(
         raise HTTPException(status_code=404, detail="warehouse_not_found")
 
     db.execute(
-        text("UPDATE warehouses SET branch_id = :bid WHERE id = :wid AND tenant_id = :tid").bindparams(
+        text(
+            "UPDATE warehouses SET branch_id = :bid WHERE id = :wid AND tenant_id = :tid"
+        ).bindparams(
             bindparam("bid", type_=PGUUID(as_uuid=True)),
             bindparam("wid", type_=PGUUID(as_uuid=True)),
             bindparam("tid", type_=PGUUID(as_uuid=True)),

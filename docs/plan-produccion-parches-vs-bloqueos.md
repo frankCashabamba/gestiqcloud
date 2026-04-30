@@ -45,6 +45,8 @@ Un modulo queda fuera de produccion si:
 - Invoicing backend: busqueda por texto y JSONB webhook corregidos.
 - Reconciliation backend: varios SQL viejos y UUID runtime corregidos.
 - Reports backend: referencias rotas a `purchase_orders` corregidas donde aplicaba.
+- Reports backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls`.
+- Reports backend: [PARCHEADO 2026-04-30] `POST /reports/schedule` devuelve 503 por defecto salvo `REPORTS_SCHEDULER_ENABLED=true`.
 - Importador OCR: cache incluye tenant.
 - Webhooks: validacion anti-SSRF basica.
 - Inventory: ajustes negativos bloqueados; cycle count y sync requieren permisos especificos.
@@ -57,6 +59,9 @@ Un modulo queda fuera de produccion si:
 - HR frontend: rechazo de vacaciones ya usa modal React en vez de `window.prompt`; `updateNomina` y delete de nomina fueron verificados contra el estado actual del codigo.
 - POS frontend: eliminado `tpv_pro.html` legacy y el draft local ya no persiste identificacion, nombre ni email del comprador.
 - Frontend legacy/dialogs: eliminados listados muertos de Products/Users con `confirm()`; Historical y Restaurant usan modales React en vez de `confirm`/`alert`/`prompt`.
+- Historical backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls` y upload limitado a 10 MB.
+- Accounting backend: [HECHO 2026-04-30] query param `status` mantiene compatibilidad externa pero internamente se renombra a `entry_status` para evitar shadowing.
+- Reconciliation payments: [HECHO 2026-04-30] Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin firma.
 
 ## Modulos candidatos a produccion con parches
 
@@ -230,10 +235,11 @@ Motivo: funcionalidad fiscal core incompleta.
 
 Bloqueos:
 
-- Firma XAdES-BES/PKCS#12 no completa.
-- SRI/SII con implementaciones paralelas e inconsistentes.
-- Stubs que simulan envios.
-- PDF y credenciales cifradas pendientes de resolver.
+- Firma XAdES-BES real existe en worker, pero los Celery tasks registrados siguen siendo stubs que pueden marcar facturas como `AUTHORIZED` sin envio real.
+- SRI/SII con implementaciones paralelas e inconsistentes: el endpoint de export usa un flujo y el envio usa otro.
+- `infrastructure/einvoice_service.py` conserva firma fake con `hashlib.sha256` y PDF incompleto.
+- Falta UI/endpoints de configuracion por tenant para certificado `.p12` y settings SRI/SII.
+- El campo SRI `<ambiente>` queda hardcodeado a pruebas en el XML generado.
 
 Decision: no activar en produccion real. Solo sandbox/demo interno.
 
@@ -247,6 +253,8 @@ Bloqueos:
 - Permisos granulares incompletos.
 - Cierre/apertura/regularizacion no implementados.
 - Reportes contables formales faltantes.
+- Asientos automaticos de ventas, compras y caja no integrados.
+- [HECHO 2026-04-30] Bug por variable `status`/shadowing corregido. Sigue pendiente validar saldos con nombres de campos inconsistentes.
 
 Decision: permitir solo configuracion basica/POS accounting si las rutas estan protegidas. No venderlo como contabilidad completa.
 
@@ -256,10 +264,12 @@ Motivo: scheduler, limites y exactitud incompletos.
 
 Bloqueos:
 
-- Reportes programados sin worker confirmado.
-- Rangos sin limite y reportes grandes en memoria.
+- [PARCHEADO 2026-04-30] Creacion de reportes programados cerrada por defecto; falta worker/scheduler real antes de activar `REPORTS_SCHEDULER_ENABLED=true`.
+- Reportes grandes pueden seguir ejecutandose en memoria aunque exports CSV/XLSX ya tengan limite operativo.
 - Algunos filtros de fecha incompletos.
 - Faltan libro mayor, aging, flujo de caja, gastos avanzados.
+- [HECHO 2026-04-30] RLS añadido al router tenant.
+- `SalesReportGenerator` depende de tablas que pueden no existir o no coincidir con el flujo POS/ventas real.
 
 Decision: habilitar solo reportes simples si tienen rango acotado. No activar schedules.
 
@@ -273,6 +283,9 @@ Bloqueos:
 - Modelos paralelos con Finance.
 - Refund y provider validation incompletos.
 - Falta desmatching y conciliacion formal.
+- [HECHO 2026-04-30] Webhooks de pago fallan cerrado sin secret/firma. Pendiente validar payloads reales de proveedor.
+- RLS/tenant isolation pendiente segun desglose tecnico.
+- Importacion de extractos no acepta upload CSV/OFX real; espera JSON ya parseado.
 
 Decision: no activar como modulo productivo completo. Puede quedar en beta interna.
 
@@ -284,6 +297,8 @@ Bloqueos:
 
 - `quote_to_sales_order` no implementado.
 - Solo EcuadorPack; falta EspanaPack si se opera en Espana.
+- Faltan endpoints de listado/detalle de documentos.
+- No hay frontend dedicado para Documents/Quotes como modulo tenant.
 
 Decision: no ofrecer presupuestos ni validacion fiscal multi-pais hasta fase aparte.
 
@@ -294,6 +309,8 @@ Motivo: riesgo reputacional/operativo.
 Bloqueos:
 
 - Fallback de analisis mock puede devolver informacion falsa.
+- Auto-resolve es mock y puede marcar incidentes como resueltos sin aplicar cambios reales.
+- Notificaciones pueden devolver `sent (mock)` si faltan credenciales, ocultando fallos operativos.
 - Stack traces por email/Telegram.
 - Falta control robusto de destinatarios y permisos.
 
@@ -303,7 +320,12 @@ Decision: mantener desactivado o solo admin interno.
 
 Motivo: modulo vacio.
 
-Decision: no registrar como modulo productivo.
+Bloqueos:
+
+- Alcance funcional no definido para v1.
+- Sin evidencia validada de router, permisos, tenant isolation, migraciones, frontend productivo o pruebas.
+
+Decision: no registrar como modulo productivo. Mantener oculto por feature flag hasta definir alcance y validar implementacion.
 
 ### Restaurant
 
@@ -311,19 +333,25 @@ Motivo: frontend/backend MVP incompleto.
 
 Bloqueos:
 
-- Prompt nativo, API hardcodeada, sin i18n.
+- Router no montado en `platform/http/router.py`: los endpoints pueden devolver 404 aunque el frontend exista.
 - Cobro/cierre de cuenta no cerrado.
+- Cierre de comanda marca `paid` sin flujo de caja, metodo de pago ni comprobante fiscal.
+- Impuestos hardcodeados a cero.
+- Falta Kitchen Display System (KDS).
 
 Decision: beta o desactivado por feature flag.
 
 ### Historical
 
-Motivo: UX y RLS pendientes.
+Motivo: hardening de seguridad y carga pendiente.
 
 Bloqueos:
 
-- `alert/confirm` nativos.
-- Router historico sin `ensure_rls` segun auditoria.
+- [HECHO 2026-04-30] Router historico con `ensure_rls`.
+- Upload CSV/XLSX bloqueante en el hilo principal.
+- [HECHO 2026-04-30] Limite de tamano de archivo de 10 MB.
+- Sin deduplicacion por hash/constraint; re-subir el mismo CSV duplica datos.
+- Fechas faltantes se sustituyen por `date.today()`, corrompiendo historicos.
 
 Decision: no activar hasta hardening.
 
@@ -331,10 +359,10 @@ Decision: no activar hasta hardening.
 
 Parches recomendados:
 
-- Reemplazar `prompt/confirm/alert` nativos en HR, Restaurant, Historical, Products y Users.
-- Corregir `billing/Form.tsx` para enviar `description` y `customer_name`.
-- Revisar datos personales POS en `localStorage`.
-- Eliminar componentes legacy o muertos que puedan entrar al bundle.
+- [HECHO 2026-04-30] Reemplazar `prompt/confirm/alert` nativos en HR, Restaurant, Historical, Products y Users.
+- [HECHO sesion anterior] Corregir `billing/Form.tsx` para enviar `description` y `customer_name`.
+- [HECHO 2026-04-29] Revisar datos personales POS en `localStorage`.
+- [HECHO sesion anterior] Eliminar componentes legacy o muertos que puedan entrar al bundle.
 - Reducir/limpiar `console.log/error/warn` productivos.
 - Alinear visibilidad de botones con permisos backend nuevos.
 
@@ -357,6 +385,35 @@ Parches recomendados:
 4. Desactivar por feature flag los modulos bloqueados.
 5. Preparar checklist de release con migraciones, variables de entorno, workers y smoke tests.
 
+## Matriz unificada de decision v1
+
+| Modulo | Decision v1 | Bloqueo principal | Accion minima |
+|--------|-------------|-------------------|---------------|
+| POS | Candidato | Pruebas de flujo pendientes | Smoke test venta/checkout/stock/turno/impresion |
+| Inventory | Candidato | Pruebas de flujo pendientes | Smoke test ajuste/transferencia/cycle count/stock item |
+| Sales | Candidato con advertencias | Validacion de flujo completo | Smoke test crear/confirmar/cancelar/checkout/factura/promos |
+| Purchases | Candidato con parches | Validacion de recepcion y costos | Smoke test compra con lineas, recepcion, stock y costos |
+| Products | Candidato parcial | Validar bulk/merge/purge seguro | Ejecutar tests avanzados y smoke CRUD |
+| Clients | Candidato | Validar referencias en update/delete | Smoke CRUD, paginacion y tenant isolation |
+| Suppliers | Candidato con advertencias | IBAN real sin cifrado en reposo | No almacenar IBAN real en v1 hasta cifrado |
+| Expenses | Candidato | Flujo contable y supplier validation | Smoke CRUD, asiento contable y bloqueo produccion |
+| Billing | Candidato si Stripe esta configurado | Dependencia operativa Stripe | Probar checkout, cambio plan, cancelacion, portal y webhook firmado |
+| Notifications | Candidato | Credenciales por tenant | Probar email/in-app/Telegram y logs de fallo |
+| Webhooks | Candidato con requisito deploy | Worker Celery | Confirmar delivery real, retry, firma HMAC y anti-SSRF |
+| CRM | Candidato | Pruebas de conversion | Smoke CRUD leads/oportunidades/dashboard/conversion |
+| Importador | Candidato parcial | Aprendizaje ML global desactivado | Probar OCR/revision/guardado con ML_LEARNING_ENABLED=false |
+| Settings | Candidato transversal | Variables/secretos | Validar configuracion production |
+| Users | Candidato transversal | Permisos y sesiones | Validar auth, roles y revocacion |
+| Einvoicing | No subir | Stubs fiscales y certificados | Mantener sandbox/demo interno |
+| Accounting completo | No subir completo | Reportes/asientos/cierres incompletos | Solo configuracion basica/POS accounting protegida |
+| Reconciliation | No subir | RLS/provider validation/refunds pendientes | Beta interna o feature flag |
+| Reports avanzado | No subir schedules | Scheduler/exactitud | Solo reportes simples acotados; schedules cerrados por defecto |
+| Documents/Quotes | No subir | Quotes y country packs incompletos | Mantener fuera de oferta v1 |
+| AI Agent | No subir tenant | Mocks operativos y destinatarios | Solo admin interno si se mantiene |
+| Analytics | No subir | Modulo sin alcance validado | Ocultar por feature flag |
+| Restaurant | No subir | Router/checkout/fiscal/KDS incompletos | Beta o feature flag |
+| Historical | No subir | Upload async/deduplicacion/fechas pendientes | Hardening antes de activar |
+
 ## Lista corta para primer pase a produccion
 
 Subir si pasan pruebas y permisos:
@@ -373,6 +430,7 @@ Subir si pasan pruebas y permisos:
 - Notifications
 - Webhooks
 - CRM
+- Importador
 - Settings
 - Users
 
@@ -391,8 +449,6 @@ No subir todavia:
 ## Estado de completitud por modulo (2026-04-29)
 
 | Modulo       | Parches backend | Parches frontend | Decision pendiente | Listo para pruebas |
-|--------------|----------------|-----------------|-------------------|-------------------|
-| Modulo       | Backend         | Frontend         | Tests             | Listo para pruebas |
 |--------------|----------------|-----------------|-------------------|-------------------|
 | POS          | COMPLETO        | COMPLETO         | pendiente         | SI                 |
 | Inventory    | COMPLETO        | COMPLETO         | pendiente         | SI                 |

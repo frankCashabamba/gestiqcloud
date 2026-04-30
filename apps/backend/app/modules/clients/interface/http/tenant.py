@@ -108,7 +108,9 @@ def listar_clientes(
     # FASE 2: historial de compras y saldo/crédito no expuestos en v1
     tenant_id = _tenant_uuid(request)
     use = ListarClientes(SqlAlchemyClienteRepo(db))
-    items: list[ClienteOut] = list(use.execute(tenant_id=tenant_id, limit=limit, offset=offset, search=search))
+    items: list[ClienteOut] = list(
+        use.execute(tenant_id=tenant_id, limit=limit, offset=offset, search=search)
+    )
     return [_dto_to_schema(item) for item in items]
 
 

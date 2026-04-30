@@ -76,6 +76,8 @@ class StripeProvider:
 
         sig_header = headers.get("stripe-signature") or headers.get("Stripe-Signature")
 
+        if not self.webhook_secret:
+            raise ValueError("Webhook secret no configurado")
         if not sig_header:
             raise ValueError("Firma de webhook no encontrada")
 

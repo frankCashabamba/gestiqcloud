@@ -11,11 +11,18 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.db.rls import ensure_rls
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 router = APIRouter(
     prefix="/historical",
     tags=["Historical"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
 )
 
 
@@ -90,7 +97,9 @@ async def upload_file(
     if import_type not in ("sales", "purchases", "stock", "daily_sales"):
         raise HTTPException(status_code=400, detail="invalid_import_type")
 
-    file_bytes = await file.read()
+    file_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="file_too_large")
     filename = file.filename or "unknown"
 
     return UploadHistoricalFileUseCase(db).execute(

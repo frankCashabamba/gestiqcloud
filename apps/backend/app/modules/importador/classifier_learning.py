@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 import unicodedata
 from pathlib import Path
@@ -231,7 +232,11 @@ def _learn_filename(
                     "    SET confirmed_count = imp_filename_pattern.confirmed_count + 1, "
                     "        updated_at = now()"
                 ),
-                {"pattern": escaped, "doc_type": confirmed_type, "base_confidence": base_confidence},
+                {
+                    "pattern": escaped,
+                    "doc_type": confirmed_type,
+                    "base_confidence": base_confidence,
+                },
             )
             updated += 1
         except Exception as exc:

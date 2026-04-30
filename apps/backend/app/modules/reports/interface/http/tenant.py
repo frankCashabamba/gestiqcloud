@@ -2,6 +2,7 @@
 
 import io
 import logging
+import os
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -10,6 +11,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
+from app.db.rls import ensure_rls
 from app.middleware.tenant import ensure_tenant
 from app.modules.reports.application.schemas import (
     ExportRequest,
@@ -28,7 +32,21 @@ from app.modules.reports.domain.entities import ReportFormat, ReportType
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+REPORTS_SCHEDULER_ENABLED = os.getenv("REPORTS_SCHEDULER_ENABLED", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+router = APIRouter(
+    prefix="/reports",
+    tags=["reports"],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
+)
 
 CONTENT_TYPES = {
     ReportFormat.CSV: "text/csv",
@@ -200,6 +218,11 @@ def create_scheduled_report(
     db: Session = Depends(get_db),
 ):
     """Create a scheduled report configuration."""
+    if not REPORTS_SCHEDULER_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="reports_scheduler_disabled",
+        )
     try:
         uc = ScheduleReportUseCase()
         return uc.execute(

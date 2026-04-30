@@ -204,7 +204,12 @@ def list_orders(
         query = query.filter(SalesOrder.customer_id == _uuid_or_none(customer_id))
 
     effective_offset = skip or offset
-    rows = query.order_by(SalesOrder.created_at.desc()).offset(effective_offset).limit(min(limit, 200)).all()
+    rows = (
+        query.order_by(SalesOrder.created_at.desc())
+        .offset(effective_offset)
+        .limit(min(limit, 200))
+        .all()
+    )
 
     if not rows:
         return []
@@ -818,8 +823,7 @@ def _notify_new_order_telegram(
     safe_order_number = escape(str(order_number))
     safe_currency = escape(str(currency))
     items_lines = "".join(
-        f"  - {escape(str(it.get('name', '')))} x{float(it.get('qty') or 0):g}\n"
-        for it in items
+        f"  - {escape(str(it.get('name', '')))} x{float(it.get('qty') or 0):g}\n" for it in items
     )
 
     cliente_line = f"Cliente: <b>{safe_customer}</b>\n" if safe_customer else ""

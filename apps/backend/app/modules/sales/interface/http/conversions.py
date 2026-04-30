@@ -9,7 +9,6 @@ Permite convertir documentos entre tipos:
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID

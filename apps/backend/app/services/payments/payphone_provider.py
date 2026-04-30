@@ -103,16 +103,14 @@ class PayPhoneProvider:
     def handle_webhook(self, payload: bytes, headers: dict[str, str]) -> dict[str, Any]:
         """Procesar webhook de PayPhone"""
 
-        # Verificar firma si está configurada
-        if self.webhook_secret:
-            signature = headers.get("x-payphone-signature")
-            if signature:
-                expected_sig = hmac.new(
-                    self.webhook_secret.encode(), payload, hashlib.sha256
-                ).hexdigest()
-
-                if signature != expected_sig:
-                    raise ValueError("Firma de webhook inválida")
+        if not self.webhook_secret:
+            raise ValueError("Webhook secret no configurado")
+        signature = headers.get("x-payphone-signature")
+        if not signature:
+            raise ValueError("Firma de webhook no encontrada")
+        expected_sig = hmac.new(self.webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected_sig):
+            raise ValueError("Firma de webhook inválida")
 
         import json
 
