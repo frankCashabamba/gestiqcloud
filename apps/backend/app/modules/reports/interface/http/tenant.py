@@ -3,7 +3,7 @@
 import io
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -64,6 +64,19 @@ FILE_EXTENSIONS = {
     ReportFormat.HTML: "html",
 }
 
+MAX_REPORT_RANGE = timedelta(days=366)
+
+
+def _validate_report_range(
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> None:
+    if date_from and date_to:
+        if date_from > date_to:
+            raise HTTPException(status_code=400, detail="invalid_date_range")
+        if date_to - date_from > MAX_REPORT_RANGE:
+            raise HTTPException(status_code=400, detail="report_range_too_large")
+
 
 @router.post("/generate")
 def generate_report(
@@ -72,6 +85,7 @@ def generate_report(
     db: Session = Depends(get_db),
 ):
     """Generate a report and return JSON data."""
+    _validate_report_range(payload.date_from, payload.date_to)
     try:
         uc = GenerateReportUseCase()
         result = uc.execute(
@@ -116,6 +130,7 @@ def export_report(
     db: Session = Depends(get_db),
 ):
     """Export a report to a file format and return as download."""
+    _validate_report_range(payload.date_from, payload.date_to)
     try:
         uc = ExportReportUseCase()
         content = uc.execute(
@@ -154,6 +169,7 @@ def get_sales_report(
     date_to: datetime | None = Query(None),
 ):
     """Generate sales report with date filters."""
+    _validate_report_range(date_from, date_to)
     try:
         uc = GenerateReportUseCase()
         return uc.execute(
@@ -196,6 +212,7 @@ def get_financial_report(
     date_to: datetime | None = Query(None),
 ):
     """Generate financial (P&L) report."""
+    _validate_report_range(date_from, date_to)
     try:
         uc = GenerateReportUseCase()
         return uc.execute(
@@ -223,6 +240,7 @@ def create_scheduled_report(
             status_code=503,
             detail="reports_scheduler_disabled",
         )
+    _validate_report_range(payload.date_from, payload.date_to)
     try:
         uc = ScheduleReportUseCase()
         return uc.execute(

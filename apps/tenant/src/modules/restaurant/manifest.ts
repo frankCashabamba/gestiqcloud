@@ -6,6 +6,7 @@ export const manifest = {
   id: 'restaurant',
   name: 'Restaurante',
   version: '1.0.0',
+  enabled: false,
   permissions: ['restaurant.read', 'restaurant.write'],
   routes: [
     { path: '/restaurant', element: TablesView },

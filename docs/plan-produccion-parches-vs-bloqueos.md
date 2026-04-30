@@ -48,6 +48,7 @@ Un modulo queda fuera de produccion si:
 - Reports backend: referencias rotas a `purchase_orders` corregidas donde aplicaba.
 - Reports backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls`.
 - Reports backend: [PARCHEADO 2026-04-30] `POST /reports/schedule` devuelve 503 por defecto salvo `REPORTS_SCHEDULER_ENABLED=true`.
+- Reports backend: [PARCHEADO 2026-04-30] endpoints tenant rechazan rangos invertidos o superiores a 366 dias.
 - Importador OCR: cache incluye tenant.
 - Webhooks: validacion anti-SSRF basica.
 - Inventory: ajustes negativos bloqueados; cycle count y sync requieren permisos especificos.
@@ -67,6 +68,8 @@ Un modulo queda fuera de produccion si:
 - Reconciliation payments: [HECHO 2026-04-30] Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin firma.
 - AI Agent: [PARCHEADO 2026-04-30] auto-resolve mock desactivado y notificaciones sin credenciales fallan explicitamente.
 - Einvoicing backend: [PARCHEADO 2026-04-30] `einvoice_service.sign_xml()` legacy ya no genera firmas SHA256 falsas; falla explicitamente.
+- Einvoicing backend: [PARCHEADO 2026-04-30] tasks legacy SRI/SII ya no simulan `AUTHORIZED`/`ACCEPTED`; fallan cerrado hasta conectar worker real.
+- Restaurant frontend: [PARCHEADO 2026-04-30] manifest deshabilitado por defecto para evitar exposicion accidental.
 
 ## Modulos candidatos a produccion con parches
 
@@ -240,7 +243,7 @@ Motivo: funcionalidad fiscal core incompleta.
 
 Bloqueos:
 
-- Firma XAdES-BES real existe en worker, pero los Celery tasks registrados siguen siendo stubs que pueden marcar facturas como `AUTHORIZED` sin envio real.
+- Firma XAdES-BES real existe en worker, pero falta conectar los Celery tasks registrados al worker real. [PARCHEADO 2026-04-30] los tasks legacy ya no simulan `AUTHORIZED`/`ACCEPTED`.
 - SRI/SII con implementaciones paralelas e inconsistentes: el endpoint de export usa un flujo y el envio usa otro.
 - [PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma con SHA256 falso; queda PDF incompleto y conexion obligatoria al worker XAdES real.
 - Falta UI/endpoints de configuracion por tenant para certificado `.p12` y settings SRI/SII.
@@ -313,7 +316,7 @@ Motivo: riesgo reputacional/operativo.
 
 Bloqueos:
 
-- Fallback de analisis mock puede devolver informacion falsa.
+- [PARCHEADO 2026-04-30] Fallback de analisis mock eliminado; si falla proveedor IA no se persiste diagnostico falso.
 - [PARCHEADO 2026-04-30] Auto-resolve mock desactivado; ya no marca incidentes como resueltos sin sandbox.
 - [PARCHEADO 2026-04-30] Notificaciones sin credenciales/dependencias fallan explicitamente; ya no devuelven `sent (mock)`.
 - Stack traces por email/Telegram.
@@ -339,6 +342,7 @@ Motivo: frontend/backend MVP incompleto.
 Bloqueos:
 
 - Router no montado en `platform/http/router.py`: los endpoints pueden devolver 404 aunque el frontend exista.
+- [PARCHEADO 2026-04-30] Manifest frontend marcado `enabled: false`.
 - Cobro/cierre de cuenta no cerrado.
 - Cierre de comanda marca `paid` sin flujo de caja, metodo de pago ni comprobante fiscal.
 - Impuestos hardcodeados a cero.

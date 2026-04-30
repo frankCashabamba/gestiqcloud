@@ -38,10 +38,9 @@ async def analyze_incident_with_ia(
     )
 
     if response.is_error:
-        analysis_data = _mock_analysis_response(incident)
-        analysis_data = _parse_ia_response(analysis_data)
-    else:
-        analysis_data = _parse_ia_response(response.content)
+        raise RuntimeError(f"AI provider error: {response.error}")
+
+    analysis_data = _parse_ia_response(response.content)
 
     incident.ia_analysis = analysis_data["analysis"]
     incident.ia_suggestion = analysis_data.get("suggestion")
@@ -160,24 +159,6 @@ Retorna análisis en formato JSON con:
         prompt += "\n- code_suggestion: str (código Python sugerido para fix)"
 
     return prompt
-
-
-def _mock_analysis_response(incident: Incident) -> str:
-    """Genera respuesta mock cuando no hay proveedor IA disponible"""
-    analysis = {
-        "root_cause": f"Error en módulo relacionado con {incident.type}",
-        "severity_justification": f"Severidad {incident.severity} basada en impacto potencial",
-        "impact": "Impacto en funcionalidad del sistema (análisis mock)",
-        "recommended_actions": [
-            "Revisar logs detallados",
-            "Verificar configuración del módulo",
-            "Ejecutar tests unitarios",
-            "Validar datos de entrada",
-        ],
-        "confidence_score": 0.75,
-        "code_suggestion": "# Mock code suggestion\n# Revisar implementación en módulo afectado",
-    }
-    return json.dumps(analysis, indent=2)
 
 
 def _parse_ia_response(response: str) -> dict[str, Any]:

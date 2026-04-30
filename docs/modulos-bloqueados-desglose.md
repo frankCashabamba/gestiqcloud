@@ -12,7 +12,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 | Módulo         | Estado                                              | Esfuerzo               | Riesgo principal                                          |
 |----------------|-----------------------------------------------------|------------------------|-----------------------------------------------------------|
-| Einvoicing     | Parcial (firma XAdES real, tasks SRI/SII son stubs) | Grande + externo       | Facturas marcadas AUTHORIZED sin enviarse al SRI          |
+| Einvoicing     | Parcial (firma XAdES real, tasks legacy cerrados)   | Grande + externo       | Worker fiscal real no conectado a todos los flujos        |
 | Accounting     | CRUD funcional, faltan reportes y asientos automáticos | Mediano             | Contabilidad incompleta; bug de variable `status`         |
 | Reconciliation | Funcional pero sin verificación de firma webhook    | Mediano                | Cualquiera puede marcar facturas como pagadas vía webhook  |
 | Reports        | 3 generadores funcionales, scheduled sin Celery     | Mediano                | Reportes programados nunca se ejecutan                    |
@@ -38,7 +38,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **`einvoicing/tasks.py` líneas 109 y 146**: los tasks Celery registrados como `einvoicing.tasks.sign_and_send` y `einvoicing.tasks.build_and_send_sii` son **stubs explícitos** que hacen `UPDATE sri_submissions SET status='AUTHORIZED'` sin llamar al worker real. El worker real en `app/workers/einvoicing_tasks.py` no coincide en nombre de tarea con lo registrado en `einvoicing/tasks.py`.
+1. **[PARCHEADO 2026-04-30] Tasks legacy ya no simulan éxito fiscal**: `einvoicing/tasks.py` ya no marca SRI como `AUTHORIZED` ni SII como `ACCEPTED`; ahora falla explícitamente con `TASK_DISABLED`. Sigue pendiente conectar los nombres de Celery al worker XAdES real.
 
 2. **[PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma fake**: `sign_xml()` ahora lanza `NotImplementedError` en vez de marcar como firmado un SHA256 que no es firma XML válida. Sigue pendiente conectar siempre con el worker XAdES real.
 
@@ -58,7 +58,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### D) Riesgos si se activa hoy
 
-- Los tasks stub marcarían todas las facturas como `AUTHORIZED` sin enviarlas al SRI — fraude fiscal involuntario.
+- Los tasks legacy ya no autorizan en falso; quedan desactivados hasta conectar el worker XAdES real.
 - Campo `<ambiente>="1"` envía facturas reales al sandbox del SRI — inválidas legalmente.
 - Sin `EInvoicingCountrySettings`, el módulo es completamente inoperativo con un 422 opaco.
 
@@ -141,6 +141,8 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1. **[PARCHEADO 2026-04-30] Scheduled reports bloqueados por defecto**: `POST /reports/schedule` devuelve HTTP 503 salvo que `REPORTS_SCHEDULER_ENABLED=true`. Sigue faltando Celery beat real que ejecute y envíe los reportes.
 
+1b. **[PARCHEADO 2026-04-30] Rango máximo de reportes tenant**: `generate`, `export`, `sales`, `financial` y `schedule` rechazan rangos mayores a 366 días o invertidos.
+
 2. **`SalesReportGenerator` usa tabla `sales_orders`**: si la tabla no existe (ventas van por POS o `sales`), lanza excepción capturada silenciosamente — el usuario recibe HTTP 500 sin explicación.
 
 3. **Tabla `reports` puede no existir**: `use_cases.py` tiene `try/except` con log `"table may not exist yet"` — confirma que la tabla puede faltar en producción sin migración explícita.
@@ -204,7 +206,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1. **[PARCHEADO 2026-04-30] `auto_resolve_incident()` ya no resuelve en mock**: devuelve `success: false` indicando que falta sandbox seguro, sin marcar la incidencia como resuelta.
 
-2. **`_mock_analysis_response()` línea 177**: análisis genérico de fallback con `"impact": "Impacto en funcionalidad del sistema (análisis mock)"` — inútil como información para operadores.
+2. **[PARCHEADO 2026-04-30] Fallback de análisis mock eliminado**: si el proveedor IA falla, el análisis devuelve error explícito y no persiste un diagnóstico genérico.
 
 3. **[PARCHEADO 2026-04-30] Notificaciones sin credenciales fallan explícitamente**: email, WhatsApp, Telegram y Slack ya no devuelven `"sent (mock)"` si faltan credenciales o dependencias.
 
@@ -236,6 +238,8 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 ### B) Qué falta o está roto
 
 1. **Router no montado en `platform/http/router.py`**: el módulo no está registrado — **todos los endpoints devuelven 404**. El frontend apunta a `/api/v1/tenant/restaurant/*` que no existe en el servidor.
+
+1b. **[PARCHEADO 2026-04-30] Manifest frontend deshabilitado por defecto**: `apps/tenant/src/modules/restaurant/manifest.ts` incluye `enabled: false` para evitar exposición accidental mientras el backend y el flujo fiscal/caja siguen incompletos.
 
 2. **`_recalculate_order_totals()` líneas 698-699**: `tax_total = 0.0` hardcodeado — impuestos siempre cero.
 
@@ -330,7 +334,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | 1 | Reconciliation | [HECHO 2026-04-30] Añadir verificación HMAC/fail-closed en webhooks Stripe/Kushki/PayPhone | `services/payments/*_provider.py` |
 | 2 | Historical | [HECHO 2026-04-30] Añadir `ensure_rls` al router | `modules/historical/interface/http/tenant.py` |
 | 3 | Reports | [HECHO 2026-04-30] Añadir `ensure_rls` al router | `modules/reports/interface/http/tenant.py` |
-| 4 | Einvoicing | Conectar tasks Celery al worker real (eliminar stubs) | `modules/einvoicing/tasks.py` |
+| 4 | Einvoicing | Conectar tasks Celery al worker real ([PARCHEADO 2026-04-30] stubs fallan cerrado) | `modules/einvoicing/tasks.py` |
 | 5 | Einvoicing | [PARCHEADO 2026-04-30] Eliminar `einvoice_service.sign_xml()` fake | `infrastructure/einvoice_service.py` |
 
 ### Prioridad MEDIA (funcionalidad core)

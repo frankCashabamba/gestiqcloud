@@ -106,67 +106,72 @@ def _compute_next_retry(retry_count: int) -> datetime:
 @shared_task(name="apps.backend.app.modules.einvoicing.tasks.sign_and_send")
 def sign_and_send(invoice_id: int, tenant_id: str | None = None) -> dict:
     """
-    Stub: signs and sends an invoice to SRI (Ecuador) asynchronously.
-    Updates sri_submissions table with simulated status.
+    Disabled legacy task.
+
+    The real SRI flow lives in the XAdES worker. This task must not simulate
+    fiscal authorization.
     """
     if not tenant_id:
         raise ValueError("missing_tenant_id")
     with SessionLocal() as db:
-        # Scope tenant context for RLS
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
-        # Insert PENDING submission if not exists
         db.execute(
             text(
                 """
-                INSERT INTO sri_submissions(tenant_id, invoice_id, status)
-                VALUES (:tid, :iid, 'PENDING')
+                INSERT INTO sri_submissions(tenant_id, invoice_id, status, error_code, error_message)
+                VALUES (:tid, :iid, 'ERROR', 'TASK_DISABLED', :err)
                 ON CONFLICT DO NOTHING
                 """
             ),
-            {"tid": str(tenant_id), "iid": invoice_id},
+            {
+                "tid": str(tenant_id),
+                "iid": invoice_id,
+                "err": "Legacy e-invoicing task disabled; use the XAdES worker",
+            },
         )
-        # Simulate success
         db.execute(
             text(
                 """
                 UPDATE sri_submissions
-                   SET status='AUTHORIZED', authorization_number = gen_random_uuid()::text
-                 WHERE invoice_id=:iid AND tenant_id=:tid
+                   SET status = 'ERROR',
+                       error_code = 'TASK_DISABLED',
+                       error_message = :err
+                 WHERE invoice_id = :iid
+                   AND tenant_id = :tid
+                   AND status NOT IN ('AUTHORIZED', 'RECEIVED')
                 """
             ),
-            {"iid": invoice_id, "tid": str(tenant_id)},
+            {
+                "tid": str(tenant_id),
+                "iid": invoice_id,
+                "err": "Legacy e-invoicing task disabled; use the XAdES worker",
+            },
         )
         db.commit()
-    return {"invoice_id": invoice_id, "status": "AUTHORIZED"}
+    raise RuntimeError("Legacy e-invoicing task disabled; use the XAdES worker")
 
 
 @shared_task(name="apps.backend.app.modules.einvoicing.tasks.build_and_send_sii")
 def build_and_send_sii(period: str, tenant_id: str | None = None) -> dict:
     """
-    Stub: builds a SII batch for Spain and marks as ACCEPTED.
+    Disabled legacy task. It must not mark SII batches as accepted without
+    submitting them to the fiscal authority.
     """
     if not tenant_id:
         raise ValueError("missing_tenant_id")
     with SessionLocal() as db:
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
-        res = db.execute(
+        db.execute(
             text(
                 """
                 INSERT INTO sii_batches(tenant_id, period, status)
-                VALUES (:tid, :p, 'PENDING')
-                RETURNING id
+                VALUES (:tid, :p, 'ERROR')
                 """
             ),
             {"tid": str(tenant_id), "p": period},
         )
-        batch_id = res.scalar()
-        # For demo, mark accepted
-        db.execute(
-            text("UPDATE sii_batches SET status='ACCEPTED' WHERE id=:id AND tenant_id=:tid"),
-            {"id": batch_id, "tid": str(tenant_id)},
-        )
         db.commit()
-    return {"batch_id": str(batch_id), "status": "ACCEPTED"}
+    raise RuntimeError("Legacy SII task disabled; fiscal submission worker is not configured")
 
 
 @shared_task(name="apps.backend.app.modules.einvoicing.tasks.scheduled_build_sii")
