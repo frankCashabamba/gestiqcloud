@@ -52,6 +52,8 @@ class GenerateReportUseCase:
         # Track in DB
         report_id = uuid.uuid4()
         now = datetime.now(UTC)
+        persisted = True
+        persistence_error: str | None = None
         try:
             db.execute(
                 text(
@@ -71,8 +73,10 @@ class GenerateReportUseCase:
                 },
             )
             db.commit()
-        except Exception:
-            logger.debug("Could not persist report record (table may not exist yet)")
+        except Exception as exc:
+            persisted = False
+            persistence_error = "reports_table_unavailable"
+            logger.warning("Could not persist report record: %s", exc)
             db.rollback()
 
         return {
@@ -82,6 +86,8 @@ class GenerateReportUseCase:
             "format": export_format.value,
             "status": "ready",
             "row_count": len(data.rows),
+            "persisted": persisted,
+            "persistence_error": persistence_error,
             "data": data.to_dict(),
         }
 

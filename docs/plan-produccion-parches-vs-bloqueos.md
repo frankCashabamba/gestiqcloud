@@ -49,6 +49,7 @@ Un modulo queda fuera de produccion si:
 - Reports backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls`.
 - Reports backend: [PARCHEADO 2026-04-30] `POST /reports/schedule` devuelve 503 por defecto salvo `REPORTS_SCHEDULER_ENABLED=true`.
 - Reports backend: [PARCHEADO 2026-04-30] endpoints tenant rechazan rangos invertidos o superiores a 366 dias.
+- Reports backend: [PARCHEADO 2026-04-30] respuesta de generacion indica `persisted: false` si no pudo guardar historial en `reports`.
 - Importador OCR: cache incluye tenant.
 - Webhooks: validacion anti-SSRF basica.
 - Inventory: ajustes negativos bloqueados; cycle count y sync requieren permisos especificos.
@@ -69,7 +70,10 @@ Un modulo queda fuera de produccion si:
 - AI Agent: [PARCHEADO 2026-04-30] auto-resolve mock desactivado y notificaciones sin credenciales fallan explicitamente.
 - Einvoicing backend: [PARCHEADO 2026-04-30] `einvoice_service.sign_xml()` legacy ya no genera firmas SHA256 falsas; falla explicitamente.
 - Einvoicing backend: [PARCHEADO 2026-04-30] tasks legacy SRI/SII ya no simulan `AUTHORIZED`/`ACCEPTED`; fallan cerrado hasta conectar worker real.
+- Einvoicing backend: [PARCHEADO 2026-04-30] `export_to_pdf()` legacy ya no ejecuta placeholder con buffer nulo; falla explicitamente.
 - Restaurant frontend: [PARCHEADO 2026-04-30] manifest deshabilitado por defecto para evitar exposicion accidental.
+- Restaurant backend: [PARCHEADO 2026-04-30] `POST /orders/{id}/close` devuelve 501 hasta integrar POS/facturacion.
+- Documents backend: [PARCHEADO 2026-04-30] country pack Ecuador falla cerrado para paises no soportados (`documents_country_not_supported`).
 
 ## Modulos candidatos a produccion con parches
 
@@ -245,7 +249,7 @@ Bloqueos:
 
 - Firma XAdES-BES real existe en worker, pero falta conectar los Celery tasks registrados al worker real. [PARCHEADO 2026-04-30] los tasks legacy ya no simulan `AUTHORIZED`/`ACCEPTED`.
 - SRI/SII con implementaciones paralelas e inconsistentes: el endpoint de export usa un flujo y el envio usa otro.
-- [PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma con SHA256 falso; queda PDF incompleto y conexion obligatoria al worker XAdES real.
+- [PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma con SHA256 falso ni ejecuta PDF placeholder; queda conexion obligatoria al worker XAdES real y al pipeline de documentos.
 - Falta UI/endpoints de configuracion por tenant para certificado `.p12` y settings SRI/SII.
 - El campo SRI `<ambiente>` queda hardcodeado a pruebas en el XML generado.
 
@@ -304,7 +308,7 @@ Motivo: presupuestos no implementados y country packs incompletos.
 Bloqueos:
 
 - `quote_to_sales_order` no implementado.
-- Solo EcuadorPack; falta EspanaPack si se opera en Espana.
+- [PARCHEADO 2026-04-30] Solo EcuadorPack y falla cerrado si el tenant no es EC; falta EspanaPack si se opera en Espana.
 - Faltan endpoints de listado/detalle de documentos.
 - No hay frontend dedicado para Documents/Quotes como modulo tenant.
 
@@ -344,7 +348,7 @@ Bloqueos:
 - Router no montado en `platform/http/router.py`: los endpoints pueden devolver 404 aunque el frontend exista.
 - [PARCHEADO 2026-04-30] Manifest frontend marcado `enabled: false`.
 - Cobro/cierre de cuenta no cerrado.
-- Cierre de comanda marca `paid` sin flujo de caja, metodo de pago ni comprobante fiscal.
+- [PARCHEADO 2026-04-30] Cierre de comanda bloqueado con 501 para evitar estado `paid` sin caja/factura.
 - Impuestos hardcodeados a cero.
 - Falta Kitchen Display System (KDS).
 

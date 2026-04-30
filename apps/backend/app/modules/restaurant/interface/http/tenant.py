@@ -631,6 +631,10 @@ def send_to_kitchen(order_id: str, request: Request, db: Session = Depends(get_d
 def close_order(order_id: str, request: Request, db: Session = Depends(get_db)):
     """Cierra una comanda (calcula totales, mesa pasa a 'cleaning')."""
     ensure_guc_from_request(request, db, persist=True)
+    raise HTTPException(
+        status_code=501,
+        detail="restaurant_close_requires_pos_billing_integration",
+    )
 
     order = db.execute(
         text("SELECT id, table_id, status FROM restaurant_orders WHERE id = :oid").bindparams(

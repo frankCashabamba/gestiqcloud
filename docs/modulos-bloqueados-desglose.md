@@ -42,7 +42,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 2. **[PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma fake**: `sign_xml()` ahora lanza `NotImplementedError` en vez de marcar como firmado un SHA256 que no es firma XML válida. Sigue pendiente conectar siempre con el worker XAdES real.
 
-3. **`einvoice_service.py` línea 358**: `export_to_pdf()` asigna `pdf_buffer = None` — crash `NoneType` garantizado si se invoca.
+3. **[PARCHEADO 2026-04-30] PDF legacy desactivado explícitamente**: `export_to_pdf()` ya no usa `pdf_buffer = None`; ahora lanza `NotImplementedError` y fuerza usar el pipeline de renderizado de documentos.
 
 4. **XML SII incorrecto**: `SIIService.generate_xml()` genera `<factura version="3.2.1">` sin la estructura real de FacturaE 3.2.1 (`<FileHeader>`, `<Parties>`, etc.). `facturae_xml.py` sí implementa el formato real pero solo lo usa el endpoint de export, no el de envío SII.
 
@@ -145,7 +145,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 2. **`SalesReportGenerator` usa tabla `sales_orders`**: si la tabla no existe (ventas van por POS o `sales`), lanza excepción capturada silenciosamente — el usuario recibe HTTP 500 sin explicación.
 
-3. **Tabla `reports` puede no existir**: `use_cases.py` tiene `try/except` con log `"table may not exist yet"` — confirma que la tabla puede faltar en producción sin migración explícita.
+3. **[PARCHEADO 2026-04-30] Persistencia de historial no se silencia**: si la tabla `reports` no existe o falla, la respuesta incluye `persisted: false` y `persistence_error: "reports_table_unavailable"` en vez de aparentar persistencia correcta.
 
 4. **[HECHO 2026-04-30] RLS añadido al router tenant**: el router usa `with_access_claims`, `require_scope("tenant")` y `ensure_rls`.
 
@@ -174,7 +174,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **Solo soporta Ecuador**: `DocumentOrchestrator.__init__()` instancia siempre `EcuadorPack()`. Para tenants españoles genera documentos con formato incorrecto (campo `ruc` en vez de `NIF`, etc.).
+1. **[PARCHEADO 2026-04-30] Solo soporta Ecuador y falla cerrado**: `DocumentOrchestrator` instancia `EcuadorPack()` y ahora rechaza `cfg.country != "EC"` con `documents_country_not_supported` para no generar documentos españoles con formato ecuatoriano.
 
 2. **Sin flujo de Quotes/Proformas**: el módulo se llama "Documents/Quotes" pero solo tiene draft/issue de facturas. No existe proforma → aprobación → conversión a factura.
 
@@ -188,7 +188,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### D) Riesgos si se activa hoy
 
-- Tenants españoles recibirían documentos con formato ecuatoriano — incumplimiento de normativa fiscal española.
+- Tenants no Ecuador reciben error explícito en vez de documentos con formato fiscal incorrecto.
 
 ---
 
@@ -243,7 +243,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 2. **`_recalculate_order_totals()` líneas 698-699**: `tax_total = 0.0` hardcodeado — impuestos siempre cero.
 
-3. **Sin integración con POS/facturación**: `POST /orders/{id}/close` marca la comanda como `"paid"` pero no genera recibo, factura, ni registra la venta en ventas/caja.
+3. **[PARCHEADO 2026-04-30] Cierre de comanda bloqueado**: `POST /orders/{id}/close` devuelve HTTP 501 `restaurant_close_requires_pos_billing_integration` para no marcar comandas como pagadas sin POS/facturación.
 
 4. **Sin flujo de pago**: cerrar comanda no toma método de pago ni monto — el estado va directo a `"paid"` sin pasar por caja.
 

@@ -328,59 +328,6 @@ class EInvoiceService:
 
     def export_to_pdf(self, document: EInvoiceDocument, lines: list[EInvoiceLineItem]) -> bytes:
         """Export invoice to PDF"""
-        try:
-            from reportlab.lib.pagesizes import letter
-            from reportlab.lib.units import inch
-            from reportlab.pdfgen import canvas
-
-            pdf_buffer = None  # Placeholder - would use BytesIO
-
-            # Create PDF canvas
-            c = canvas.Canvas(pdf_buffer, pagesize=letter)
-
-            # Add header
-            c.setFont("Helvetica-Bold", 16)
-            c.drawString(inch, 10 * inch, "FACTURA ELECTRÓNICA")
-
-            # Add document number
-            c.setFont("Helvetica", 10)
-            c.drawString(inch, 9.5 * inch, f"No: {document.document_number}")
-            c.drawString(inch, 9.2 * inch, f"Fecha: {document.issue_date.strftime('%Y-%m-%d')}")
-
-            # Add line items table
-            y = 8.5 * inch
-            c.drawString(inch, y, "Descripción")
-            c.drawString(3 * inch, y, "Cantidad")
-            c.drawString(4 * inch, y, "Precio")
-            c.drawString(5 * inch, y, "Total")
-
-            y -= 0.3 * inch
-            for line in lines:
-                c.drawString(inch, y, line.description)
-                c.drawString(3 * inch, y, str(line.quantity))
-                c.drawString(4 * inch, y, f"${line.unit_price}")
-                c.drawString(5 * inch, y, f"${line.total}")
-                y -= 0.2 * inch
-
-            # Add totals
-            y -= 0.3 * inch
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(4 * inch, y, "Subtotal:")
-            c.drawString(5 * inch, y, f"${document.subtotal}")
-
-            y -= 0.2 * inch
-            c.drawString(4 * inch, y, "Impuesto:")
-            c.drawString(5 * inch, y, f"${document.tax_amount}")
-
-            y -= 0.2 * inch
-            c.drawString(4 * inch, y, "TOTAL:")
-            c.drawString(5 * inch, y, f"${document.total}")
-
-            c.save()
-
-            logger.info("PDF exported successfully")
-            return b""  # Would return actual PDF bytes
-
-        except Exception as e:
-            logger.error(f"Failed to export PDF: {e}")
-            raise
+        raise NotImplementedError(
+            "Legacy e-invoice PDF export is disabled; use the document rendering pipeline"
+        )

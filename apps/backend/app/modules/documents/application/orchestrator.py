@@ -61,6 +61,9 @@ class DocumentOrchestrator:
         series: str | None = None,
         sequential: str | None = None,
     ) -> DocumentModel:
+        if (cfg.country or "").upper() != "EC":
+            raise ValueError("documents_country_not_supported")
+
         errors = self.country_pack.validate(sale, cfg)
         if errors:
             raise ValueError([e.model_dump() for e in errors])
