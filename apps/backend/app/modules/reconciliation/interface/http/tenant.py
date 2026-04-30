@@ -6,7 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
 from app.core.auth_dependencies import ensure_tenant, get_current_user
+from app.core.authz import require_scope
+from app.db.rls import ensure_rls
 from app.modules.reconciliation.application.schemas import (
     ImportStatementRequest,
     ManualMatchRequest,
@@ -33,7 +36,15 @@ from app.modules.reconciliation.domain.exceptions import (
     StatementNotFound,
 )
 
-router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
+router = APIRouter(
+    prefix="/reconciliation",
+    tags=["reconciliation"],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
+)
 
 
 @router.post("/statements", response_model=StatementResponse, status_code=201)

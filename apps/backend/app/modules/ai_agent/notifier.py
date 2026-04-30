@@ -109,9 +109,8 @@ async def _send_email(
     smtp_password = config.get("smtp_password")
     from_email = config.get("from_email")
 
-    # Mock en desarrollo
     if not all([smtp_host, smtp_user, smtp_password, from_email]):
-        return {"message_id": "mock_email_id", "status": "sent (mock)"}
+        raise ValueError("ai_agent_email_smtp_not_configured")
 
     # Implementación real con aiosmtplib
     try:
@@ -140,10 +139,7 @@ async def _send_email(
         }
 
     except ImportError:
-        return {
-            "message_id": "mock_email_id",
-            "status": "sent (mock - install aiosmtplib)",
-        }
+        raise ValueError("ai_agent_email_dependency_missing")
 
 
 async def _send_whatsapp(channel: NotificationChannel, recipient: str, body: str) -> dict:
@@ -154,10 +150,7 @@ async def _send_whatsapp(channel: NotificationChannel, recipient: str, body: str
     from_number = config.get("twilio_whatsapp_number")  # e.g. "whatsapp:+14155238886"
 
     if not all([account_sid, auth_token, from_number]):
-        return {
-            "message_id": "mock_whatsapp_id",
-            "status": "sent (mock - configure twilio credentials)",
-        }
+        raise ValueError("ai_agent_whatsapp_twilio_not_configured")
 
     to_number = recipient if recipient.startswith("whatsapp:") else f"whatsapp:{recipient}"
     if not from_number.startswith("whatsapp:"):
@@ -185,7 +178,7 @@ async def _send_whatsapp(channel: NotificationChannel, recipient: str, body: str
             }
 
     except ImportError:
-        return {"message_id": "mock_whatsapp_id", "status": "sent (mock - install httpx)"}
+        raise ValueError("ai_agent_whatsapp_dependency_missing")
 
 
 async def _send_telegram(channel: NotificationChannel, recipient: str, body: str) -> dict:
@@ -195,7 +188,7 @@ async def _send_telegram(channel: NotificationChannel, recipient: str, body: str
     chat_id = config.get("chat_id")
 
     if not bot_token or not chat_id:
-        return {"message_id": "mock_telegram_id", "status": "sent (mock)"}
+        raise ValueError("ai_agent_telegram_not_configured")
 
     try:
         import httpx
@@ -210,10 +203,7 @@ async def _send_telegram(channel: NotificationChannel, recipient: str, body: str
             return {"message_id": data["result"]["message_id"], "status": "sent"}
 
     except ImportError:
-        return {
-            "message_id": "mock_telegram_id",
-            "status": "sent (mock - install httpx)",
-        }
+        raise ValueError("ai_agent_telegram_dependency_missing")
     except Exception as e:
         raise Exception(f"Error enviando Telegram: {str(e)}")
 
@@ -226,10 +216,7 @@ async def _send_slack(channel: NotificationChannel, subject: str, body: str) -> 
     slack_channel = config.get("channel", "#alerts")
 
     if not webhook_url and not bot_token:
-        return {
-            "message_id": "mock_slack_id",
-            "status": "sent (mock - configure webhook_url or bot_token)",
-        }
+        raise ValueError("ai_agent_slack_not_configured")
 
     try:
         import httpx
@@ -262,7 +249,7 @@ async def _send_slack(channel: NotificationChannel, subject: str, body: str) -> 
                 }
 
     except ImportError:
-        return {"message_id": "mock_slack_id", "status": "sent (mock - install httpx)"}
+        raise ValueError("ai_agent_slack_dependency_missing")
 
 
 # ============================================================================
@@ -315,9 +302,15 @@ def _get_default_recipient(channel: NotificationChannel) -> str:
             raise ValueError("ai_agent_default_recipient_not_configured")
         return recipient
     elif channel.channel_type == "whatsapp":
-        return config.get("phone", "+1234567890")
+        recipient = config.get("phone")
+        if not recipient:
+            raise ValueError("ai_agent_default_recipient_not_configured")
+        return recipient
     elif channel.channel_type == "telegram":
-        return config.get("chat_id", "mock_chat_id")
+        recipient = config.get("chat_id")
+        if not recipient:
+            raise ValueError("ai_agent_default_recipient_not_configured")
+        return recipient
     elif channel.channel_type == "slack":
         return config.get("channel", "#alerts")
 

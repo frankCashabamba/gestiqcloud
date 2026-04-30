@@ -512,6 +512,29 @@ class UploadHistoricalFileUseCase:
 
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         file_type = ext if ext in ("csv", "xlsx", "xls") else "unknown"
+        existing_import_id = self.db.execute(
+            text(
+                """
+                SELECT id
+                FROM hist_imports
+                WHERE tenant_id = :tid
+                  AND import_type = :it
+                  AND filename = :fn
+                  AND file_size_bytes = :fs
+                  AND status IN ('processing', 'completed')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            {
+                "tid": tenant_id,
+                "it": import_type,
+                "fn": filename,
+                "fs": len(file_bytes),
+            },
+        ).scalar()
+        if existing_import_id:
+            raise ValueError(f"Duplicate historical import: {existing_import_id}")
 
         # Read file into DataFrame
         try:
@@ -641,9 +664,7 @@ class UploadHistoricalFileUseCase:
             try:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
-                    from datetime import date as _date
-
-                    fecha = _date.today()
+                    raise ValueError("missing_fecha")
 
                 self.db.execute(
                     text(
@@ -703,9 +724,7 @@ class UploadHistoricalFileUseCase:
             try:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
-                    from datetime import date as _date
-
-                    fecha = _date.today()
+                    raise ValueError("missing_fecha")
 
                 self.db.execute(
                     text(
@@ -760,9 +779,7 @@ class UploadHistoricalFileUseCase:
             try:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
-                    from datetime import date as _date
-
-                    fecha = _date.today()
+                    raise ValueError("missing_fecha")
 
                 self.db.execute(
                     text(
@@ -808,9 +825,7 @@ class UploadHistoricalFileUseCase:
             try:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
-                    from datetime import date as _date
-
-                    fecha = _date.today()
+                    raise ValueError("missing_fecha")
 
                 self.db.execute(
                     text(

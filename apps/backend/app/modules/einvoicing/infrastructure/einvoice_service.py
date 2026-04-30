@@ -1,7 +1,5 @@
 """E-invoicing service implementation"""
 
-import base64
-import hashlib
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -283,29 +281,9 @@ class EInvoiceService:
 
     def sign_xml(self, xml: EInvoiceXML, certificate_path: str, password: str) -> EInvoiceXML:
         """Sign XML with digital certificate"""
-        try:
-            from cryptography.hazmat.backends import default_backend
-            from cryptography.x509 import load_pem_x509_certificate
-
-            # Load certificate
-            with open(certificate_path, "rb") as f:
-                cert_data = f.read()
-            _ = load_pem_x509_certificate(cert_data, default_backend())
-
-            # Calculate signature
-            xml_bytes = xml.content.encode("utf-8")
-
-            # In real implementation, use proper XML signing (xmldsig)
-            # This is simplified version
-            xml.signature = base64.b64encode(hashlib.sha256(xml_bytes).digest()).decode()
-            xml.is_signed = True
-
-            logger.info("XML signed successfully")
-            return xml
-
-        except Exception as e:
-            logger.error(f"Failed to sign XML: {e}")
-            raise
+        raise NotImplementedError(
+            "Legacy sign_xml is disabled because it did not produce a valid XML digital signature"
+        )
 
     async def send_to_fiscal_authority(self, document: EInvoiceDocument, xml: EInvoiceXML) -> dict:
         """Send signed XML to fiscal authority"""

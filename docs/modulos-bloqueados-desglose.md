@@ -40,7 +40,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1. **`einvoicing/tasks.py` líneas 109 y 146**: los tasks Celery registrados como `einvoicing.tasks.sign_and_send` y `einvoicing.tasks.build_and_send_sii` son **stubs explícitos** que hacen `UPDATE sri_submissions SET status='AUTHORIZED'` sin llamar al worker real. El worker real en `app/workers/einvoicing_tasks.py` no coincide en nombre de tarea con lo registrado en `einvoicing/tasks.py`.
 
-2. **`infrastructure/einvoice_service.py` línea 300**: `sign_xml()` es fake — usa `hashlib.sha256` como "firma" con comentario `# In real implementation, use proper XML signing (xmldsig)`. Este archivo puede ser invocado por error en lugar del worker real.
+2. **[PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma fake**: `sign_xml()` ahora lanza `NotImplementedError` en vez de marcar como firmado un SHA256 que no es firma XML válida. Sigue pendiente conectar siempre con el worker XAdES real.
 
 3. **`einvoice_service.py` línea 358**: `export_to_pdf()` asigna `pdf_buffer = None` — crash `NoneType` garantizado si se invoca.
 
@@ -108,7 +108,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **Sin RLS de Postgres**: usa `ensure_tenant` pero no `ensure_rls`. Si RLS activo en BD → queries fallan. Si RLS inactivo → JWT manipulado con otro `tenant_id` puede ver extractos de otros tenants.
+1. **[HECHO 2026-04-30] RLS añadido a rutas autenticadas**: el router tenant de conciliación usa `with_access_claims`, `require_scope("tenant")` y `ensure_rls`; las rutas autenticadas de pagos también ejecutan `ensure_rls`. El webhook público queda protegido por firma de proveedor.
 
 2. **[HECHO 2026-04-30] Webhooks de pago fallan cerrado sin firma/secret**: Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin header de firma. Queda pendiente validar con payloads reales de cada proveedor.
 
@@ -118,12 +118,12 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### C) Estimación de esfuerzo
 
-**Mediano (semanas)**: El matching funciona. Bloqueantes restantes: RLS/tenant isolation, upload de extractos y validación formal de providers/refunds.
+**Mediano (semanas)**: El matching funciona. Bloqueantes restantes: upload de extractos y validación formal de providers/refunds.
 
 ### D) Riesgos si se activa hoy
 
 - Los webhooks de pago ya fallan cerrado sin firma/secret; queda pendiente validarlos contra payloads reales de Stripe, Kushki y PayPhone.
-- Cross-tenant data leak en extractos bancarios con JWT manipulado.
+- El aislamiento RLS queda añadido en rutas autenticadas; falta validarlo en pruebas de integración con Postgres/RLS activo.
 
 ---
 
@@ -202,13 +202,13 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **`auto_resolve_incident()` líneas 131-132**: devuelve `"applied_fix": "Mock auto-resolution"` y `"test_results": "All tests passed (mock)"`. Comenta explícitamente que requiere sandbox (Docker/VM aislada) que no existe — marca incidentes como resueltos sin hacer nada.
+1. **[PARCHEADO 2026-04-30] `auto_resolve_incident()` ya no resuelve en mock**: devuelve `success: false` indicando que falta sandbox seguro, sin marcar la incidencia como resuelta.
 
 2. **`_mock_analysis_response()` línea 177**: análisis genérico de fallback con `"impact": "Impacto en funcionalidad del sistema (análisis mock)"` — inútil como información para operadores.
 
-3. **`notifier.py` líneas 112-115**: si SMTP no está configurado, devuelve `"sent (mock)"` sin error — notificaciones críticas silenciadas sin aviso.
+3. **[PARCHEADO 2026-04-30] Notificaciones sin credenciales fallan explícitamente**: email, WhatsApp, Telegram y Slack ya no devuelven `"sent (mock)"` si faltan credenciales o dependencias.
 
-4. **`_get_default_recipient()` WhatsApp**: devuelve `"+1234567890"` hardcodeado sin credenciales — notificaciones van a número basura.
+4. **[PARCHEADO 2026-04-30] Sin destinatarios hardcodeados**: WhatsApp y Telegram requieren destinatario configurado; ya no usan `+1234567890` ni `mock_chat_id`.
 
 5. **Sin router de tenant**: solo accesible por admins vía `/api/v1/admin/incidents`.
 
@@ -218,8 +218,8 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### D) Riesgos si se activa hoy
 
-- `auto_resolve_incident()` marca incidentes críticos como resueltos sin serlo — pérdida de visibilidad operacional.
-- Notificaciones mock silencian alertas de stock bajo o incidencias graves sin que nadie lo note.
+- Auto-resolve queda desactivado hasta tener sandbox real.
+- Notificaciones sin credenciales fallan explícitamente; queda pendiente configurar canales reales por tenant.
 
 ---
 
@@ -278,20 +278,20 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 4. **[HECHO 2026-04-30] Límite de tamaño de archivo añadido**: `POST /upload` rechaza archivos de más de 10 MB con HTTP 413. Sigue pendiente mover el procesamiento a background/Celery.
 
-5. **`fecha` default a `date.today()`** (líneas 643-646, 704-708, 760-765): si la columna de fecha no se detecta, todos los registros se importan con fecha de hoy — datos históricos pierden su dimensión temporal.
+5. **[HECHO 2026-04-30] Sin default a `date.today()`**: si una fila no tiene fecha válida, falla esa fila con `missing_fecha` en vez de importarse con la fecha actual.
 
-6. **Sin deduplicación**: `hist_sales` e `hist_purchases` no tienen constraint UNIQUE — subir el mismo CSV dos veces duplica todos los registros.
+6. **[PARCHEADO 2026-04-30] Deduplicación básica sin migración**: el importador bloquea re-subidas con mismo tenant, tipo, nombre y tamaño cuando ya existe una importación `processing` o `completed`. Sigue pendiente deduplicación fuerte por hash/constraint.
 
 7. **Sin feedback de progreso en frontend**: para archivos grandes el usuario no sabe si el upload sigue procesando — puede re-subir creyendo que falló, duplicando datos.
 
 ### C) Estimación de esfuerzo
 
-**Mediano (semanas)**: El núcleo de importación funciona. Bloqueantes restantes: upload asíncrono con Celery, deduplicación por hash de archivo y manejo estricto de fechas.
+**Mediano (semanas)**: El núcleo de importación funciona. Bloqueantes restantes: upload asíncrono con Celery y deduplicación fuerte por hash/constraint.
 
 ### D) Riesgos si se activa hoy
 
 - Upload de archivos grandes bloquea el servidor FastAPI causando timeouts generales.
-- Doble upload duplica todos los datos históricos corrompiendo métricas del dashboard.
+- Doble upload idéntico queda bloqueado por nombre/tamaño/tipo; sigue pendiente deduplicación fuerte por hash.
 
 ---
 
@@ -331,7 +331,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | 2 | Historical | [HECHO 2026-04-30] Añadir `ensure_rls` al router | `modules/historical/interface/http/tenant.py` |
 | 3 | Reports | [HECHO 2026-04-30] Añadir `ensure_rls` al router | `modules/reports/interface/http/tenant.py` |
 | 4 | Einvoicing | Conectar tasks Celery al worker real (eliminar stubs) | `modules/einvoicing/tasks.py` |
-| 5 | Einvoicing | Eliminar `einvoice_service.sign_xml()` fake | `infrastructure/einvoice_service.py` línea 300 |
+| 5 | Einvoicing | [PARCHEADO 2026-04-30] Eliminar `einvoice_service.sign_xml()` fake | `infrastructure/einvoice_service.py` |
 
 ### Prioridad MEDIA (funcionalidad core)
 
@@ -342,7 +342,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | 8 | Accounting | Crear endpoints P&G y Balance de situación |
 | 9 | Accounting | Integrar asientos automáticos con ventas/compras/caja |
 | 10 | Historical | Hacer upload asíncrono con Celery ([HECHO 2026-04-30] límite de tamaño) |
-| 11 | Historical | Añadir deduplicación por hash de archivo |
+| 11 | Historical | Añadir deduplicación por hash de archivo ([PARCHEADO 2026-04-30] dedupe básica nombre/tamaño/tipo) |
 | 12 | Reports | Implementar Celery beat para scheduled reports ([PARCHEADO 2026-04-30] creación cerrada por defecto) |
 | 13 | Documents | Añadir soporte España (EspañaPack) |
 
@@ -353,8 +353,8 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | 14 | Einvoicing | UI para subir certificado .p12 por tenant |
 | 15 | Einvoicing | Hacer `<ambiente>` configurable por tenant (pruebas/producción) |
 | 16 | Documents | Implementar flujo Quotes/Proformas |
-| 17 | AI Agent | Diseñar sandbox aislada para auto-resolve (Docker/VM) |
-| 18 | AI Agent | Configurar credenciales reales (SMTP, Twilio, Telegram) |
+| 17 | AI Agent | Diseñar sandbox aislada para auto-resolve (Docker/VM) ([PARCHEADO 2026-04-30] mock desactivado) |
+| 18 | AI Agent | Configurar credenciales reales (SMTP, Twilio, Telegram) ([PARCHEADO 2026-04-30] mocks de envío desactivados) |
 | 19 | Restaurant | Implementar Kitchen Display System (KDS) |
 | 20 | Accounting | [HECHO 2026-04-30] Corrección bug variable `status` shadowing |
 | 21 | Analytics | Definir alcance o mantener oculto por feature flag |

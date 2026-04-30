@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.auth_dependencies import ensure_tenant, get_current_user
+from app.db.rls import ensure_rls
 from app.modules.shared.services.statuses import PaymentLinkStatus
 from app.modules.shared.services.tax import resolve_tenant_default_tax_rate
 from app.services.payments import get_provider
@@ -277,6 +278,7 @@ def create_payment_link(
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
     current_user: dict = Depends(get_current_user),
+    _rls: Session = Depends(ensure_rls),
 ):
     """Create payment link"""
 
@@ -516,6 +518,7 @@ def get_payment_status(
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
     current_user: dict = Depends(get_current_user),
+    _rls: Session = Depends(ensure_rls),
 ):
     """Get payment status"""
 
@@ -559,6 +562,7 @@ def refund_payment(
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
     current_user: dict = Depends(get_current_user),
+    _rls: Session = Depends(ensure_rls),
 ):
     """Refund payment"""
 

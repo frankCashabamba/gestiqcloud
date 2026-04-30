@@ -44,6 +44,7 @@ Un modulo queda fuera de produccion si:
 - Finance backend: rates y balances filtrados por tenant.
 - Invoicing backend: busqueda por texto y JSONB webhook corregidos.
 - Reconciliation backend: varios SQL viejos y UUID runtime corregidos.
+- Reconciliation backend: [HECHO 2026-04-30] rutas tenant y pagos autenticados ejecutan `ensure_rls`; webhook publico queda bajo firma de proveedor.
 - Reports backend: referencias rotas a `purchase_orders` corregidas donde aplicaba.
 - Reports backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls`.
 - Reports backend: [PARCHEADO 2026-04-30] `POST /reports/schedule` devuelve 503 por defecto salvo `REPORTS_SCHEDULER_ENABLED=true`.
@@ -60,8 +61,12 @@ Un modulo queda fuera de produccion si:
 - POS frontend: eliminado `tpv_pro.html` legacy y el draft local ya no persiste identificacion, nombre ni email del comprador.
 - Frontend legacy/dialogs: eliminados listados muertos de Products/Users con `confirm()`; Historical y Restaurant usan modales React en vez de `confirm`/`alert`/`prompt`.
 - Historical backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls` y upload limitado a 10 MB.
+- Historical backend: [PARCHEADO 2026-04-30] deduplicacion basica por tenant/tipo/nombre/tamano para imports `processing` o `completed`.
+- Historical backend: [HECHO 2026-04-30] filas sin fecha valida fallan con `missing_fecha`; ya no se sustituyen por fecha actual.
 - Accounting backend: [HECHO 2026-04-30] query param `status` mantiene compatibilidad externa pero internamente se renombra a `entry_status` para evitar shadowing.
 - Reconciliation payments: [HECHO 2026-04-30] Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin firma.
+- AI Agent: [PARCHEADO 2026-04-30] auto-resolve mock desactivado y notificaciones sin credenciales fallan explicitamente.
+- Einvoicing backend: [PARCHEADO 2026-04-30] `einvoice_service.sign_xml()` legacy ya no genera firmas SHA256 falsas; falla explicitamente.
 
 ## Modulos candidatos a produccion con parches
 
@@ -237,7 +242,7 @@ Bloqueos:
 
 - Firma XAdES-BES real existe en worker, pero los Celery tasks registrados siguen siendo stubs que pueden marcar facturas como `AUTHORIZED` sin envio real.
 - SRI/SII con implementaciones paralelas e inconsistentes: el endpoint de export usa un flujo y el envio usa otro.
-- `infrastructure/einvoice_service.py` conserva firma fake con `hashlib.sha256` y PDF incompleto.
+- [PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma con SHA256 falso; queda PDF incompleto y conexion obligatoria al worker XAdES real.
 - Falta UI/endpoints de configuracion por tenant para certificado `.p12` y settings SRI/SII.
 - El campo SRI `<ambiente>` queda hardcodeado a pruebas en el XML generado.
 
@@ -284,7 +289,7 @@ Bloqueos:
 - Refund y provider validation incompletos.
 - Falta desmatching y conciliacion formal.
 - [HECHO 2026-04-30] Webhooks de pago fallan cerrado sin secret/firma. Pendiente validar payloads reales de proveedor.
-- RLS/tenant isolation pendiente segun desglose tecnico.
+- [HECHO 2026-04-30] RLS añadido a rutas tenant y pagos autenticados; pendiente validacion de integracion con Postgres/RLS activo.
 - Importacion de extractos no acepta upload CSV/OFX real; espera JSON ya parseado.
 
 Decision: no activar como modulo productivo completo. Puede quedar en beta interna.
@@ -309,8 +314,8 @@ Motivo: riesgo reputacional/operativo.
 Bloqueos:
 
 - Fallback de analisis mock puede devolver informacion falsa.
-- Auto-resolve es mock y puede marcar incidentes como resueltos sin aplicar cambios reales.
-- Notificaciones pueden devolver `sent (mock)` si faltan credenciales, ocultando fallos operativos.
+- [PARCHEADO 2026-04-30] Auto-resolve mock desactivado; ya no marca incidentes como resueltos sin sandbox.
+- [PARCHEADO 2026-04-30] Notificaciones sin credenciales/dependencias fallan explicitamente; ya no devuelven `sent (mock)`.
 - Stack traces por email/Telegram.
 - Falta control robusto de destinatarios y permisos.
 
@@ -350,8 +355,8 @@ Bloqueos:
 - [HECHO 2026-04-30] Router historico con `ensure_rls`.
 - Upload CSV/XLSX bloqueante en el hilo principal.
 - [HECHO 2026-04-30] Limite de tamano de archivo de 10 MB.
-- Sin deduplicacion por hash/constraint; re-subir el mismo CSV duplica datos.
-- Fechas faltantes se sustituyen por `date.today()`, corrompiendo historicos.
+- [PARCHEADO 2026-04-30] Deduplicacion basica por tenant/tipo/nombre/tamano; sigue pendiente hash/constraint.
+- [HECHO 2026-04-30] Fechas faltantes ya no se sustituyen por `date.today()`; la fila falla con `missing_fecha`.
 
 Decision: no activar hasta hardening.
 
@@ -406,13 +411,13 @@ Parches recomendados:
 | Users | Candidato transversal | Permisos y sesiones | Validar auth, roles y revocacion |
 | Einvoicing | No subir | Stubs fiscales y certificados | Mantener sandbox/demo interno |
 | Accounting completo | No subir completo | Reportes/asientos/cierres incompletos | Solo configuracion basica/POS accounting protegida |
-| Reconciliation | No subir | RLS/provider validation/refunds pendientes | Beta interna o feature flag |
+| Reconciliation | No subir | Provider validation/refunds/upload extractos pendientes | Beta interna o feature flag |
 | Reports avanzado | No subir schedules | Scheduler/exactitud | Solo reportes simples acotados; schedules cerrados por defecto |
 | Documents/Quotes | No subir | Quotes y country packs incompletos | Mantener fuera de oferta v1 |
 | AI Agent | No subir tenant | Mocks operativos y destinatarios | Solo admin interno si se mantiene |
 | Analytics | No subir | Modulo sin alcance validado | Ocultar por feature flag |
 | Restaurant | No subir | Router/checkout/fiscal/KDS incompletos | Beta o feature flag |
-| Historical | No subir | Upload async/deduplicacion/fechas pendientes | Hardening antes de activar |
+| Historical | No subir | Upload async/dedupe fuerte pendientes | Hardening antes de activar |
 
 ## Lista corta para primer pase a produccion
 

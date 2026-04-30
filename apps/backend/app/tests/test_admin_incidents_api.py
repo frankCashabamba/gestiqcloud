@@ -90,7 +90,9 @@ def test_admin_incidents_list_analyze_and_resolve(
         headers=headers,
     )
     assert resolve_response.status_code == 200
+    resolved = resolve_response.json()
+    assert resolved["success"] is False
 
     db.refresh(incident)
-    assert incident.status == "resolved"
-    assert incident.auto_resolved is True
+    assert incident.status != "resolved"
+    assert incident.auto_resolved is False

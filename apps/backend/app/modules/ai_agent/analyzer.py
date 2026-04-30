@@ -1,6 +1,5 @@
 import json
 import time
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -121,16 +120,10 @@ async def auto_resolve_incident(incident_id: UUID, db: Session) -> dict[str, Any
             "recommendation": "Revisar manualmente",
         }
 
-    incident.auto_resolved = True
-    incident.status = "resolved"
-    incident.resolved_at = datetime.now(UTC)
-    db.commit()
-
     return {
-        "success": True,
-        "applied_fix": "Mock auto-resolution",
-        "test_results": "All tests passed (mock)",
-        "recommendation": "Verificar en staging antes de desplegar",
+        "success": False,
+        "error": "Auto-resolve requiere sandbox seguro y está desactivado",
+        "recommendation": "Revisar manualmente o ejecutar un flujo de sandbox aislado",
     }
 
 
