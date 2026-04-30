@@ -45,7 +45,7 @@ def _csv(rows, header):
 def export_products(
     request: Request,
     db: Session = Depends(get_db),
-    limit: int = Query(default=10000, ge=1, le=50000),
+    limit: int = Query(default=5000, ge=1, le=5000),
 ):
     tenant_id = tenant_id_from_request(request)
     if tenant_id is None:
@@ -70,7 +70,7 @@ def export_products(
 def export_clients(
     request: Request,
     db: Session = Depends(get_db),
-    limit: int = Query(default=10000, ge=1, le=50000),
+    limit: int = Query(default=5000, ge=1, le=5000),
 ):
     tenant_id = tenant_id_from_request(request)
     if tenant_id is None:
@@ -96,7 +96,7 @@ def export_clients(
 def export_stock(
     request: Request,
     db: Session = Depends(get_db),
-    limit: int = Query(default=10000, ge=1, le=50000),
+    limit: int = Query(default=5000, ge=1, le=5000),
 ):
     tenant_id = tenant_id_from_request(request)
     if tenant_id is None:
@@ -123,7 +123,7 @@ def export_stock(
 def export_stock_xlsx(
     request: Request,
     db: Session = Depends(get_db),
-    limit: int = Query(default=10000, ge=1, le=50000),
+    limit: int = Query(default=5000, ge=1, le=5000),
 ):
     """Export stock inventory as Excel"""
     if not HAS_OPENPYXL:

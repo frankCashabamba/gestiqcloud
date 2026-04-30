@@ -81,7 +81,7 @@ Parches pendientes:
 
 - [DECISION v1] Valorizacion de inventario queda fuera de v1. Solo visible en reports internos cuando este implementado. FASE 2.
 - [DECISION v1] Alertas de stock minimo solo por ejecucion manual en v1. Scheduler Celery queda para FASE 2.
-- Revisar UI para permisos nuevos: `inventory.stock.adjust`, `inventory.cycle_count.manage`, `inventory.stock.sync`.
+- [HECHO 2026-04-30] Revisar UI para permisos nuevos: `inventory.stock.adjust`, `inventory.cycle_count.manage`, `inventory.stock.sync`. (StockListFixed.tsx: botones Sync y Quick Adjust protegidos con ProtectedButton; cycle count sin UI todavia)
 - [HECHO 2026-04-29] Confirmar que `get_stock` no muestra warehouses cross-tenant en consultas con joins. (joins reforzados con filtro tenant_id en Product y Warehouse)
 
 Condicion para subir: pruebas de ajuste, transferencia, cycle count, stock move y stock item.
@@ -108,7 +108,7 @@ Parches pendientes:
 - [HECHO 2026-04-29] Evitar hard delete si la compra ya tuvo recepciones o stock moves.
 - [HECHO 2026-04-29] Agregar filtros/busqueda basicos.
 - [HECHO 2026-04-29] Definir flujo de aprobacion antes de recibir o dejarlo fuera de alcance. (DECISION v1: fuera de alcance, documentado en comentario del router)
-- Validar selector de proveedor en frontend para que `supplier_id` sea real.
+- [HECHO 2026-04-30] Validar selector de proveedor en frontend para que `supplier_id` sea real. (Form.tsx reemplaza input libre por select cargado desde API; validacion en submit)
 
 Condicion para subir: crear compra con lineas, recibir mercancia, validar stock y costos.
 
@@ -119,7 +119,7 @@ Estado: candidato parcial.
 Parches pendientes:
 
 - [HECHO 2026-04-29] Unificar mecanismo de tenant/auth en endpoints que aun usen helpers antiguos. (12 endpoints migrados a get_current_tenant_id; _empresa_id_from_request conservado solo en public.py)
-- Agregar pruebas especificas para `duplicates/similar`, `duplicates/merge` y `POST /purge`.
+- [HECHO 2026-04-30] Agregar pruebas especificas para `duplicates/similar`, `duplicates/merge` y `POST /purge`. (12 tests en tests/test_products_advanced.py)
 - [HECHO 2026-04-29] Definir si el permiso de purge debe ser solo owner/admin o si `products.delete` es suficiente para v1. (cambiado a permiso products.purge separado)
 
 Condicion para subir: CRUD, stock visible, categorias, bulk operations y merge seguro por tenant.
@@ -342,12 +342,12 @@ Parches recomendados:
 
 Parches recomendados:
 
-- Rate limiting distribuido con Redis para login y Copilot.
-- Rotar JWT secret si logs antiguos salieron de entorno real.
-- Rotar/eliminar logs historicos con secretos.
-- Confirmar Celery workers para webhooks, reports, notifications y tareas programadas.
-- Definir `ENVIRONMENT=production` y variables obligatorias en deploy.
-- Agregar limites de exportacion y rangos maximos de reportes.
+- [VERIFICADO 2026-04-30] Rate limiting distribuido con Redis para login y Copilot. (ya existian 3 capas: RateLimitMiddleware global, EndpointRateLimiter por IP, y login_rate_limit.py Redis-backed; Copilot tiene _check_ai_rate_limit por tenant)
+- [OPERACIONAL] Rotar JWT secret si logs antiguos salieron de entorno real. (accion manual en deploy)
+- [OPERACIONAL] Rotar/eliminar logs historicos con secretos. (accion manual en deploy)
+- [REQUISITO DEPLOY] Confirmar Celery workers para webhooks, reports, notifications y tareas programadas. (ver requirements-celery.txt y render.yaml)
+- [HECHO 2026-04-30] Definir `ENVIRONMENT=production` y variables obligatorias en deploy. (guard en main.py: falla en arranque si faltan SECRET_KEY, DATABASE_URL o ENVIRONMENT)
+- [HECHO 2026-04-30] Agregar limites de exportacion y rangos maximos de reportes. (export CSV/XLSX: limit default 5000, max 5000)
 
 ## Orden recomendado de trabajo
 
@@ -392,16 +392,18 @@ No subir todavia:
 
 | Modulo       | Parches backend | Parches frontend | Decision pendiente | Listo para pruebas |
 |--------------|----------------|-----------------|-------------------|-------------------|
-| POS          | SI              | SI               | NO                | pendiente pruebas  |
-| Inventory    | SI              | pendiente UI     | NO                | pendiente pruebas  |
-| Sales        | SI              | N/A              | NO                | pendiente pruebas  |
-| Purchases    | SI              | pendiente        | NO                | pendiente pruebas  |
-| Products     | SI              | N/A              | pendiente tests   | pendiente pruebas  |
-| Clients      | SI              | N/A              | NO                | pendiente pruebas  |
-| Suppliers    | SI              | SI               | NO                | pendiente pruebas  |
-| Expenses     | SI              | N/A              | NO                | pendiente pruebas  |
-| Billing      | SI              | SI               | NO                | pendiente pruebas  |
-| Notifications| SI              | N/A              | NO                | pendiente pruebas  |
-| Webhooks     | SI              | N/A              | NO                | pendiente pruebas  |
-| CRM          | SI              | SI               | NO                | pendiente pruebas  |
-| Importador   | SI              | SI               | NO                | pendiente pruebas  |
+| Modulo       | Backend         | Frontend         | Tests             | Listo para pruebas |
+|--------------|----------------|-----------------|-------------------|-------------------|
+| POS          | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| Inventory    | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| Sales        | COMPLETO        | N/A              | pendiente         | SI                 |
+| Purchases    | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| Products     | COMPLETO        | N/A              | COMPLETO (12)     | SI                 |
+| Clients      | COMPLETO        | N/A              | pendiente         | SI                 |
+| Suppliers    | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| Expenses     | COMPLETO        | N/A              | pendiente         | SI                 |
+| Billing      | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| Notifications| COMPLETO        | N/A              | pendiente         | SI                 |
+| Webhooks     | COMPLETO        | N/A              | pendiente         | SI                 |
+| CRM          | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| Importador   | COMPLETO        | COMPLETO         | pendiente         | SI                 |

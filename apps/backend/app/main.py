@@ -208,6 +208,12 @@ async def lifespan(app: FastAPI):
     # Configure logging with rotation
     _configure_logging()
 
+    # 🔒 Variables de entorno obligatorias — falla rápido antes de cualquier otra validación
+    _REQUIRED = ["SECRET_KEY", "DATABASE_URL", "ENVIRONMENT"]
+    _missing = [v for v in _REQUIRED if not os.getenv(v)]
+    if _missing:
+        raise RuntimeError(f"Variables obligatorias faltantes: {_missing}")
+
     # 🔒 Validar configuración crítica PRIMERO
     try:
         validate_critical_config()

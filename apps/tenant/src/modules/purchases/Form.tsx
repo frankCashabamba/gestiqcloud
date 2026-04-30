@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createPurchase, getPurchase, updatePurchase, type Purchase } from './services'
+import { listProveedores, type Proveedor } from '../suppliers/services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import PurchaseLinesEditor from './components/PurchaseLinesEditor'
 import { getCompanySettings, getDefaultTaxRate } from '../../services/companySettings'
@@ -35,6 +36,8 @@ export default function PurchaseForm() {
 
   const [loading, setLoading] = useState(false)
   const [taxRate, setTaxRate] = useState(PURCHASING_DEFAULTS.TAX_RATE)
+  const [suppliers, setSuppliers] = useState<Proveedor[]>([])
+  const [supplierError, setSupplierError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -51,6 +54,12 @@ export default function PurchaseForm() {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    listProveedores()
+      .then((data) => setSuppliers(data.filter((s) => s.active !== false && s.activo !== false)))
+      .catch(() => {/* non-fatal: selector will be empty */})
   }, [])
 
   useEffect(() => {
@@ -94,6 +103,10 @@ export default function PurchaseForm() {
 
     try {
       if (!form.date) throw new Error(t('purchases:form.dateRequired'))
+      if (!form.supplier_id || !String(form.supplier_id).trim()) {
+        setSupplierError(t('purchases:form.supplierRequired'))
+        throw new Error(t('purchases:form.supplierRequired'))
+      }
       if (!form.lines || form.lines.length === 0) {
         throw new Error(t('purchases:form.linesRequired'))
       }
@@ -155,14 +168,30 @@ export default function PurchaseForm() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block mb-1 font-medium">{t('purchases:form.supplierId')}</label>
-            <input
-              type="text"
-              placeholder={t('purchases:form.supplierId')}
+            <select
               value={form.supplier_id || ''}
-              onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
-              className="border px-2 py-1 w-full rounded"
+              onChange={(e) => {
+                const selected = suppliers.find((s) => String(s.id) === e.target.value)
+                setSupplierError(null)
+                setForm({
+                  ...form,
+                  supplier_id: e.target.value,
+                  supplier_name: selected?.name || form.supplier_name || '',
+                })
+              }}
+              className={`border px-2 py-1 w-full rounded${supplierError ? ' border-red-500' : ''}`}
               disabled={loading}
-            />
+            >
+              <option value="">{t('purchases:form.selectSupplier')}</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            {supplierError && (
+              <p className="text-red-600 text-sm mt-1">{supplierError}</p>
+            )}
           </div>
 
           <div>

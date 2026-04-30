@@ -17,6 +17,7 @@ import { getDefaultReorderPoint, getCompanySettings } from '../../services/compa
 import { isStandardUnitCode } from '../../services/unitService'
 
 import PageContainer from '../../components/PageContainer'
+import ProtectedButton from '../../components/ProtectedButton'
 
 // ─── Caché de módulo (persiste entre navegaciones, TTL 3 min) ─────────────────
 let _stockCache: { items: StockItem[]; warehouses: Warehouse[]; ts: number } | null = null
@@ -361,13 +362,15 @@ export default function StockList() {
           </div>
 
           <div className="flex gap-3 mt-6">
-            <button
+            <ProtectedButton
+              permission="inventory.stock.adjust"
               onClick={submitQuickAdjust}
               disabled={quickAdjusting || !quickAdjust.productId}
               className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50"
+              unstyled
             >
               {quickAdjusting ? t('common:saving') : t('common:confirm')}
-            </button>
+            </ProtectedButton>
             <button
               onClick={() => setQuickAdjust(EMPTY_QUICK)}
               className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm"
@@ -388,23 +391,33 @@ export default function StockList() {
           )}
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button
+          <ProtectedButton
+            permission="inventory.stock.sync"
+            variant="primary"
             className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors font-medium disabled:opacity-50"
             onClick={handleSync}
             disabled={syncing}
             title={t('inventory:stock.syncFromProducts')}
+            unstyled
           >
             🔄 {syncing ? t('inventory:stock.syncing') : t('inventory:stock.syncFromProducts')}
-          </button>
+          </ProtectedButton>
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={exportCSV}>
             {t('inventory:stock.exportCsv')}
           </button>
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={crearAlmacenDefecto} title={t('inventory:stock.createWarehouse')}>
             {t('inventory:stock.createWarehouse')}
           </button>
-          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={openQuickAdjust} title={t('inventory:stock.quickAdjust')}>
+          <ProtectedButton
+            permission="inventory.stock.adjust"
+            variant="secondary"
+            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            onClick={openQuickAdjust}
+            title={t('inventory:stock.quickAdjust')}
+            unstyled
+          >
             {t('inventory:stock.quickAdjust')}
-          </button>
+          </ProtectedButton>
           <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium" onClick={() => nav('movimientos/nuevo')}>
             {t('inventory:stock.newMovement')}
           </button>

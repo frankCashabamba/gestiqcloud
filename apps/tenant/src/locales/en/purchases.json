@@ -30,10 +30,12 @@
   "cancelled": "Cancelled",
   "form": {
     "dateRequired": "Date is required",
+    "supplierRequired": "Select a valid supplier",
+    "selectSupplier": "Select a supplier",
     "linesRequired": "Must add at least one line",
     "totalPositive": "Total must be >= 0",
     "deliveryDate": "Delivery Date",
-    "supplierId": "Supplier ID",
+    "supplierId": "Supplier",
     "supplierIdPlaceholder": "Supplier ID",
     "supplierName": "Supplier Name",
     "supplierNamePlaceholder": "Supplier name",
