@@ -11,11 +11,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 from app.models.company.company_user import CompanyUser
 from app.models.core.module import CompanyModule
 from app.models.tenant import Tenant
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["admin"],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
+)
 
 
 @router.get("/stats")

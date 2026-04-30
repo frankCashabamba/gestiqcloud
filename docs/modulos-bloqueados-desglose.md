@@ -83,7 +83,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 4. **[HECHO 2026-04-30] Variable `status` renombrada internamente**: el query param público sigue siendo `status`, pero el parámetro Python ahora es `entry_status` para evitar shadowing con `fastapi.status`.
 
-5. **Inconsistencia de nombres de campos**: `_recalcular_saldos_cuenta` usa `saldo_debe`/`saldo_haber` (español); `journal_service.py` usa `debit_balance`/`credit_balance` (inglés). Pueden ser campos distintos o aliases — introduce riesgo de saldos duplicados o no actualizados.
+5. **[HECHO 2026-04-30] Recálculo de saldos normalizado**: `_recalcular_saldos_cuenta` ya actualiza `debit_balance`/`credit_balance`/`balance`, igual que `journal_service.py`; se elimina el intento de escribir campos inexistentes `saldo_debe`/`saldo_haber`.
 
 ### C) Estimación de esfuerzo
 
@@ -112,7 +112,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 2. **[HECHO 2026-04-30] Webhooks de pago fallan cerrado sin firma/secret**: Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin header de firma. Queda pendiente validar con payloads reales de cada proveedor.
 
-3. **`payments.py` línea 145**: `_safe_json_loads()` devuelve `{}` silenciosamente en errores — el webhook puede procesar payloads vacíos y marcar facturas como pagadas con datos incorrectos.
+3. **[PARCHEADO 2026-04-30] JSON inválido en webhooks falla explícitamente**: `_safe_json_loads()` lanza `invalid_webhook_json` si el payload no es JSON objeto; ya no convierte errores en `{}`.
 
 4. **Sin upload de extractos CSV/OFX**: `ImportForm.tsx` existe pero no hay endpoint de upload — `ImportStatementUseCase` espera JSON ya parseado, no un archivo.
 
@@ -278,7 +278,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 2. **Upload bloqueante en hilo principal**: `UploadHistoricalFileUseCase.execute()` es síncrono con pandas. El endpoint `POST /upload` es `async def` pero no usa `run_in_executor` — bloquea el event loop de FastAPI para todos los usuarios durante el upload.
 
-3. **`except Exception: pass` en línea 676**: errores de upsert en maestros silenciados — si hay constraint violation, se pierde en silencio.
+3. **[PARCHEADO 2026-04-30] Upsert de maestros ya no silencia errores**: los fallos de maestros en ventas/compras se registran con `logger.warning(..., exc_info=True)`; el import principal sigue su curso, pero el error queda trazable.
 
 4. **[HECHO 2026-04-30] Límite de tamaño de archivo añadido**: `POST /upload` rechaza archivos de más de 10 MB con HTTP 413. Sigue pendiente mover el procesamiento a background/Celery.
 
@@ -310,7 +310,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1. **Sin definición funcional cerrada**: no consta qué métricas, dashboards o segmentos son parte del producto v1.
 
-2. **Sin validación técnica en este desglose**: no se ha confirmado router, aislamiento por tenant, permisos, migraciones ni frontend productivo.
+2. **[PARCHEADO 2026-04-30] Rutas de analytics protegidas**: `dashboard/kpis` exige scope tenant y `ensure_rls`; `/api/v1/admin/stats` exige scope admin. Sigue pendiente validar alcance funcional, migraciones, frontend productivo y pruebas.
 
 3. **Riesgo de registro prematuro**: si se registra como módulo disponible, el usuario puede ver una funcionalidad vacía o incompleta.
 

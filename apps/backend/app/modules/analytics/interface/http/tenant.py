@@ -13,12 +13,21 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.db.rls import set_tenant_guc, tenant_id_sql_expr_text
+from app.core.authz import require_scope
+from app.db.rls import ensure_rls, set_tenant_guc, tenant_id_sql_expr_text
 from app.models.company.company import SectorTemplate
 from app.models.company.company_settings import CompanySettings
 from app.models.tenant import Tenant
 
-router = APIRouter(prefix="/dashboard/kpis", tags=["Dashboard KPIs"])
+router = APIRouter(
+    prefix="/dashboard/kpis",
+    tags=["Dashboard KPIs"],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
+)
 logger = logging.getLogger("app.dashboard_kpis")
 
 

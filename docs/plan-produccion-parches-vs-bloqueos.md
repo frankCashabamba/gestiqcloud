@@ -65,8 +65,10 @@ Un modulo queda fuera de produccion si:
 - Historical backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls` y upload limitado a 10 MB.
 - Historical backend: [PARCHEADO 2026-04-30] deduplicacion basica por tenant/tipo/nombre/tamano para imports `processing` o `completed`.
 - Historical backend: [HECHO 2026-04-30] filas sin fecha valida fallan con `missing_fecha`; ya no se sustituyen por fecha actual.
+- Historical backend: [PARCHEADO 2026-04-30] errores de upsert de maestros historicos quedan en logs; ya no se pierden con `except: pass`.
 - Accounting backend: [HECHO 2026-04-30] query param `status` mantiene compatibilidad externa pero internamente se renombra a `entry_status` para evitar shadowing.
 - Reconciliation payments: [HECHO 2026-04-30] Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin firma.
+- Reconciliation payments: [PARCHEADO 2026-04-30] payload webhook con JSON invalido falla con `invalid_webhook_json` en vez de convertirse en `{}`.
 - AI Agent: [PARCHEADO 2026-04-30] auto-resolve mock desactivado y notificaciones sin credenciales fallan explicitamente.
 - Einvoicing backend: [PARCHEADO 2026-04-30] `einvoice_service.sign_xml()` legacy ya no genera firmas SHA256 falsas; falla explicitamente.
 - Einvoicing backend: [PARCHEADO 2026-04-30] tasks legacy SRI/SII ya no simulan `AUTHORIZED`/`ACCEPTED`; fallan cerrado hasta conectar worker real.
@@ -266,7 +268,8 @@ Bloqueos:
 - Cierre/apertura/regularizacion no implementados.
 - Reportes contables formales faltantes.
 - Asientos automaticos de ventas, compras y caja no integrados.
-- [HECHO 2026-04-30] Bug por variable `status`/shadowing corregido. Sigue pendiente validar saldos con nombres de campos inconsistentes.
+- [HECHO 2026-04-30] Bug por variable `status`/shadowing corregido.
+- [HECHO 2026-04-30] Recálculo manual de saldos corregido para usar `debit_balance`/`credit_balance`/`balance`, igual que el servicio de asientos.
 
 Decision: permitir solo configuracion basica/POS accounting si las rutas estan protegidas. No venderlo como contabilidad completa.
 
@@ -335,7 +338,8 @@ Motivo: modulo vacio.
 Bloqueos:
 
 - Alcance funcional no definido para v1.
-- Sin evidencia validada de router, permisos, tenant isolation, migraciones, frontend productivo o pruebas.
+- [PARCHEADO 2026-04-30] Rutas existentes de analytics/dashboard protegidas con scope tenant/admin y RLS en KPIs tenant.
+- Pendiente evidencia validada de migraciones, frontend productivo o pruebas de negocio.
 
 Decision: no registrar como modulo productivo. Mantener oculto por feature flag hasta definir alcance y validar implementacion.
 

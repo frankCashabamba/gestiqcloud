@@ -887,7 +887,11 @@ class UploadHistoricalFileUseCase:
                         {"tid": tenant_id, "et": entity_type, "c": code or name, "n": name},
                     )
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Failed to upsert historical master from sales import",
+                        extra={"tenant_id": str(tenant_id), "entity_type": entity_type},
+                        exc_info=True,
+                    )
 
     def _upsert_masters_from_purchases(self, tenant_id: UUID, df: Any, cols: list[str]) -> None:
         prod_code_col = _resolve_column(cols, "producto_code")
@@ -919,4 +923,8 @@ class UploadHistoricalFileUseCase:
                         {"tid": tenant_id, "et": entity_type, "c": code or name, "n": name},
                     )
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Failed to upsert historical master from purchases import",
+                        extra={"tenant_id": str(tenant_id), "entity_type": entity_type},
+                        exc_info=True,
+                    )

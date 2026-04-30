@@ -97,9 +97,9 @@ def _recalcular_saldos_cuenta(db: Session, cuenta_id: UUID):
     result = db.execute(stmt).one()
     debe = result[0] or Decimal("0")
     haber = result[1] or Decimal("0")
-    cuenta.saldo_debe = debe
-    cuenta.saldo_haber = haber
-    cuenta.saldo = debe - haber
+    cuenta.debit_balance = debe
+    cuenta.credit_balance = haber
+    cuenta.balance = debe - haber
 
 
 # =========================

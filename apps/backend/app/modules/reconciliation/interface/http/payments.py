@@ -141,9 +141,11 @@ def get_invoice_data(invoice_id: UUID, tenant_id: str, db: Session) -> dict[str,
 def _safe_json_loads(payload: bytes) -> dict[str, Any]:
     try:
         data = json.loads(payload.decode("utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+    except Exception as exc:
+        raise ValueError("invalid_webhook_json") from exc
+    if not isinstance(data, dict):
+        raise ValueError("invalid_webhook_json")
+    return data
 
 
 def _coerce_uuid_str(value: Any) -> str | None:
