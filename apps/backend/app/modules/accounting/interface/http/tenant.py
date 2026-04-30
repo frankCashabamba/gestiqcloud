@@ -41,6 +41,8 @@ from app.schemas.accounting import (
     AsientoContableResponse,
     AsientoContableUpdate,
     AsientoLineaResponse,
+    CuentaMayorItem,
+    CuentaMayorResponse,
     PlanCuentasCreate,
     PlanCuentasList,
     PlanCuentasResponse,
@@ -254,7 +256,7 @@ async def list_cuentas(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    tenant_id = claims["tenant_id"]
+    tenant_id = UUID(str(claims["tenant_id"]))
     stmt = select(PlanCuentas).where(PlanCuentas.tenant_id == tenant_id)
     if nivel:
         stmt = stmt.where(PlanCuentas.level == nivel)
@@ -285,7 +287,7 @@ async def create_cuenta(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    tenant_id = claims["tenant_id"]
+    tenant_id = UUID(str(claims["tenant_id"]))
     stmt = select(PlanCuentas).where(
         PlanCuentas.tenant_id == tenant_id, PlanCuentas.code == data.codigo
     )
@@ -483,6 +485,107 @@ async def seed_chart_of_accounts(
         "message": msg,
         "pos_configured": pos_configured,
     }
+
+
+@router.get("/chart-of-accounts/{cuenta_id}/ledger", response_model=CuentaMayorResponse)
+async def get_cuenta_mayor(
+    cuenta_id: UUID,
+    fecha_desde: date | None = Query(None),
+    fecha_hasta: date | None = Query(None),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(str(claims["tenant_id"]))
+    cuenta = (
+        db.execute(
+            select(PlanCuentas).where(
+                PlanCuentas.id == cuenta_id,
+                PlanCuentas.tenant_id == tenant_id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not cuenta:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta no encontrada")
+
+    if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_date_range")
+
+    initial_stmt = (
+        select(func.coalesce(func.sum(AsientoLinea.debit - AsientoLinea.credit), 0))
+        .join(AsientoContable, AsientoContable.id == AsientoLinea.entry_id)
+        .where(
+            AsientoLinea.account_id == cuenta_id,
+            AsientoContable.tenant_id == tenant_id,
+            AsientoContable.status == "POSTED",
+        )
+    )
+    if fecha_desde:
+        initial_stmt = initial_stmt.where(AsientoContable.date < fecha_desde)
+    else:
+        initial_stmt = initial_stmt.where(False)
+
+    saldo_inicial = db.execute(initial_stmt).scalar_one() or Decimal("0")
+    saldo = saldo_inicial
+
+    movimientos_stmt = (
+        select(AsientoLinea, AsientoContable)
+        .join(AsientoContable, AsientoContable.id == AsientoLinea.entry_id)
+        .where(
+            AsientoLinea.account_id == cuenta_id,
+            AsientoContable.tenant_id == tenant_id,
+            AsientoContable.status == "POSTED",
+        )
+    )
+    if fecha_desde:
+        movimientos_stmt = movimientos_stmt.where(AsientoContable.date >= fecha_desde)
+    if fecha_hasta:
+        movimientos_stmt = movimientos_stmt.where(AsientoContable.date <= fecha_hasta)
+
+    movimientos_stmt = movimientos_stmt.order_by(
+        AsientoContable.date.asc(),
+        AsientoContable.number.asc(),
+        AsientoLinea.line_number.asc(),
+    )
+
+    movimientos: list[CuentaMayorItem] = []
+    total_debe = Decimal("0")
+    total_haber = Decimal("0")
+    first_date: date | None = None
+    last_date: date | None = None
+    for linea, asiento in db.execute(movimientos_stmt).all():
+        debe = linea.debit or Decimal("0")
+        haber = linea.credit or Decimal("0")
+        saldo += debe - haber
+        total_debe += debe
+        total_haber += haber
+        first_date = asiento.date if first_date is None else min(first_date, asiento.date)
+        last_date = asiento.date if last_date is None else max(last_date, asiento.date)
+        movimientos.append(
+            CuentaMayorItem(
+                fecha=asiento.date,
+                asiento_numero=asiento.number,
+                descripcion=linea.description or asiento.description,
+                debe=debe,
+                haber=haber,
+                saldo=saldo,
+            )
+        )
+
+    today = date.today()
+    return CuentaMayorResponse(
+        cuenta_id=cuenta.id,
+        cuenta_codigo=cuenta.code,
+        cuenta_nombre=cuenta.name,
+        fecha_desde=fecha_desde or first_date or today,
+        fecha_hasta=fecha_hasta or last_date or today,
+        saldo_inicial=saldo_inicial,
+        movimientos=movimientos,
+        total_debe=total_debe,
+        total_haber=total_haber,
+        saldo_final=saldo,
+    )
 
 
 @router.get("/chart-of-accounts/{cuenta_id}", response_model=PlanCuentasResponse)

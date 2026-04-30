@@ -270,6 +270,7 @@ Bloqueos:
 - Asientos automaticos de ventas, compras y caja no integrados.
 - [HECHO 2026-04-30] Bug por variable `status`/shadowing corregido.
 - [HECHO 2026-04-30] Recálculo manual de saldos corregido para usar `debit_balance`/`credit_balance`/`balance`, igual que el servicio de asientos.
+- [HECHO 2026-04-30] Libro mayor por cuenta añadido en backend y conectado en frontend; faltan P&G/balance server-side y automatización de asientos.
 
 Decision: permitir solo configuracion basica/POS accounting si las rutas estan protegidas. No venderlo como contabilidad completa.
 

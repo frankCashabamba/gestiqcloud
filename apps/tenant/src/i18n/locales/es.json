@@ -55,7 +55,11 @@
       "columns": {
         "balance": "Saldo"
       },
+      "finalBalance": "Saldo final",
+      "initialBalance": "Saldo inicial",
       "loading": "Cargando...",
+      "selectAccount": "Seleccionar cuenta...",
+      "totalMovement": "Movimiento neto",
       "title": "Libro mayor"
     },
     "journalEntries": {

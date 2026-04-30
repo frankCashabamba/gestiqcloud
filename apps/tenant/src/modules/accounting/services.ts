@@ -34,6 +34,28 @@ export type AsientoLinea = {
     descripcion?: string
 }
 
+export type CuentaMayorMovimiento = {
+    fecha: string
+    asiento_numero: string
+    descripcion: string
+    debe: number | string
+    haber: number | string
+    saldo: number | string
+}
+
+export type CuentaMayor = {
+    cuenta_id: string
+    cuenta_codigo: string
+    cuenta_nombre: string
+    fecha_desde: string
+    fecha_hasta: string
+    saldo_inicial: number | string
+    movimientos: CuentaMayorMovimiento[]
+    total_debe: number | string
+    total_haber: number | string
+    saldo_final: number | string
+}
+
 // =========================
 // POS Contable (config)
 // =========================
@@ -101,6 +123,14 @@ export async function removeCuenta(id: string): Promise<void> {
 
 export async function seedCuentas(force = false): Promise<{ created: number; skipped: number; message: string }> {
     return apiFetch(`/api/v1/tenant/accounting/chart-of-accounts/seed?force=${force}`, { method: 'POST' })
+}
+
+export async function getCuentaMayor(id: string, fechaDesde?: string, fechaHasta?: string): Promise<CuentaMayor> {
+    const params = new URLSearchParams()
+    if (fechaDesde) params.set('fecha_desde', fechaDesde)
+    if (fechaHasta) params.set('fecha_hasta', fechaHasta)
+    const qs = params.toString()
+    return apiFetch<CuentaMayor>(`/api/v1/tenant/accounting/chart-of-accounts/${id}/ledger${qs ? `?${qs}` : ''}`)
 }
 
 export async function listAsientos(): Promise<AsientoContable[]> {

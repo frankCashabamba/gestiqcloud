@@ -75,7 +75,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **Libro Mayor sin endpoint propio**: `LibroMayor.tsx` existe pero no hay `GET /accounting/chart-of-accounts/{id}/ledger`. El frontend filtra client-side — no escala.
+1. **[HECHO 2026-04-30] Libro Mayor con endpoint propio**: existe `GET /accounting/chart-of-accounts/{id}/ledger` con saldo inicial, movimientos `POSTED` en rango y saldo corrido. `LibroMayor.tsx` ya consume este endpoint en vez de agrupar todos los asientos client-side.
 
 2. **Balance y P&G sin endpoint de backend**: `PerdidasGanancias.tsx` calcula en frontend con datos del libro diario (`utils/reportesContables.ts`). Exactitud no garantizada para cierres contables reales.
 

@@ -55,7 +55,11 @@
       "columns": {
         "balance": "Balance"
       },
+      "finalBalance": "Final balance",
+      "initialBalance": "Initial balance",
       "loading": "Loading...",
+      "selectAccount": "Select account...",
+      "totalMovement": "Net movement",
       "title": "General ledger"
     },
     "journalEntries": {

@@ -4,10 +4,14 @@ Tests de Módulo de Contabilidad
 Valida plan de cuentas, asientos contables y validación debe=haber.
 """
 
+import secrets
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+from fastapi.testclient import TestClient
+
+from app.models.accounting.chart_of_accounts import ChartOfAccounts, JournalEntry, JournalEntryLine
 from app.schemas.accounting import AsientoContableCreate, AsientoLineaCreate, PlanCuentasCreate
 
 
@@ -180,3 +184,141 @@ class TestAccountingIntegration:
 
         for tipo in tipos:
             assert tipo in tipos_plan
+
+
+def test_account_ledger_endpoint_returns_posted_movements_with_initial_balance(
+    client: TestClient, db, usuario_empresa_factory
+):
+    password = secrets.token_urlsafe(12)
+    user, tenant = usuario_empresa_factory(
+        empresa_nombre="Ledger Demo",
+        empresa_slug="ledger-demo",
+        username="ledger_owner",
+        email="ledger@example.com",
+        password=password,
+    )
+    tenant_id = UUID(str(tenant.id))
+    user_id = UUID(str(user.id))
+
+    cash = ChartOfAccounts(
+        tenant_id=tenant_id,
+        code="570",
+        name="Caja",
+        type="ASSET",
+        level=3,
+        can_post=True,
+        active=True,
+    )
+    revenue = ChartOfAccounts(
+        tenant_id=tenant_id,
+        code="700",
+        name="Ventas",
+        type="INCOME",
+        level=3,
+        can_post=True,
+        active=True,
+    )
+    db.add_all([cash, revenue])
+    db.flush()
+
+    opening = JournalEntry(
+        tenant_id=tenant_id,
+        number="ASI-2026-0001",
+        date=date(2026, 1, 1),
+        type="OPENING",
+        description="Saldo inicial",
+        debit_total=Decimal("100.00"),
+        credit_total=Decimal("100.00"),
+        is_balanced=True,
+        status="POSTED",
+        created_by=user_id,
+    )
+    sale = JournalEntry(
+        tenant_id=tenant_id,
+        number="ASI-2026-0002",
+        date=date(2026, 2, 1),
+        type="OPERATIONS",
+        description="Venta",
+        debit_total=Decimal("25.00"),
+        credit_total=Decimal("25.00"),
+        is_balanced=True,
+        status="POSTED",
+        created_by=user_id,
+    )
+    draft = JournalEntry(
+        tenant_id=tenant_id,
+        number="ASI-2026-0003",
+        date=date(2026, 2, 2),
+        type="OPERATIONS",
+        description="Borrador",
+        debit_total=Decimal("999.00"),
+        credit_total=Decimal("999.00"),
+        is_balanced=True,
+        status="DRAFT",
+        created_by=user_id,
+    )
+    db.add_all([opening, sale, draft])
+    db.flush()
+    db.add_all(
+        [
+            JournalEntryLine(
+                entry_id=opening.id,
+                account_id=cash.id,
+                debit=Decimal("100.00"),
+                credit=Decimal("0.00"),
+                description="Caja inicial",
+                line_number=1,
+            ),
+            JournalEntryLine(
+                entry_id=opening.id,
+                account_id=revenue.id,
+                debit=Decimal("0.00"),
+                credit=Decimal("100.00"),
+                line_number=2,
+            ),
+            JournalEntryLine(
+                entry_id=sale.id,
+                account_id=cash.id,
+                debit=Decimal("25.00"),
+                credit=Decimal("0.00"),
+                description="Cobro venta",
+                line_number=1,
+            ),
+            JournalEntryLine(
+                entry_id=sale.id,
+                account_id=revenue.id,
+                debit=Decimal("0.00"),
+                credit=Decimal("25.00"),
+                line_number=2,
+            ),
+            JournalEntryLine(
+                entry_id=draft.id,
+                account_id=cash.id,
+                debit=Decimal("999.00"),
+                credit=Decimal("0.00"),
+                line_number=1,
+            ),
+        ]
+    )
+    db.commit()
+
+    login = client.post(
+        "/api/v1/tenant/auth/login",
+        json={"identificador": "ledger_owner", "password": password},
+    )
+    assert login.status_code == 200
+
+    response = client.get(
+        f"/api/v1/tenant/accounting/chart-of-accounts/{cash.id}/ledger"
+        "?fecha_desde=2026-02-01&fecha_hasta=2026-02-28",
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    assert response.status_code == 200, response.text
+
+    data = response.json()
+    assert data["cuenta_codigo"] == "570"
+    assert Decimal(data["saldo_inicial"]) == Decimal("100.00")
+    assert Decimal(data["total_debe"]) == Decimal("25.00")
+    assert Decimal(data["total_haber"]) == Decimal("0.00")
+    assert Decimal(data["saldo_final"]) == Decimal("125.00")
+    assert [m["asiento_numero"] for m in data["movimientos"]] == ["ASI-2026-0002"]
