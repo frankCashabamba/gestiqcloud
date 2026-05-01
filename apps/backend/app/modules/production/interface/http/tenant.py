@@ -188,6 +188,7 @@ def _resolve_recipe_line_package_cost(
 def _resolve_recipe_line_unit_cost(
     ingredient: RecipeIngredient,
     product: Product | None = None,
+    catalog_unit_cost: Decimal | None = None,
 ) -> Decimal:
     qty = Decimal(str(getattr(ingredient, "qty", 0) or 0))
     ingredient_cost = Decimal(str(getattr(ingredient, "ingredient_cost", 0) or 0))
@@ -202,6 +203,9 @@ def _resolve_recipe_line_unit_cost(
     product_cost = Decimal(str(getattr(product, "cost_price", 0) or 0))
     if product_cost > 0:
         return product_cost
+
+    if catalog_unit_cost is not None and catalog_unit_cost > 0:
+        return catalog_unit_cost
 
     return Decimal("0")
 
@@ -681,6 +685,17 @@ async def _create_stock_move_for_output(
         stmt = stmt.where(StockItem.lot.is_(None))
     result = db.execute(stmt)
     stock_item = result.scalar_one_or_none()
+    if not stock_item and order.batch_number:
+        reusable_stmt = select(StockItem).where(
+            StockItem.tenant_id == order.tenant_id,
+            StockItem.product_id == order.product_id,
+            StockItem.warehouse_id == warehouse_id,
+            StockItem.lot.is_(None),
+            StockItem.qty == 0,
+        )
+        stock_item = db.execute(reusable_stmt).scalar_one_or_none()
+        if stock_item:
+            stock_item.lot = order.batch_number
     if stock_item:
         stock_item.qty = float(stock_item.qty or 0) + abs(float(order.qty_produced))
     else:
@@ -875,6 +890,23 @@ async def list_production_orders(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
+    if not isinstance(skip, int):
+        skip = 0
+    if not isinstance(limit, int):
+        limit = 100
+    if not isinstance(status, str):
+        status = None
+    if not isinstance(recipe_id, UUID):
+        recipe_id = None
+    if not isinstance(date_from, str):
+        date_from = None
+    if not isinstance(date_to, str):
+        date_to = None
+    if not isinstance(scheduled_from, str):
+        scheduled_from = None
+    if not isinstance(scheduled_to, str):
+        scheduled_to = None
+
     tenant_id = UUID(claims["tenant_id"])
     query = select(ProductionOrder).where(ProductionOrder.tenant_id == tenant_id)
     if status:

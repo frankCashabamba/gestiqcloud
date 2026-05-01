@@ -56,7 +56,7 @@ def with_access_claims(request: Request) -> dict[str, Any]:
 
     # Test bypass: if running under pytest, honor real tokens when provided;
     # otherwise inject permissive tenant-scoped claims so tenant routes keep working.
-    if "PYTEST_CURRENT_TEST" in os.environ:
+    if "PYTEST_CURRENT_TEST" in os.environ and os.getenv("PYTEST_DISABLE_AUTH_BYPASS") != "1":
         auth_hdr = request.headers.get("Authorization", "")
         if auth_hdr.startswith("Bearer "):
             token = auth_hdr.split(" ", 1)[1].strip()

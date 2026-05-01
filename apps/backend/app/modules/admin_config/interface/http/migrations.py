@@ -67,6 +67,16 @@ def _ensure_schema_migrations_table(db: Session) -> None:
     """Crea schema_migrations si no existe y la siembra desde _migrations."""
     try:
         db.execute(text(_schema_migrations_ddl(db)))
+        if db.bind and db.bind.dialect.name == "postgresql":
+            db.execute(text("CREATE SEQUENCE IF NOT EXISTS schema_migrations_id_seq"))
+            db.execute(
+                text(
+                    """
+                    ALTER TABLE schema_migrations
+                    ALTER COLUMN id SET DEFAULT nextval('schema_migrations_id_seq')
+                    """
+                )
+            )
         # Sembrar desde _migrations (runner idempotente) si la tabla existe,
         applied_versions = load_applied_sql_migration_names(db)
         known_versions = set(list_sql_migration_names()) | applied_versions

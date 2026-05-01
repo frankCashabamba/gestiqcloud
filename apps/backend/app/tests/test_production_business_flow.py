@@ -506,7 +506,7 @@ def test_planning_suggestions_use_recent_sales_stock_and_existing_plan(
             warehouse_id=warehouse.id,
             gross_total=Decimal("12.00"),
             tax_total=Decimal("1.20"),
-            currency="EUR",
+            currency="USD",
             paid_at=created_at,
             created_at=created_at,
         )

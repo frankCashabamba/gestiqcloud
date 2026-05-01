@@ -382,8 +382,8 @@ def _sector_kpis_payload(
             SELECT COALESCE(SUM(total), 0) as total
             FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
-            AND DATE(fecha) >= :month_start
-            AND estado IN ('posted', 'einvoice_sent', 'paid')
+            AND DATE(issue_date) >= :month_start
+            AND status IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
                 tenant_params(month_start=month_start),
@@ -397,8 +397,8 @@ def _sector_kpis_payload(
                     f"""
             SELECT COUNT(*) FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
-            AND DATE(fecha) = :today
-            AND estado IN ('posted', 'einvoice_sent', 'paid')
+            AND DATE(issue_date) = :today
+            AND status IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
                 tenant_params(today=today),
@@ -412,8 +412,8 @@ def _sector_kpis_payload(
                     f"""
             SELECT COUNT(*) FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
-            AND DATE(fecha) >= :month_start
-            AND estado IN ('posted', 'einvoice_sent', 'paid')
+            AND DATE(issue_date) >= :month_start
+            AND status IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
                 tenant_params(month_start=month_start),
@@ -591,8 +591,8 @@ def _sector_kpis_payload(
             SELECT COALESCE(SUM(total), 0)
             FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
-            AND DATE(fecha) = :today
-            AND estado IN ('posted', 'einvoice_sent', 'paid')
+            AND DATE(issue_date) = :today
+            AND status IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
                 tenant_params(today=today),

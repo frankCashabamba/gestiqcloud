@@ -160,17 +160,19 @@ def test_purge_all_importador_preserves_learning_memory(db, tenant_minimal):
         recipe_snapshot_id=snapshot.id,
     )
     db.add(vendor_snapshot)
+    active_value = True if db.get_bind().dialect.name == "postgresql" else 1
     db.execute(
         sa_text(
             "INSERT INTO imp_field_alias "
             "(id, tenant_id, canonical_field, alias, priority, source, confirmed_count, active) "
-            "VALUES (:id, :tenant_id, :canonical_field, :alias, 5, 'learned', 1, 1)"
+            "VALUES (:id, :tenant_id, :canonical_field, :alias, 5, 'learned', 1, :active)"
         ),
         {
             "id": str(uuid4()),
             "tenant_id": str(tenant_id),
             "canonical_field": "supplier_ref",
             "alias": "ref proveedor",
+            "active": active_value,
         },
     )
     db.execute(
@@ -264,17 +266,19 @@ def test_purge_full_importador_removes_learning_memory(db, tenant_minimal):
         recipe_snapshot_id=snapshot.id,
     )
     db.add(vendor_snapshot)
+    active_value = True if db.get_bind().dialect.name == "postgresql" else 1
     db.execute(
         sa_text(
             "INSERT INTO imp_field_alias "
             "(id, tenant_id, canonical_field, alias, priority, source, confirmed_count, active) "
-            "VALUES (:id, :tenant_id, :canonical_field, :alias, 5, 'learned', 1, 1)"
+            "VALUES (:id, :tenant_id, :canonical_field, :alias, 5, 'learned', 1, :active)"
         ),
         {
             "id": str(uuid4()),
             "tenant_id": str(tenant_id),
             "canonical_field": "supplier_ref",
             "alias": "ref proveedor",
+            "active": active_value,
         },
     )
     db.execute(

@@ -51,7 +51,7 @@ class SalesOrderItem(Base):
     order_id: Mapped[uuid.UUID] = mapped_column(
         "sales_order_id", TENANT_UUID, nullable=False, index=True
     )
-    product_id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
+    product_id: Mapped[uuid.UUID | None] = mapped_column(TENANT_UUID, nullable=True)
     qty: Mapped[float] = mapped_column("quantity", Numeric(14, 3), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     tax_rate: Mapped[float] = mapped_column(

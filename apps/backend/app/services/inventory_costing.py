@@ -213,8 +213,8 @@ class InventoryCostingService:
         self.db.execute(
             text(
                 "INSERT INTO inventory_cost_layers "
-                "(tenant_id, warehouse_id, product_id, lot, expires_at, remaining_qty, unit_cost) "
-                "VALUES (:tid, :wid, :pid, :lot, :exp, :qty, :cost)"
+                "(tenant_id, warehouse_id, product_id, lot, expires_at, remaining_qty, unit_cost, created_at) "
+                "VALUES (:tid, :wid, :pid, :lot, :exp, :qty, :cost, :created_at)"
             ),
             {
                 "tid": tenant_id,
@@ -224,6 +224,7 @@ class InventoryCostingService:
                 "exp": expires_at,
                 "qty": float(qty),
                 "cost": float(unit_cost),
+                "created_at": datetime.now(UTC),
             },
         )
 

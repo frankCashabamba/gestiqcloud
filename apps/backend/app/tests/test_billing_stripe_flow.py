@@ -56,16 +56,25 @@ def _ensure_billing_tables(db) -> None:
 
 
 def _seed_plan(db, *, plan_id: str) -> None:
+    if db.get_bind().dialect.name == "postgresql":
+        modules_expr = "ARRAY['customers', 'users', 'einvoicing']"
+        features_expr = "'{}'::jsonb"
+        active_expr = "true"
+    else:
+        modules_expr = "'[\"customers\", \"users\", \"einvoicing\"]'"
+        features_expr = "'{}'"
+        active_expr = "1"
+
     db.execute(
         text(
-            """
+            f"""
             INSERT INTO subscription_plans (
                 id, name, display_name, price_monthly, price_yearly,
                 max_users, max_branches, included_modules, features, is_active,
                 stripe_price_id_monthly, stripe_price_id_yearly, sort_order
             ) VALUES (
                 :id, 'pro', 'Pro', 29, 290,
-                10, 3, '[\"customers\", \"users\", \"einvoicing\"]', '{}', 1,
+                10, 3, {modules_expr}, {features_expr}, {active_expr},
                 'price_monthly_pro', 'price_yearly_pro', 1
             )
             """

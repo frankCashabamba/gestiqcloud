@@ -27,7 +27,9 @@ class SqlCompanyRepo(SqlAlchemyRepo, CompanyRepo):
         )
 
     def list_all(self) -> Sequence[CompanyDTO]:
-        logger.debug("DB URL: %s", str(self.db.get_bind().url))
+        bind = self.db.get_bind()
+        url = getattr(bind, "url", None) or getattr(getattr(bind, "engine", None), "url", None)
+        logger.debug("DB URL: %s", str(url))
         rows = self.db.query(CompanyORM).order_by(CompanyORM.id.desc()).limit(200).all()
         logger.debug("Companies found: %d", len(rows))
         return [self._to_dto(e) for e in rows]

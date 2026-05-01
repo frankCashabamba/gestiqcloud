@@ -291,26 +291,31 @@ def _truncate_pg_test_db_once(engine) -> None:
     _pg_test_db_cleaned = True
 
 
-@pytest.fixture(scope="session")
-def client() -> TestClient:
-    from app.config.database import Base, SessionLocal, engine
+@pytest.fixture
+def client(db) -> TestClient:
+    from app.config import database as database_module
+    from app.config.database import Base, engine
 
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
-    _create_tables_in_order(engine, Base.metadata)
-    _ensure_sqlite_stub_tables(engine)
-    _ensure_default_tenant(engine)
-    session = SessionLocal()
-    try:
-        _ensure_ui_field_config_scope_rules(session)
-    finally:
-        session.close()
+    if engine.dialect.name != "postgresql":
+        _create_tables_in_order(engine, Base.metadata)
+        _ensure_sqlite_stub_tables(engine)
+        _ensure_default_tenant(engine)
+    _ensure_ui_field_config_scope_rules(db)
 
     # Import the app only after DB is prepared to avoid importing PG-only models
     from app.main import app
 
-    return TestClient(app)
+    def _override_get_db():
+        yield db
+
+    app.dependency_overrides[database_module.get_db] = _override_get_db
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(database_module.get_db, None)
 
 
 @pytest.fixture
@@ -926,7 +931,8 @@ def _ensure_sqlite_stub_tables(engine):
     # Some tests touch modulos_moduloasignado; create a minimal stub in SQLite
     from sqlalchemy import text
 
-    if str(engine.url).startswith("sqlite"):
+    url = getattr(engine, "url", None) or getattr(getattr(engine, "engine", None), "url", None)
+    if str(url).startswith("sqlite"):
         with engine.connect() as conn:
             conn.execute(
                 text(
@@ -1192,6 +1198,15 @@ def _ensure_pg_defaults(engine):
         "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN tax SET DEFAULT 0",
         "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN total SET DEFAULT 0",
         "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN currency SET DEFAULT 'USD'",
+        "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN deposit_amount SET DEFAULT 0",
+        "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN deposit_paid SET DEFAULT false",
+        "UPDATE sales_orders SET deposit_amount = 0 WHERE deposit_amount IS NULL",
+        "UPDATE sales_orders SET deposit_paid = false WHERE deposit_paid IS NULL",
+        "ALTER TABLE IF EXISTS clients ALTER COLUMN is_wholesale SET DEFAULT false",
+        "UPDATE clients SET is_wholesale = false WHERE is_wholesale IS NULL",
+        "ALTER TABLE IF EXISTS scheduled_reports ALTER COLUMN is_active SET DEFAULT true",
+        "ALTER TABLE IF EXISTS imp_field_alias ALTER COLUMN active SET DEFAULT true",
+        "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN product_id DROP NOT NULL",
         "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN tax_rate SET DEFAULT 0",
         "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN discount_percent SET DEFAULT 0",
         "ALTER TABLE IF EXISTS products ALTER COLUMN tax_rate SET DEFAULT 0",

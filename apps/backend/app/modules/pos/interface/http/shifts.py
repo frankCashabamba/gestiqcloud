@@ -478,7 +478,7 @@ def close_shift(
         if pending and pending > 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"No se puede cerrar el turno. Hay {pending} recibo(s) en borrador sin finalizar.",
+                detail=f"No se puede cerrar el turno. Hay {pending} recibo(s) pendiente(s) sin cobrar.",
             )
 
         shift_data = db.execute(

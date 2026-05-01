@@ -115,6 +115,10 @@ class DocumentModel(BaseModel):
     payments: list[PaymentIn]
     render: RenderInfo
 
+    @property
+    def info(self) -> DocumentInfo:
+        return self.document
+
 
 def _q2(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

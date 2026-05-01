@@ -44,7 +44,7 @@ def tenant_q(db: Session):
     SalesOrder.__table__.create(bind=bind, checkfirst=True)
     SalesOrderItem.__table__.create(bind=bind, checkfirst=True)
     tid = uuid.uuid4()
-    db.add(Tenant(id=tid, name=f"Q-{tid.hex[:4]}", slug=f"q-{tid.hex[:8]}"))
+    db.add(Tenant(id=tid, name=f"Q-{tid.hex[:4]}", slug=f"q-{tid.hex[:8]}", base_currency="EUR"))
     db.commit()
     return {"tenant_id": tid}
 
@@ -70,7 +70,8 @@ def _payload() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_list_quotes_requires_auth(client: TestClient) -> None:
+def test_list_quotes_requires_auth(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYTEST_DISABLE_AUTH_BYPASS", "1")
     r = client.get(BASE)
     assert r.status_code in (401, 403)
 

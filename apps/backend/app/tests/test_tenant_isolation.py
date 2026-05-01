@@ -19,6 +19,11 @@ def two_tenants(db: Session):
     """Create two isolated tenants for cross-tenant tests."""
     if db.get_bind().dialect.name != "postgresql":
         pytest.skip("Postgres required for RLS isolation tests")
+    is_superuser = db.execute(
+        text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+    ).scalar()
+    if is_superuser:
+        pytest.skip("RLS isolation cannot be asserted with a PostgreSQL superuser")
 
     tid_a = uuid.uuid4()
     tid_b = uuid.uuid4()

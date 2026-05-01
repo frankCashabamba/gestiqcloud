@@ -13,6 +13,7 @@ behavior.
 from __future__ import annotations
 
 import uuid
+import importlib
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
@@ -76,7 +77,7 @@ def _insert_schedule(
             "fmt": "json",
             "freq": frequency,
             "cron": cron_expression,
-            "is_active": 1 if is_active else 0,
+            "is_active": is_active if db.get_bind().dialect.name == "postgresql" else (1 if is_active else 0),
             "next_scheduled_at": next_scheduled_at,
             "now": now,
         },
@@ -147,9 +148,7 @@ def test_process_due_scheduled_reports_picks_due_rows(patched_session):
 
     # Stub the use-case so the scheduler isn't tied to the full sales graph.
     with mock.patch.object(
-        reports_tasks.__import__(
-            "app.modules.reports.application.use_cases", fromlist=["GenerateReportUseCase"]
-        ),
+        importlib.import_module("app.modules.reports.application.use_cases"),
         "GenerateReportUseCase",
     ) as UC:
         UC.return_value.execute.return_value = {"id": "x"}
@@ -181,15 +180,15 @@ def test_process_due_scheduled_reports_advances_next_scheduled_at(patched_sessio
     from app.workers import reports_tasks
 
     with mock.patch.object(
-        reports_tasks.__import__(
-            "app.modules.reports.application.use_cases", fromlist=["GenerateReportUseCase"]
-        ),
+        importlib.import_module("app.modules.reports.application.use_cases"),
         "GenerateReportUseCase",
     ) as UC:
         UC.return_value.execute.return_value = {"id": "x"}
         before = datetime.now(UTC)
+        before_local = datetime.now()
         reports_tasks.process_due_scheduled_reports()
         after = datetime.now(UTC)
+        after_local = datetime.now()
 
     row = db.execute(
         text(
@@ -211,6 +210,10 @@ def test_process_due_scheduled_reports_advances_next_scheduled_at(patched_sessio
     delta = next_run - last_gen
     assert timedelta(hours=23, minutes=59) <= delta <= timedelta(hours=24, minutes=1)
     # And the run timestamp itself must fall inside the test execution window.
-    naive_before = before.replace(tzinfo=None)
-    naive_after = after.replace(tzinfo=None)
+    if db.get_bind().dialect.name == "postgresql" and last_gen.tzinfo is None:
+        naive_before = before_local
+        naive_after = after_local
+    else:
+        naive_before = before.replace(tzinfo=None)
+        naive_after = after.replace(tzinfo=None)
     assert naive_before - timedelta(seconds=1) <= last_gen <= naive_after + timedelta(seconds=1)

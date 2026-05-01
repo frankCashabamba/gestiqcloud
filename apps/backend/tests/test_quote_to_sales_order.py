@@ -23,7 +23,7 @@ def _ensure_tables(db: Session) -> None:
 
 def _make_tenant(db: Session) -> uuid.UUID:
     tid = uuid.uuid4()
-    db.add(Tenant(id=tid, name=f"T-{tid.hex[:6]}", slug=f"t-{tid.hex[:8]}"))
+    db.add(Tenant(id=tid, name=f"T-{tid.hex[:6]}", slug=f"t-{tid.hex[:8]}", base_currency="EUR"))
     db.commit()
     return tid
 
@@ -40,8 +40,7 @@ def _make_quote(
         number=f"Q-{uuid.uuid4().hex[:8]}",
         customer_id=uuid.uuid4(),
         status=status,
-        lines=lines
-        or [
+        lines=[
             {
                 "product_id": str(uuid.uuid4()),
                 "name": "Item A",
@@ -51,7 +50,9 @@ def _make_quote(
                 "discount_percent": 0,
                 "line_total": 24.20,
             }
-        ],
+        ]
+        if lines is None
+        else lines,
         subtotal=20.0,
         tax=4.20,
         total=24.20,

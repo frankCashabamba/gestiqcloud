@@ -134,6 +134,16 @@ class ProductionOrderCompleteRequest(BaseModel):
     completed_at: datetime | None = Field(default_factory=lambda: datetime.now(UTC))
     notes: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_names(cls, values):
+        if isinstance(values, dict):
+            if "qty_produced" in values and "quantity_produced" not in values:
+                values["quantity_produced"] = values.pop("qty_produced")
+            if "waste_qty" in values and "waste_quantity" not in values:
+                values["waste_quantity"] = values.pop("waste_qty")
+        return values
+
     @property
     def qty_produced(self) -> Decimal:
         return self.quantity_produced
@@ -250,6 +260,18 @@ class ProductionPlanningSuggestion(BaseModel):
     stock_on_hand: Decimal
     already_planned_quantity: Decimal
     suggested_quantity: Decimal
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_names(cls, values):
+        if isinstance(values, dict):
+            if "avg_daily_sales" in values and "average_daily_sales" not in values:
+                values["average_daily_sales"] = values.pop("avg_daily_sales")
+            if "already_planned_qty" in values and "already_planned_quantity" not in values:
+                values["already_planned_quantity"] = values.pop("already_planned_qty")
+            if "suggested_qty" in values and "suggested_quantity" not in values:
+                values["suggested_quantity"] = values.pop("suggested_qty")
+        return values
 
     @property
     def avg_daily_sales(self) -> Decimal:

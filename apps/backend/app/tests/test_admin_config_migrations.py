@@ -94,11 +94,12 @@ def test_schema_migrations_sync_preserves_ignored_rows_until_applied(db, monkeyp
             """
         )
     )
+    schema_id_type = "SERIAL PRIMARY KEY" if db.get_bind().dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
     db.execute(
         text(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS schema_migrations (
-                id INTEGER PRIMARY KEY,
+                id {schema_id_type},
                 version VARCHAR NOT NULL UNIQUE,
                 name VARCHAR,
                 status VARCHAR NOT NULL DEFAULT 'pending',

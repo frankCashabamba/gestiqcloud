@@ -83,7 +83,7 @@ class Employee(Base):
     id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True).with_variant(String(36), "sqlite"),
-        ForeignKey(schema_column("tenants"), ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="Tenant owner of the employee record",
