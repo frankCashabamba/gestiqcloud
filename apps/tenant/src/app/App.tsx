@@ -85,7 +85,7 @@ export default function App() {
       <Suspense fallback={null}>
         <OfflineBanner />
         <ConflictResolver onConflictResolved={() => {
-          console.log('Conflict resolved - UI updated')
+          if (import.meta.env.DEV) { console.log('Conflict resolved - UI updated') }
         }} />
         <OfflineSyncDashboard position='bottom-right' compact={false} />
       </Suspense>

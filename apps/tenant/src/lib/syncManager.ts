@@ -58,7 +58,7 @@ class SyncManager {
 
   registerAdapter(adapter: SyncAdapter) {
     this.adapters.set(adapter.entity, adapter)
-    console.log(`[offline] Registered sync adapter for: ${adapter.entity}`)
+    if (import.meta.env.DEV) { console.log(`[offline] Registered sync adapter for: ${adapter.entity}`) }
   }
 
   async syncAll(): Promise<SyncResult[]> {
@@ -101,7 +101,7 @@ class SyncManager {
     const pending = await listEntities(entity)
     const pendingItems = pending.filter(i => i.syncStatus === 'pending' || i.syncStatus === 'failed')
 
-    console.log(`[offline] Syncing ${entity}: ${pendingItems.length} pending items`)
+    if (import.meta.env.DEV) { console.log(`[offline] Syncing ${entity}: ${pendingItems.length} pending items`) }
 
     for (const item of pendingItems) {
       try {
@@ -177,7 +177,7 @@ class SyncManager {
 
     const duration = Date.now() - startTime
 
-    console.log(`[offline] Sync complete for ${entity}: ${synced} synced, ${failed} failed, ${conflicts} conflicts in ${duration}ms`)
+    if (import.meta.env.DEV) { console.log(`[offline] Sync complete for ${entity}: ${synced} synced, ${failed} failed, ${conflicts} conflicts in ${duration}ms`) }
 
     const result: SyncResult = { entity, synced, failed, conflicts, duration }
     if (emitComplete) {
@@ -226,7 +226,7 @@ class SyncManager {
         // Note: UI should refetch data after this
       }
 
-      console.log(`[offline] Conflict resolved for ${entity}:${id} (${resolution})`)
+      if (import.meta.env.DEV) { console.log(`[offline] Conflict resolved for ${entity}:${id} (${resolution})`) }
     } catch (error) {
       console.error(`Failed to resolve conflict:`, error)
       throw error

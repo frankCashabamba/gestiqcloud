@@ -67,7 +67,7 @@ export async function initOfflineStore() {
     metadataStore = createStore(DB_NAME, METADATA_STORE)
     dbInitialized = true
 
-    console.log('[offline] OfflineStore initialized')
+    if (import.meta.env.DEV) { console.log('[offline] OfflineStore initialized') }
   } catch (error) {
     console.error('[offline] Failed to initialize OfflineStore:', error)
     dbInitialized = false
@@ -313,7 +313,7 @@ export async function clearAllOfflineData(): Promise<void> {
     await del(key, metaStore)
   }
 
-  console.log('[offline] All offline data cleared')
+  if (import.meta.env.DEV) { console.log('[offline] All offline data cleared') }
 }
 
 export async function getStorageStats(): Promise<{
@@ -347,6 +347,6 @@ export async function debugDump(entity?: EntityType): Promise<void> {
     console.groupEnd()
   } else {
     const stats = await getStorageStats()
-    console.log('[offline] Store statistics:', stats)
+    if (import.meta.env.DEV) { console.log('[offline] Store statistics:', stats) }
   }
 }

@@ -1,6 +1,7 @@
 # Módulos Bloqueados — Desglose Técnico
 
 Fecha: 2026-04-30
+Última revisión: 2026-04-30 (auditoría completa de código sobre commit actual, main)
 Fuente: auditoría de código sobre commit actual (main)
 
 Este documento detalla qué falta exactamente en cada módulo bloqueado para llegar a producción,
@@ -18,9 +19,9 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 | Reports        | 3 generadores funcionales, scheduled sin Celery     | Mediano                | Reportes programados nunca se ejecutan                    |
 | Documents/Quotes | Funcional solo para Ecuador, sin quotes           | Pequeño-Mediano        | Documentos España con formato Ecuador incorrecto          |
 | AI Agent       | Funcional con credenciales, auto-resolve es mock    | Mediano                | Incidentes marcados como resueltos sin serlo              |
-| Restaurant     | Router no montado — inaccesible desde API           | Grande                 | 404 en todo el módulo; sin integración fiscal             |
-| Historical     | Funcional, RLS añadido, upload aún bloqueante       | Mediano                | Upload grande puede bloquear servidor                     |
-| Analytics      | Módulo vacío / no validado como producto            | Pequeño-Mediano        | Registrar un módulo sin funcionalidad real                |
+| Restaurant     | Router montado; CRUD funcional, sin integración fiscal/caja | Grande           | Comandas no generan comprobante fiscal; impuestos a cero  |
+| Historical     | Funcional, RLS+async+hash dedupe completos; pendiente UX progreso | Pequeño     | Sin feedback progreso en frontend; riesgo de re-upload    |
+| Analytics      | Backend KPIs por sector implementados, sin frontend | Pequeño-Mediano        | API disponible pero sin UI tenant que la consuma          |
 
 ---
 
@@ -46,11 +47,11 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 4. **XML SII incorrecto**: `SIIService.generate_xml()` genera `<factura version="3.2.1">` sin la estructura real de FacturaE 3.2.1 (`<FileHeader>`, `<Parties>`, etc.). `facturae_xml.py` sí implementa el formato real pero solo lo usa el endpoint de export, no el de envío SII.
 
-5. **Campo `<ambiente>` hardcodeado**: `einvoicing_tasks.py` línea 101 fija `ambiente = "1"` (pruebas) en el XML SRI. El campo `env` llega del request pero no se aplica al XML generado — facturas reales siempre se envían al entorno de pruebas del SRI.
+5. **Campo `<ambiente>` hardcodeado**: `workers/einvoicing_tasks.py` línea 101 fija `ambiente = "1"` (pruebas) en el XML SRI. El campo `env` llega del request al endpoint `/sri/send` pero NO se propaga al worker XAdES; facturas reales siempre se envían al entorno de pruebas del SRI. Verificado en auditoría 2026-04-30.
 
-6. **Sin UI para certificado digital**: no hay pantalla para subir el `.p12` del tenant. La firma XAdES-BES necesita `cert_data["p12_base64"]` desde `EInvoicingCountrySettings`, que no tiene formulario de creación.
+6. **Sin UI para certificado digital**: no hay pantalla para subir el `.p12` del tenant. Solo existe una clave i18n `certUploaded` en `settings.json` sin componente React asociado. La firma XAdES-BES necesita `cert_data["p12_base64"]` desde `EInvoicingCountrySettings`, que no tiene formulario de creación.
 
-7. **`EInvoicingCountrySettings` no tiene endpoint de creación**: si el tenant no tiene settings, `POST /sri/send` devuelve HTTP 422 "SRI settings not configured" sin guía de resolución.
+7. **`EInvoicingCountrySettings` no tiene endpoint de creación**: si el tenant no tiene settings, `POST /sri/send` devuelve HTTP 422 "SRI settings not configured" sin guía de resolución. No existe ningún endpoint `POST /einvoicing/settings` ni similar. Verificado en auditoría 2026-04-30.
 
 ### C) Estimación de esfuerzo
 
@@ -77,9 +78,9 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1. **[HECHO 2026-04-30] Libro Mayor con endpoint propio**: existe `GET /accounting/chart-of-accounts/{id}/ledger` con saldo inicial, movimientos `POSTED` en rango y saldo corrido. `LibroMayor.tsx` ya consume este endpoint en vez de agrupar todos los asientos client-side.
 
-2. **Balance y P&G sin endpoint de backend**: `PerdidasGanancias.tsx` calcula en frontend con datos del libro diario (`utils/reportesContables.ts`). Exactitud no garantizada para cierres contables reales.
+2. **[HECHO 2026-04-30] Balance y P&G con endpoints de backend**: `GET /accounting/reports/profit-loss` (rango de fechas, agrupa por cuenta INCOME/EXPENSE con asientos POSTED, valida rango ≤366 días) y `GET /accounting/reports/balance-sheet` (fecha de corte, agrupa ASSET/LIABILITY/EQUITY, verifica ecuación contable con warning en log). `PerdidasGanancias.tsx` reescrito para consumir el endpoint; nuevo componente `BalanceSituacion.tsx` creado. Schemas Pydantic `ReportAccountLine`, `ProfitLossReportResponse`, `BalanceSheetReportResponse` añadidos a `app/schemas/accounting.py`. Ruta `/balance` añadida en Routes.tsx y Panel.tsx.
 
-3. **Asientos automáticos no integrados**: ventas, compras y caja no llaman a `create_posted_entry()` automáticamente — el usuario crea asientos manualmente. Contabilidad siempre desactualizda si no hay disciplina manual.
+3. **Asientos automáticos no integrados**: solo el módulo `expenses` llama a `create_posted_entry()` automáticamente. Ventas (`modules/sales`), compras (`modules/purchases`) y caja (`modules/pos`) no generan asientos — la contabilidad siempre queda incompleta sin disciplina manual. Verificado en auditoría 2026-04-30.
 
 4. **[HECHO 2026-04-30] Variable `status` renombrada internamente**: el query param público sigue siendo `status`, pero el parámetro Python ahora es `entry_status` para evitar shadowing con `fastapi.status`.
 
@@ -87,12 +88,12 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### C) Estimación de esfuerzo
 
-**Mediano (semanas)**: La capa CRUD es sólida. Falta: endpoints de reportes financieros (P&G, balance), integración automática con ventas/compras, y corrección del bug de `status`.
+**Mediano (semanas)**: La capa CRUD es sólida. Los reportes P&G y Balance ya tienen endpoints de backend y componentes frontend. Falta: integración automática de asientos con ventas/compras/caja, asientos de cierre/apertura/regularización, y permisos granulares.
 
 ### D) Riesgos si se activa hoy
 
 - Contabilidad siempre incompleta si el usuario no crea asientos manualmente por cada transacción.
-- El listado de asientos ya no usa `status` como variable interna; quedan pendientes los riesgos contables funcionales.
+- Los reportes P&G y Balance muestran solo lo que esté contabilizado; sin asientos automáticos los saldos son parciales.
 
 ---
 
@@ -114,7 +115,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 3. **[PARCHEADO 2026-04-30] JSON inválido en webhooks falla explícitamente**: `_safe_json_loads()` lanza `invalid_webhook_json` si el payload no es JSON objeto; ya no convierte errores en `{}`.
 
-4. **Sin upload de extractos CSV/OFX**: `ImportForm.tsx` existe pero no hay endpoint de upload — `ImportStatementUseCase` espera JSON ya parseado, no un archivo.
+4. **Sin upload de extractos CSV/OFX**: `ImportForm.tsx` existe pero no hay endpoint de upload — `ImportStatementUseCase.execute()` recibe `transactions: list` (JSON ya parseado), no un `UploadFile`. El endpoint `POST /statements` acepta únicamente un body JSON con líneas ya estructuradas. Verificado en auditoría 2026-04-30.
 
 ### C) Estimación de esfuerzo
 
@@ -143,13 +144,13 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1b. **[PARCHEADO 2026-04-30] Rango máximo de reportes tenant**: `generate`, `export`, `sales`, `financial` y `schedule` rechazan rangos mayores a 366 días o invertidos.
 
-2. **`SalesReportGenerator` usa tabla `sales_orders`**: si la tabla no existe (ventas van por POS o `sales`), lanza excepción capturada silenciosamente — el usuario recibe HTTP 500 sin explicación.
+2. **`SalesReportGenerator` usa tabla `sales_orders`**: si la tabla no existe (ventas van por POS o `sales`), lanza excepción que ya NO se silencia — el endpoint devuelve HTTP 500 con `"Error generating report"` (ya no retorna datos vacíos sin advertencia). El problema de fondo (tabla errónea) sigue sin resolver. Verificado en auditoría 2026-04-30.
 
 3. **[PARCHEADO 2026-04-30] Persistencia de historial no se silencia**: si la tabla `reports` no existe o falla, la respuesta incluye `persisted: false` y `persistence_error: "reports_table_unavailable"` en vez de aparentar persistencia correcta.
 
 4. **[HECHO 2026-04-30] RLS añadido al router tenant**: el router usa `with_access_claims`, `require_scope("tenant")` y `ensure_rls`.
 
-5. **`RealProfitReport.tsx` sin endpoint de margen real**: el backend calcula `SUM(invoices.total) - SUM(purchases.total)`, no costo real por producto. El margen mostrado es aproximado.
+5. **[PARCHEADO 2026-04-30] `RealProfitReport.tsx` ahora usa endpoint de snapshots con costo real**: el frontend llama a `GET /reports/profit` y `POST /reports/recalculate`. El `RecalculationService` calcula COGS usando `recipe.unit_cost` o `product.cost_price` por producto. Sigue pendiente que Celery beat recalcule snapshots automáticamente cada noche (hoy solo se recalcula bajo demanda con el botón).
 
 ### C) Estimación de esfuerzo
 
@@ -158,7 +159,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 ### D) Riesgos si se activa hoy
 
 - Reportes programados no deben activarse hasta implementar Celery beat real. El endpoint de creación queda cerrado por defecto para evitar falsas alertas.
-- `SalesReportGenerator` puede devolver reportes vacíos sin advertencia si `sales_orders` no existe.
+- `SalesReportGenerator` devuelve HTTP 500 explícito si `sales_orders` no existe (ya no retorna datos vacíos sin advertencia), pero la causa sigue sin resolverse — la tabla de ventas correcta es `invoices` o `pos_receipts`.
 
 ---
 
@@ -178,7 +179,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 2. **Sin flujo de Quotes/Proformas**: el módulo se llama "Documents/Quotes" pero solo tiene draft/issue de facturas. No existe proforma → aprobación → conversión a factura.
 
-3. **Sin endpoint de listado**: no hay `GET /documents/` ni `GET /documents/{id}` — sin historial de documentos desde la API.
+3. **[HECHO 2026-04-30] Endpoint de listado montado**: `document_storage.py` (prefix `/documents/storage`) ahora está montado en `platform/http/router.py` bajo `/tenant`. Los endpoints `GET /tenant/documents/storage`, `GET /tenant/documents/storage/{document_id}` y `POST /tenant/documents/storage/upload` son accesibles con scope tenant + RLS.
 
 4. **Sin frontend dedicado**: las funciones de documento están integradas en `billing/` — el módulo `documents/` no tiene pantallas propias en el tenant.
 
@@ -237,11 +238,11 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### B) Qué falta o está roto
 
-1. **Router no montado en `platform/http/router.py`**: el módulo no está registrado — **todos los endpoints devuelven 404**. El frontend apunta a `/api/v1/tenant/restaurant/*` que no existe en el servidor.
+1. **[HECHO 2026-04-30] Router montado en `platform/http/router.py`**: `app.modules.restaurant.interface.http.tenant` ahora está registrado con prefix `/tenant`. Los endpoints `/api/v1/tenant/restaurant/tables`, `/api/v1/tenant/restaurant/orders`, etc. son accesibles. El módulo sigue con `enabled: false` en el manifest frontend hasta completar integración fiscal/caja.
 
 1b. **[PARCHEADO 2026-04-30] Manifest frontend deshabilitado por defecto**: `apps/tenant/src/modules/restaurant/manifest.ts` incluye `enabled: false` para evitar exposición accidental mientras el backend y el flujo fiscal/caja siguen incompletos.
 
-2. **`_recalculate_order_totals()` líneas 698-699**: `tax_total = 0.0` hardcodeado — impuestos siempre cero.
+2. **`_recalculate_order_totals()` línea 702**: `tax_total = 0.0` hardcodeado — impuestos siempre cero. Verificado en auditoría 2026-04-30: sin cambios.
 
 3. **[PARCHEADO 2026-04-30] Cierre de comanda bloqueado**: `POST /orders/{id}/close` devuelve HTTP 501 `restaurant_close_requires_pos_billing_integration` para no marcar comandas como pagadas sin POS/facturación.
 
@@ -276,7 +277,7 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 1. **[HECHO 2026-04-30] RLS añadido al router**: `interface/http/tenant.py` ahora usa `with_access_claims`, `require_scope("tenant")` y `ensure_rls`.
 
-2. **Upload bloqueante en hilo principal**: `UploadHistoricalFileUseCase.execute()` es síncrono con pandas. El endpoint `POST /upload` es `async def` pero no usa `run_in_executor` — bloquea el event loop de FastAPI para todos los usuarios durante el upload.
+2. **[HECHO 2026-04-30] Upload no bloqueante con `asyncio.to_thread`**: el endpoint `POST /upload` ahora delega `UploadHistoricalFileUseCase.execute()` a un thread de I/O via `asyncio.to_thread`, liberando el event loop de FastAPI durante el procesamiento pandas. Se abre una sesión SQLAlchemy dedicada en el thread con el contexto RLS copiado de la sesión de request.
 
 3. **[PARCHEADO 2026-04-30] Upsert de maestros ya no silencia errores**: los fallos de maestros en ventas/compras se registran con `logger.warning(..., exc_info=True)`; el import principal sigue su curso, pero el error queda trazable.
 
@@ -284,18 +285,18 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 5. **[HECHO 2026-04-30] Sin default a `date.today()`**: si una fila no tiene fecha válida, falla esa fila con `missing_fecha` en vez de importarse con la fecha actual.
 
-6. **[PARCHEADO 2026-04-30] Deduplicación básica sin migración**: el importador bloquea re-subidas con mismo tenant, tipo, nombre y tamaño cuando ya existe una importación `processing` o `completed`. Sigue pendiente deduplicación fuerte por hash/constraint.
+6. **[HECHO 2026-04-30] Deduplicación fuerte por hash SHA-256**: se calcula `hashlib.sha256(file_bytes).hexdigest()` antes de procesar; se consulta `hist_imports` por `(tenant_id, file_hash, status IN ('processing','completed'))`. Si hay coincidencia se rechaza con HTTP 409 `duplicate_file_hash`. El hash se persiste en la columna `file_hash VARCHAR(64)` (migración `2026-04-30_001_historical_file_hash`). Se mantiene también el fallback por nombre/tamaño para imports anteriores sin hash.
 
 7. **Sin feedback de progreso en frontend**: para archivos grandes el usuario no sabe si el upload sigue procesando — puede re-subir creyendo que falló, duplicando datos.
 
 ### C) Estimación de esfuerzo
 
-**Mediano (semanas)**: El núcleo de importación funciona. Bloqueantes restantes: upload asíncrono con Celery y deduplicación fuerte por hash/constraint.
+**Pequeño-Mediano**: El núcleo de importación funciona. Los dos bloqueantes principales (upload asíncrono y deduplicación fuerte por hash) quedan resueltos. Bloqueante restante: feedback de progreso en el frontend para archivos grandes.
 
 ### D) Riesgos si se activa hoy
 
-- Upload de archivos grandes bloquea el servidor FastAPI causando timeouts generales.
-- Doble upload idéntico queda bloqueado por nombre/tamaño/tipo; sigue pendiente deduplicación fuerte por hash.
+- Sin feedback de progreso en frontend: el usuario puede re-subir creyendo que el proceso falló (el hash evita duplicados pero la UX sigue siendo pobre para archivos grandes).
+- El procesamiento pandas corre en el thread pool del proceso uvicorn; picos de uploads masivos paralelos podrían saturar workers — suficiente para el volumen esperado, Celery queda como mejora futura.
 
 ---
 
@@ -303,16 +304,18 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 ### A) Qué está implementado
 
-- El plan de producción lo identifica como módulo existente en la matriz de módulos bloqueados.
-- No hay evidencia en esta auditoría de un flujo funcional listo para tenant, dashboard productivo, endpoints validados ni pruebas de negocio.
+- Router `dashboard/kpis` con queries SQL reales por sector: `panaderia` (ventas, stock crítico, merma, producción, ingredientes próximos a caducar), `taller` (facturación, repuestos bajos, trabajos), `retail/todoa100` (ventas, rotación de stock, reposición), `default` (ventas POS + facturas). Montado en `platform/http/router.py` vía shim `app.routers.dashboard_stats`.
+- Router `/api/v1/admin/stats` con estadísticas de tenants, usuarios y módulos.
+- Scope y `ensure_rls` correctos en `dashboard/kpis`.
+- Migración `2026-02-14_002_profit_snapshots` para `product_profit_snapshots` y `profit_snapshots_daily`.
 
 ### B) Qué falta o está roto
 
-1. **Sin definición funcional cerrada**: no consta qué métricas, dashboards o segmentos son parte del producto v1.
+1. **Sin definición funcional cerrada como módulo**: `dashboard/kpis` es un endpoint de KPIs por sector accesible, pero no existe un módulo `analytics/` dedicado en el frontend (`apps/tenant/src/modules/analytics/` no existe). Ningún componente React llama a `/api/v1/tenant/dashboard/kpis`. Los KPIs están implementados en backend pero no consumidos desde una UI de analytics. Verificado en auditoría 2026-04-30.
 
-2. **[PARCHEADO 2026-04-30] Rutas de analytics protegidas**: `dashboard/kpis` exige scope tenant y `ensure_rls`; `/api/v1/admin/stats` exige scope admin. Sigue pendiente validar alcance funcional, migraciones, frontend productivo y pruebas.
+2. **[PARCHEADO 2026-04-30] Rutas de analytics protegidas**: `dashboard/kpis` exige scope tenant y `ensure_rls`; `/api/v1/admin/stats` exige scope admin. Sigue pendiente: frontend dedicado, validación funcional con datos reales, pruebas de integración.
 
-3. **Riesgo de registro prematuro**: si se registra como módulo disponible, el usuario puede ver una funcionalidad vacía o incompleta.
+3. **Riesgo de registro prematuro**: si se registra como módulo disponible, el usuario puede ver una funcionalidad vacía o incompleta — la API existe pero no hay UI que la consuma.
 
 ### C) Estimación de esfuerzo
 
@@ -341,14 +344,15 @@ con estimación de esfuerzo y riesgos reales si se activara hoy.
 
 | # | Módulo | Acción |
 |---|--------|--------|
-| 6 | Restaurant | Registrar router en `platform/http/router.py` |
+| 6 | Restaurant | [HECHO 2026-04-30] Registrar router en `platform/http/router.py` |
 | 7 | Restaurant | Integrar `close` con módulo de caja/facturación |
-| 8 | Accounting | Crear endpoints P&G y Balance de situación |
+| 8 | Accounting | [HECHO 2026-04-30] Endpoints P&G y Balance de situación creados (`/reports/profit-loss`, `/reports/balance-sheet`); frontend actualizado |
 | 9 | Accounting | Integrar asientos automáticos con ventas/compras/caja |
-| 10 | Historical | Hacer upload asíncrono con Celery ([HECHO 2026-04-30] límite de tamaño) |
-| 11 | Historical | Añadir deduplicación por hash de archivo ([PARCHEADO 2026-04-30] dedupe básica nombre/tamaño/tipo) |
-| 12 | Reports | Implementar Celery beat para scheduled reports ([PARCHEADO 2026-04-30] creación cerrada por defecto) |
+| 10 | Historical | [HECHO 2026-04-30] Upload asíncrono con `asyncio.to_thread` (libera event loop; Celery queda como mejora futura) |
+| 11 | Historical | [HECHO 2026-04-30] Deduplicación fuerte por hash SHA-256 con columna `file_hash` y migración `2026-04-30_001_historical_file_hash` |
+| 12 | Reports | Implementar Celery beat para scheduled reports y recalculation nocturna de snapshots ([PARCHEADO 2026-04-30] creación cerrada por defecto; recalculation manual disponible) |
 | 13 | Documents | Añadir soporte España (EspañaPack) |
+| 13b | Documents | [HECHO 2026-04-30] Montar `document_storage` router en `platform/http/router.py` — endpoints `GET/POST /tenant/documents/storage` ya accesibles |
 
 ### Prioridad BAJA (mejoras y bloqueantes externos)
 

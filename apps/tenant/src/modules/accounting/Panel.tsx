@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { to: 'libro-diario', labelKey: 'accounting.nav.journal' },
   { to: 'libro-mayor', labelKey: 'accounting.nav.generalLedger' },
   { to: 'pyl', labelKey: 'accounting.nav.profitLoss' },
+  { to: 'balance', labelKey: 'accounting.nav.balanceSheet' },
   { to: 'plan-contable', labelKey: 'accounting.nav.chartOfAccounts' },
   { to: 'pos-config', labelKey: 'accounting.nav.posConfig' },
   { to: 'pos-payment-methods', labelKey: 'accounting.nav.paymentMethods' },

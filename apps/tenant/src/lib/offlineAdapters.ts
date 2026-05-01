@@ -17,5 +17,5 @@ export function registerAllOfflineAdapters() {
     }
   }
 
-  console.log(`[offline] Auto-registered ${registered} adapter registrars from offlineSync modules`)
+  if (import.meta.env.DEV) { console.log(`[offline] Auto-registered ${registered} adapter registrars from offlineSync modules`) }
 }

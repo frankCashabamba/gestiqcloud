@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
 from datetime import date
@@ -510,6 +511,29 @@ class UploadHistoricalFileUseCase:
     ) -> dict[str, Any]:
         import pandas as pd
 
+        # ── Hash-based deduplication (strong) ───────────────────────────────
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+        existing_by_hash = self.db.execute(
+            text(
+                """
+                SELECT id
+                FROM hist_imports
+                WHERE tenant_id = :tid
+                  AND file_hash = :fh
+                  AND status IN ('processing', 'completed')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            {"tid": tenant_id, "fh": file_hash},
+        ).scalar()
+        if existing_by_hash:
+            raise ValueError(
+                f"duplicate_file_hash:{existing_by_hash}"
+            )
+
+        # ── Fallback: basic name/size dedup (kept for safety) ────────────────
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         file_type = ext if ext in ("csv", "xlsx", "xls") else "unknown"
         existing_import_id = self.db.execute(
@@ -545,13 +569,13 @@ class UploadHistoricalFileUseCase:
             else:
                 raise ValueError(f"Unsupported file type: {ext}")
         except Exception as e:
-            # Create failed import record
+            # Create failed import record (include file_hash for traceability)
             row = (
                 self.db.execute(
                     text(
                         "INSERT INTO hist_imports (tenant_id, filename, file_type, file_size_bytes, "
-                        "import_type, status, error_detail, imported_by) "
-                        "VALUES (:tid, :fn, :ft, :fs, :it, 'failed', :err, :uid) "
+                        "import_type, file_hash, status, error_detail, imported_by) "
+                        "VALUES (:tid, :fn, :ft, :fs, :it, :fh, 'failed', :err, :uid) "
                         "RETURNING id, filename, file_type, file_size_bytes, import_type, "
                         "total_rows, imported_rows, failed_rows, status, error_detail, "
                         "imported_by, created_at, updated_at"
@@ -565,6 +589,7 @@ class UploadHistoricalFileUseCase:
                         "ft": file_type,
                         "fs": len(file_bytes),
                         "it": import_type,
+                        "fh": file_hash,
                         "err": str(e),
                         "uid": user_id,
                     },
@@ -578,12 +603,12 @@ class UploadHistoricalFileUseCase:
         total_rows = len(df)
         cols = list(df.columns)
 
-        # Create import record
+        # Create import record (store file_hash for strong deduplication)
         imp_row = self.db.execute(
             text(
                 "INSERT INTO hist_imports (tenant_id, filename, file_type, file_size_bytes, "
-                "import_type, total_rows, status, imported_by) "
-                "VALUES (:tid, :fn, :ft, :fs, :it, :tr, 'processing', :uid) "
+                "import_type, file_hash, total_rows, status, imported_by) "
+                "VALUES (:tid, :fn, :ft, :fs, :it, :fh, :tr, 'processing', :uid) "
                 "RETURNING id"
             ).bindparams(
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -595,6 +620,7 @@ class UploadHistoricalFileUseCase:
                 "ft": file_type,
                 "fs": len(file_bytes),
                 "it": import_type,
+                "fh": file_hash,
                 "tr": total_rows,
                 "uid": user_id,
             },

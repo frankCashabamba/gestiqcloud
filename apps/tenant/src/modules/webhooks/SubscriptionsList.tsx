@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import { BackButton } from '@ui'
+import { usePermission } from '../../hooks/usePermission'
+import ProtectedButton from '../../components/ProtectedButton'
 import {
   createSubscription,
   deleteSubscription,
@@ -15,6 +17,7 @@ export default function SubscriptionsList() {
   const nav = useNavigate()
   const { t } = useTranslation()
   const { success, error: showError } = useToast()
+  const can = usePermission()
   const [loading, setLoading] = useState(true)
   const [subscriptions, setSubscriptions] = useState<WebhookSubscription[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -65,15 +68,18 @@ export default function SubscriptionsList() {
       <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t('webhooks.title')}</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          {showForm ? t('common.cancel') : t('webhooks.newWebhook')}
-        </button>
+        {can('webhooks:manage') && (
+          <ProtectedButton
+            permission="webhooks:manage"
+            variant="primary"
+            onClick={() => setShowForm(!showForm)}
+          >
+            {showForm ? t('common.cancel') : t('webhooks.newWebhook')}
+          </ProtectedButton>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && can('webhooks:manage') && (
         <SubscriptionForm
           t={t}
           onSuccess={() => {
@@ -113,18 +119,26 @@ export default function SubscriptionsList() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
-                    <button
-                      onClick={() => handleTest(sub.id)}
-                      className="text-sm px-3 py-1 text-blue-600 hover:bg-blue-50 rounded"
-                    >
-                      {t('webhooks.test')}
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(sub.id)}
-                      className="text-sm px-3 py-1 text-red-600 hover:bg-red-50 rounded"
-                    >
-                      {t('common.delete')}
-                    </button>
+                    {/* Test: only requires manage permission — sends a test ping */}
+                    {can('webhooks:manage') && (
+                      <button
+                        onClick={() => handleTest(sub.id)}
+                        className="text-sm px-3 py-1 text-blue-600 hover:bg-blue-50 rounded"
+                      >
+                        {t('webhooks.test')}
+                      </button>
+                    )}
+                    {can('webhooks:manage') && (
+                      <ProtectedButton
+                        permission="webhooks:manage"
+                        variant="ghost"
+                        unstyled
+                        onClick={() => setDeleteTarget(sub.id)}
+                        className="text-sm px-3 py-1 text-red-600 hover:bg-red-50 rounded"
+                      >
+                        {t('common.delete')}
+                      </ProtectedButton>
+                    )}
                   </td>
                 </tr>
               ))
@@ -208,13 +222,15 @@ function SubscriptionForm({ onSuccess, t }: { onSuccess: () => void; t: (key: st
           className="mt-1 w-full border rounded px-3 py-2"
         />
       </div>
-      <button
+      <ProtectedButton
+        permission="webhooks:manage"
         type="submit"
         disabled={loading}
-        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        variant="primary"
+        className="w-full"
       >
         {loading ? t('webhooks.creating') : t('common.create')}
-      </button>
+      </ProtectedButton>
     </form>
   )
 }

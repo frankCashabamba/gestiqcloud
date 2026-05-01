@@ -138,7 +138,7 @@ async function getStore() {
         dbInitialized = true
       }
       authStore = createStore(DB_NAME, STORE_NAME)
-      console.log('[offline-auth] Store initialized')
+      if (import.meta.env.DEV) { console.log('[offline-auth] Store initialized') }
     } catch (error) {
       console.error('[offline-auth] Failed to initialize store:', error)
       throw error
@@ -175,7 +175,7 @@ export async function saveCredentialsForOffline(
   await set(credentialKey(identifier), credentials, store)
   try { await del(identifier, store) } catch {}
   await saveOfflineSessionSnapshot(token, profile)
-  console.log('[offline-auth] Credentials saved for:', identifier)
+  if (import.meta.env.DEV) { console.log('[offline-auth] Credentials saved for:', identifier) }
 }
 
 export async function saveOfflineSessionSnapshot(
@@ -264,7 +264,7 @@ export async function clearOfflineCredentials(): Promise<void> {
     await del(key, store)
   }
 
-  console.log('[offline-auth] All credentials cleared')
+  if (import.meta.env.DEV) { console.log('[offline-auth] All credentials cleared') }
 }
 
 export async function clearOfflineSessionSnapshot(): Promise<void> {

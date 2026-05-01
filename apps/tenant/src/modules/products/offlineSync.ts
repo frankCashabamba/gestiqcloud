@@ -72,7 +72,7 @@ export const ProductsAdapter: SyncAdapter = {
 
 export function registerProductsSyncAdapter() {
   getSyncManager().registerAdapter(ProductsAdapter)
-  console.log('✅ Products sync adapter registered')
+  if (import.meta.env.DEV) { console.log('✅ Products sync adapter registered') }
 }
 
 /**

@@ -7,6 +7,8 @@ import { usePagination, Pagination } from '../../../../shared/pagination'
 import { OpportunityStage } from '../../types'
 import { BackButton } from '@ui'
 import PageContainer from '../../../../components/PageContainer'
+import { usePermission } from '../../../../hooks/usePermission'
+import ProtectedButton from '../../../../components/ProtectedButton'
 
 export default function OpportunitiesList() {
   const [items, setItems] = useState<Opportunity[]>([])
@@ -15,6 +17,7 @@ export default function OpportunitiesList() {
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
   const { t } = useCrmLabels()
+  const can = usePermission()
   const [q, setQ] = useState('')
   const [searchParams] = useSearchParams()
   const pendingOnly = searchParams.get('pending') === '1'
@@ -73,7 +76,11 @@ export default function OpportunitiesList() {
         <h2 className="font-semibold text-lg">
           {pendingOnly ? t('opportunities.pendingTitle') : t('opportunities.title')}
         </h2>
-        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('new')}>{t('opportunities.newButton')}</button>
+        {can('crm:manage') && (
+          <ProtectedButton permission="crm:manage" variant="primary" onClick={() => nav('new')}>
+            {t('opportunities.newButton')}
+          </ProtectedButton>
+        )}
       </div>
       <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder={t('opportunities.searchPlaceholder')} className="mb-3 w-full px-3 py-2 border rounded text-sm" />
       <div className="flex gap-3 mb-3">
@@ -134,8 +141,20 @@ export default function OpportunitiesList() {
               </td>
               <td>{c.assigned_to || '-'}</td>
               <td>
-                <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('opportunities.editBtn')}</Link>
-                <button className="text-red-700" onClick={() => setDeleteTarget(c)}>{t('opportunities.deleteBtn')}</button>
+                {can('crm:manage') && (
+                  <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('opportunities.editBtn')}</Link>
+                )}
+                {can('crm:manage') && (
+                  <ProtectedButton
+                    permission="crm:manage"
+                    variant="ghost"
+                    unstyled
+                    onClick={() => setDeleteTarget(c)}
+                    className="text-red-700"
+                  >
+                    {t('opportunities.deleteBtn')}
+                  </ProtectedButton>
+                )}
               </td>
             </tr>
           ))}

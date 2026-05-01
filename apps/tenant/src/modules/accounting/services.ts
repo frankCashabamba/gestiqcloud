@@ -175,6 +175,60 @@ export async function getPyG(fecha_desde: string, fecha_hasta: string): Promise<
     return apiFetch(`/api/v1/accounting/profit-loss?fecha_desde=${fecha_desde}&fecha_hasta=${fecha_hasta}`)
 }
 
+// ============================================================================
+// Reportes contables (nuevos endpoints /reports/*)
+// ============================================================================
+
+export type ReportAccountLine = {
+    code: string
+    name: string
+    balance: number
+}
+
+export type ProfitLossReport = {
+    date_from: string
+    date_to: string
+    income: ReportAccountLine[]
+    expenses: ReportAccountLine[]
+    total_income: number
+    total_expenses: number
+    net_result: number
+    currency: string
+}
+
+export type BalanceSheetReport = {
+    as_of_date: string
+    assets: ReportAccountLine[]
+    liabilities: ReportAccountLine[]
+    equity: ReportAccountLine[]
+    total_assets: number
+    total_liabilities: number
+    total_equity: number
+    balanced: boolean
+    currency: string
+}
+
+export async function getProfitLossReport(
+    date_from: string,
+    date_to: string,
+    include_draft = false,
+): Promise<ProfitLossReport> {
+    const params = new URLSearchParams({ date_from, date_to })
+    if (include_draft) params.set('include_draft', 'true')
+    return apiFetch<ProfitLossReport>(
+        `/api/v1/tenant/accounting/reports/profit-loss?${params.toString()}`,
+    )
+}
+
+export async function getBalanceSheetReport(as_of_date?: string): Promise<BalanceSheetReport> {
+    const params = new URLSearchParams()
+    if (as_of_date) params.set('as_of_date', as_of_date)
+    const qs = params.toString()
+    return apiFetch<BalanceSheetReport>(
+        `/api/v1/tenant/accounting/reports/balance-sheet${qs ? `?${qs}` : ''}`,
+    )
+}
+
 // POS contable
 export async function getPosAccountingSettings(): Promise<PosAccountingSettings> {
     return apiFetch<PosAccountingSettings>('/api/v1/tenant/accounting/pos/settings')

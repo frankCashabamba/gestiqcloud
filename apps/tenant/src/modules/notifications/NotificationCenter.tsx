@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
+import { usePermission } from '../../hooks/usePermission'
 import {
   listNotifications,
   getUnreadCount,
@@ -106,12 +107,15 @@ function NotificationCard({
   onToggle,
   onArchive,
   onMarkRead,
+  canArchive,
 }: {
   n: Notification
   expanded: boolean
   onToggle: () => void
   onArchive: (id: string) => void
   onMarkRead: (id: string) => void
+  /** Whether the current user can archive (requires notifications:manage) */
+  canArchive: boolean
 }) {
   const cat = detectCategory(n)
   const meta = CATEGORY_META[cat] || CATEGORY_META.general
@@ -154,7 +158,7 @@ function NotificationCard({
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-2">
               <span className="text-xs text-slate-400 whitespace-nowrap">{timeAgo(n.created_at)}</span>
-              {n.status !== 'archived' && (
+              {n.status !== 'archived' && canArchive && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onArchive(n.id) }}
                   className="text-xs px-2 py-1 text-slate-500 hover:bg-slate-200 rounded"
@@ -182,6 +186,7 @@ function NotificationCard({
 
 export default function NotificationCenter() {
   const { success, error: showError } = useToast()
+  const can = usePermission()
   const [loading, setLoading] = useState(true)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -284,19 +289,23 @@ export default function NotificationCenter() {
           )}
         </div>
         <div className="flex gap-2">
+          {/* read-only: no permission guard needed — refresh is always allowed */}
           <button
             onClick={() => loadData()}
             className="px-3 py-1.5 text-sm border rounded hover:bg-slate-50"
           >
             Actualizar
           </button>
-          <button
-            onClick={handleMarkAllRead}
-            disabled={unreadCount === 0}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
-          >
-            Marcar todas leídas
-          </button>
+          {/* Marcar leídas: accion de escritura sobre notificaciones propias del usuario */}
+          {can('notifications:manage') && (
+            <button
+              onClick={handleMarkAllRead}
+              disabled={unreadCount === 0}
+              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
+            >
+              Marcar todas leídas
+            </button>
+          )}
         </div>
       </div>
 
@@ -358,6 +367,7 @@ export default function NotificationCenter() {
               onToggle={() => setExpandedId(expandedId === n.id ? null : n.id)}
               onArchive={handleArchive}
               onMarkRead={handleMarkRead}
+              canArchive={can('notifications:manage')}
             />
           ))
         )}

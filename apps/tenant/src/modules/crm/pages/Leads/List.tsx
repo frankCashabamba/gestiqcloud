@@ -7,6 +7,8 @@ import { usePagination, Pagination } from '../../../../shared/pagination'
 import { LeadStatus, LeadSource } from '../../types'
 import { BackButton } from '@ui'
 import PageContainer from '../../../../components/PageContainer'
+import { usePermission } from '../../../../hooks/usePermission'
+import ProtectedButton from '../../../../components/ProtectedButton'
 
 export default function LeadsList() {
   const [items, setItems] = useState<Lead[]>([])
@@ -15,6 +17,7 @@ export default function LeadsList() {
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
   const { t } = useCrmLabels()
+  const can = usePermission()
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [sourceFilter, setSourceFilter] = useState<string>('')
@@ -74,7 +77,11 @@ export default function LeadsList() {
       <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">{t('leads.title')}</h2>
-        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('new')}>{t('leads.newLead')}</button>
+        {can('crm:manage') && (
+          <ProtectedButton permission="crm:manage" variant="primary" onClick={() => nav('new')}>
+            {t('leads.newLead')}
+          </ProtectedButton>
+        )}
       </div>
       <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder={t('leads.searchPlaceholder')} className="mb-3 w-full px-3 py-2 border rounded text-sm" />
       <div className="flex gap-3 mb-3">
@@ -129,11 +136,23 @@ export default function LeadsList() {
               <td>{c.status}</td>
               <td>{c.assigned_to || '-'}</td>
               <td>
-                <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('leads.edit')}</Link>
-                {(c.status === LeadStatus.QUALIFIED || c.status === LeadStatus.NEW) && (
+                {can('crm:manage') && (
+                  <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('leads.edit')}</Link>
+                )}
+                {can('crm:manage') && (c.status === LeadStatus.QUALIFIED || c.status === LeadStatus.NEW) && (
                   <button className="text-green-700 mr-3" onClick={() => setConvertTarget(c)}>{t('leads.convert')}</button>
                 )}
-                <button className="text-red-700" onClick={() => setDeleteTarget(c)}>{t('leads.deleteBtn')}</button>
+                {can('crm:manage') && (
+                  <ProtectedButton
+                    permission="crm:manage"
+                    variant="ghost"
+                    unstyled
+                    onClick={() => setDeleteTarget(c)}
+                    className="text-red-700"
+                  >
+                    {t('leads.deleteBtn')}
+                  </ProtectedButton>
+                )}
               </td>
             </tr>
           ))}

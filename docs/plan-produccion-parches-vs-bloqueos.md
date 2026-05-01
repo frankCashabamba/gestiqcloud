@@ -63,10 +63,13 @@ Un modulo queda fuera de produccion si:
 - POS frontend: eliminado `tpv_pro.html` legacy y el draft local ya no persiste identificacion, nombre ni email del comprador.
 - Frontend legacy/dialogs: eliminados listados muertos de Products/Users con `confirm()`; Historical y Restaurant usan modales React en vez de `confirm`/`alert`/`prompt`.
 - Historical backend: [HECHO 2026-04-30] router tenant protegido con `ensure_rls` y upload limitado a 10 MB.
-- Historical backend: [PARCHEADO 2026-04-30] deduplicacion basica por tenant/tipo/nombre/tamano para imports `processing` o `completed`.
+- Historical backend: [HECHO 2026-04-30] upload no bloqueante via `asyncio.to_thread` con sesion SQLAlchemy dedicada; libera el event loop de FastAPI.
+- Historical backend: [HECHO 2026-04-30] deduplicacion fuerte por hash SHA-256 en columna `file_hash`; HTTP 409 `duplicate_file_hash` si ya existe import procesado/completado con el mismo contenido.
 - Historical backend: [HECHO 2026-04-30] filas sin fecha valida fallan con `missing_fecha`; ya no se sustituyen por fecha actual.
 - Historical backend: [PARCHEADO 2026-04-30] errores de upsert de maestros historicos quedan en logs; ya no se pierden con `except: pass`.
 - Accounting backend: [HECHO 2026-04-30] query param `status` mantiene compatibilidad externa pero internamente se renombra a `entry_status` para evitar shadowing.
+- Accounting backend: [HECHO 2026-04-30] `GET /accounting/reports/profit-loss` y `GET /accounting/reports/balance-sheet` implementados; agrupa saldos por cuenta con asientos POSTED, valida rango ≤366 días, verifica ecuación contable Activo=Pasivo+Patrimonio.
+- Accounting frontend: [HECHO 2026-04-30] `PerdidasGanancias.tsx` reescrito para consumir el endpoint de P&G; `BalanceSituacion.tsx` creado; ruta `/balance` registrada en Routes.tsx y Panel.tsx.
 - Reconciliation payments: [HECHO 2026-04-30] Stripe, Kushki y PayPhone rechazan webhooks sin secret configurado o sin firma.
 - Reconciliation payments: [PARCHEADO 2026-04-30] payload webhook con JSON invalido falla con `invalid_webhook_json` en vez de convertirse en `{}`.
 - AI Agent: [PARCHEADO 2026-04-30] auto-resolve mock desactivado y notificaciones sin credenciales fallan explicitamente.
@@ -76,6 +79,8 @@ Un modulo queda fuera de produccion si:
 - Restaurant frontend: [PARCHEADO 2026-04-30] manifest deshabilitado por defecto para evitar exposicion accidental.
 - Restaurant backend: [PARCHEADO 2026-04-30] `POST /orders/{id}/close` devuelve 501 hasta integrar POS/facturacion.
 - Documents backend: [PARCHEADO 2026-04-30] country pack Ecuador falla cerrado para paises no soportados (`documents_country_not_supported`).
+- Documents backend: [HECHO 2026-04-30] router `document_storage` montado en `platform/http/router.py` bajo `/tenant` — `GET /documents/storage`, `GET /documents/storage/{id}` y `POST /documents/storage/upload` accesibles.
+- Restaurant backend: [HECHO 2026-04-30] router `restaurant/interface/http/tenant` montado en `platform/http/router.py` bajo `/tenant` — todos los endpoints `/tenant/restaurant/*` responden (CRUD mesas, comandas, items, send-kitchen; close devuelve 501).
 
 ## Modulos candidatos a produccion con parches
 
@@ -203,6 +208,7 @@ Parches pendientes:
 - [DECISION v1] No hay retry automatico en v1. Los envios fallidos se logean. Retry Celery queda para FASE 2.
 - [HECHO 2026-04-29] Evitar fallback SMTP global si se requiere separacion estricta por tenant. (guard con ALLOW_GLOBAL_SMTP_FALLBACK; log warning si se usa el global)
 - [DECISION v1] El canal SMS usa WhatsApp via Twilio, no SMS directo. Documentado en INTEGRATION.md.
+- [HECHO 2026-04-30] Permisos frontend: marcar-todas-leidas y archivar notificacion guardados con `notifications:manage` en NotificationCenter.tsx; refresh de listado es read-only sin guarda
 
 Condicion para subir: email/in-app/telegram con configuracion por tenant verificada.
 
@@ -215,6 +221,7 @@ Parches pendientes:
 - [REQUISITO DEPLOY] Worker Celery debe estar activo para deliveries. Ver requirements-celery.txt y render.yaml.
 - [HECHO 2026-04-29] Guardar secreto de webhook de forma segura o limitar exposicion. (GET normal oculta secreto con ***; GET /{id}/secret requiere permiso webhooks.secret.view)
 - [HECHO 2026-04-29] Agregar rotacion/visualizacion controlada del signing secret. (endpoint POST /{id}/rotate-secret con permiso webhooks.secret.rotate)
+- [HECHO 2026-04-30] Permisos frontend: crear/test/eliminar webhook guardados con `webhooks:manage` via ProtectedButton en SubscriptionsList.tsx
 
 Condicion para subir: delivery real, retry, firma HMAC y proteccion anti-SSRF.
 
@@ -226,6 +233,7 @@ Parches pendientes:
 
 - [HECHO 2026-04-29] Manejar tenant sin moneda configurada sin romper dashboard. (_resolve_tenant_currency retorna "USD" como fallback)
 - [HECHO 2026-04-29] Exponer boton de convertir lead si frontend lo requiere. (boton visible en estados new/qualified en List.tsx y Form.tsx)
+- [HECHO 2026-04-30] Permisos frontend: crear/editar/eliminar/convertir leads y oportunidades guardados con `crm:manage` via ProtectedButton en Leads/List.tsx y Opportunities/List.tsx
 
 Condicion para subir: CRUD leads/oportunidades, dashboard y conversion.
 
@@ -266,11 +274,11 @@ Bloqueos:
 - Numeracion concurrente de asientos.
 - Permisos granulares incompletos.
 - Cierre/apertura/regularizacion no implementados.
-- Reportes contables formales faltantes.
 - Asientos automaticos de ventas, compras y caja no integrados.
 - [HECHO 2026-04-30] Bug por variable `status`/shadowing corregido.
 - [HECHO 2026-04-30] Recálculo manual de saldos corregido para usar `debit_balance`/`credit_balance`/`balance`, igual que el servicio de asientos.
-- [HECHO 2026-04-30] Libro mayor por cuenta añadido en backend y conectado en frontend; faltan P&G/balance server-side y automatización de asientos.
+- [HECHO 2026-04-30] Libro mayor por cuenta añadido en backend y conectado en frontend.
+- [HECHO 2026-04-30] Endpoints P&G (`/reports/profit-loss`) y Balance de Situación (`/reports/balance-sheet`) implementados; frontend actualizado.
 
 Decision: permitir solo configuracion basica/POS accounting si las rutas estan protegidas. No venderlo como contabilidad completa.
 
@@ -313,7 +321,7 @@ Bloqueos:
 
 - `quote_to_sales_order` no implementado.
 - [PARCHEADO 2026-04-30] Solo EcuadorPack y falla cerrado si el tenant no es EC; falta EspanaPack si se opera en Espana.
-- Faltan endpoints de listado/detalle de documentos.
+- [HECHO 2026-04-30] Router `document_storage` montado en `platform/http/router.py`: `GET /tenant/documents/storage`, `GET /tenant/documents/storage/{id}` y `POST /tenant/documents/storage/upload` ahora accesibles.
 - No hay frontend dedicado para Documents/Quotes como modulo tenant.
 
 Decision: no ofrecer presupuestos ni validacion fiscal multi-pais hasta fase aparte.
@@ -350,7 +358,7 @@ Motivo: frontend/backend MVP incompleto.
 
 Bloqueos:
 
-- Router no montado en `platform/http/router.py`: los endpoints pueden devolver 404 aunque el frontend exista.
+- [HECHO 2026-04-30] Router montado en `platform/http/router.py` con prefix `/tenant` — endpoints `/api/v1/tenant/restaurant/*` ya responden.
 - [PARCHEADO 2026-04-30] Manifest frontend marcado `enabled: false`.
 - Cobro/cierre de cuenta no cerrado.
 - [PARCHEADO 2026-04-30] Cierre de comanda bloqueado con 501 para evitar estado `paid` sin caja/factura.
@@ -361,17 +369,20 @@ Decision: beta o desactivado por feature flag.
 
 ### Historical
 
-Motivo: hardening de seguridad y carga pendiente.
+Motivo: hardening de seguridad y carga — completado.
 
 Bloqueos:
 
 - [HECHO 2026-04-30] Router historico con `ensure_rls`.
-- Upload CSV/XLSX bloqueante en el hilo principal.
+- [HECHO 2026-04-30] Upload CSV/XLSX no bloqueante: delegado a `asyncio.to_thread` con sesion SQLAlchemy dedicada que copia el contexto RLS del request. Libera el event loop de FastAPI durante el procesamiento pandas.
 - [HECHO 2026-04-30] Limite de tamano de archivo de 10 MB.
-- [PARCHEADO 2026-04-30] Deduplicacion basica por tenant/tipo/nombre/tamano; sigue pendiente hash/constraint.
+- [HECHO 2026-04-30] Deduplicacion fuerte por hash SHA-256: columna `file_hash VARCHAR(64)` en `hist_imports`, indice compuesto `(tenant_id, file_hash)`, rechazo HTTP 409 `duplicate_file_hash`. Migracion: `2026-04-30_001_historical_file_hash`. Se mantiene fallback basico por nombre/tamano para imports sin hash previo.
 - [HECHO 2026-04-30] Fechas faltantes ya no se sustituyen por `date.today()`; la fila falla con `missing_fecha`.
 
-Decision: no activar hasta hardening.
+Pendiente (no bloqueante para activacion):
+- Feedback de progreso en frontend para archivos grandes (UX, no seguridad).
+
+Decision: listo para activacion en beta.
 
 ## Frontend transversal antes de produccion
 
@@ -381,8 +392,8 @@ Parches recomendados:
 - [HECHO sesion anterior] Corregir `billing/Form.tsx` para enviar `description` y `customer_name`.
 - [HECHO 2026-04-29] Revisar datos personales POS en `localStorage`.
 - [HECHO sesion anterior] Eliminar componentes legacy o muertos que puedan entrar al bundle.
-- Reducir/limpiar `console.log/error/warn` productivos.
-- Alinear visibilidad de botones con permisos backend nuevos.
+- [HECHO 2026-04-30] Reducir/limpiar `console.log/error/warn` productivos. (todos los console.log informativos en apps/tenant/src/ envueltos en `if (import.meta.env.DEV)`; console.error en catch blocks conservados como mecanismo de error reporting; apps/admin/src/ no tenia console.log fuera de tests; archivos actualizados: syncManager, offlineStore, offlineAuth, initOfflineSystem, offlineAdapters, products/offlineSync, auth/AuthContext, hooks/useOffline, app/App.tsx, offlineValidation)
+- [HECHO 2026-04-30] Alinear visibilidad de botones con permisos backend nuevos. (Webhooks: crear/test/eliminar con `webhooks:manage` via ProtectedButton; CRM Leads/Opportunities: crear/editar/eliminar/convertir con `crm:manage`; Notifications: marcar-todas-leidas con `notifications:manage`, archivar por item con `notifications:manage`; Users: crear con `users:create`, editar con `users:update`, deactivate con `users:delete`, set-password con `users:set_password` — permisos exactos del backend permissions.py)
 
 ## Infraestructura antes de produccion
 
@@ -430,7 +441,7 @@ Parches recomendados:
 | AI Agent | No subir tenant | Mocks operativos y destinatarios | Solo admin interno si se mantiene |
 | Analytics | No subir | Modulo sin alcance validado | Ocultar por feature flag |
 | Restaurant | No subir | Router/checkout/fiscal/KDS incompletos | Beta o feature flag |
-| Historical | No subir | Upload async/dedupe fuerte pendientes | Hardening antes de activar |
+| Historical | Listo para beta | [HECHO 2026-04-30] Upload async + hash dedupe completados | Activar en beta; UX progreso pendiente |
 
 ## Lista corta para primer pase a produccion
 
@@ -464,20 +475,26 @@ No subir todavia:
 - Restaurant
 - Historical
 
-## Estado de completitud por modulo (2026-04-29)
+## Estado de completitud por modulo (2026-04-30)
+
+Notas sobre la columna "Decision pendiente":
+- COMPLETO = todas las decisiones de alcance v1 estan documentadas en este fichero (ya sea como [DECISION v1], [HECHO], [TODO FASE 2] o [REQUISITO DEPLOY]).
+- pendiente = queda al menos una decision de alcance sin documentar.
 
 | Modulo       | Parches backend | Parches frontend | Decision pendiente | Listo para pruebas |
 |--------------|----------------|-----------------|-------------------|-------------------|
-| POS          | COMPLETO        | COMPLETO         | pendiente         | SI                 |
-| Inventory    | COMPLETO        | COMPLETO         | pendiente         | SI                 |
-| Sales        | COMPLETO        | N/A              | pendiente         | SI                 |
-| Purchases    | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| POS          | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
+| Inventory    | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
+| Sales        | COMPLETO        | N/A              | COMPLETO          | SI                 |
+| Purchases    | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
 | Products     | COMPLETO        | N/A              | COMPLETO (12)     | SI                 |
-| Clients      | COMPLETO        | N/A              | pendiente         | SI                 |
-| Suppliers    | COMPLETO        | COMPLETO         | pendiente         | SI                 |
-| Expenses     | COMPLETO        | N/A              | pendiente         | SI                 |
-| Billing      | COMPLETO        | COMPLETO         | pendiente         | SI                 |
-| Notifications| COMPLETO        | N/A              | pendiente         | SI                 |
-| Webhooks     | COMPLETO        | N/A              | pendiente         | SI                 |
-| CRM          | COMPLETO        | COMPLETO         | pendiente         | SI                 |
-| Importador   | COMPLETO        | COMPLETO         | pendiente         | SI                 |
+| Clients      | COMPLETO        | N/A              | COMPLETO          | SI                 |
+| Suppliers    | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
+| Expenses     | COMPLETO        | N/A              | COMPLETO          | SI                 |
+| Billing      | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
+| Notifications| COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI                 |
+| Webhooks     | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI                 |
+| CRM          | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI                 |
+| Importador   | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
+| Settings     | COMPLETO        | COMPLETO         | COMPLETO          | SI (smoke config)  |
+| Users        | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI (smoke auth/roles) |

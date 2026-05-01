@@ -69,12 +69,12 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
-      console.log('🟢 Going online - triggering sync')
+      if (import.meta.env.DEV) { console.log('🟢 Going online - triggering sync') }
     }
 
     const handleOffline = () => {
       setIsOnline(false)
-      console.log('🔴 Going offline')
+      if (import.meta.env.DEV) { console.log('🔴 Going offline') }
     }
 
     window.addEventListener('online', handleOnline)

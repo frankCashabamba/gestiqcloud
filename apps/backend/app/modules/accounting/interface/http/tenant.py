@@ -41,12 +41,15 @@ from app.schemas.accounting import (
     AsientoContableResponse,
     AsientoContableUpdate,
     AsientoLineaResponse,
+    BalanceSheetReportResponse,
     CuentaMayorItem,
     CuentaMayorResponse,
     PlanCuentasCreate,
     PlanCuentasList,
     PlanCuentasResponse,
     PlanCuentasUpdate,
+    ProfitLossReportResponse,
+    ReportAccountLine,
 )
 
 router = APIRouter(
@@ -1123,4 +1126,217 @@ async def list_movimientos(
         entry_status="POSTED",
         db=db,
         claims=claims,
+    )
+
+
+# ============================================================================
+# REPORTES CONTABLES
+# ============================================================================
+
+_MAX_REPORT_DAYS = 366
+
+
+@router.get("/reports/profit-loss", response_model=ProfitLossReportResponse)
+async def get_profit_loss(
+    date_from: date = Query(..., description="Fecha inicio del período"),
+    date_to: date = Query(..., description="Fecha fin del período"),
+    include_draft: bool = Query(False, description="Incluir asientos en borrador"),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Estado de Resultados (P&G) para un rango de fechas.
+
+    Agrupa por cuenta imputable (level 4 o can_post=True) los saldos de cuentas
+    tipo INCOME y EXPENSE con asientos POSTED (o también DRAFT si include_draft=True)
+    dentro del rango solicitado.
+    """
+    if date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_from no puede ser posterior a date_to",
+        )
+    delta = (date_to - date_from).days
+    if delta > _MAX_REPORT_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El rango no puede superar {_MAX_REPORT_DAYS} días",
+        )
+
+    tenant_id = UUID(str(claims["tenant_id"]))
+
+    # Statuses a incluir
+    allowed_statuses = ["POSTED"]
+    if include_draft:
+        allowed_statuses.append("DRAFT")
+
+    # Query: suma de débitos y créditos por cuenta en el rango, para INCOME y EXPENSE
+    stmt = (
+        select(
+            PlanCuentas.id,
+            PlanCuentas.code,
+            PlanCuentas.name,
+            PlanCuentas.type,
+            func.coalesce(func.sum(AsientoLinea.debit), Decimal("0")).label("sum_debit"),
+            func.coalesce(func.sum(AsientoLinea.credit), Decimal("0")).label("sum_credit"),
+        )
+        .join(AsientoLinea, AsientoLinea.account_id == PlanCuentas.id)
+        .join(AsientoContable, AsientoContable.id == AsientoLinea.entry_id)
+        .where(
+            PlanCuentas.tenant_id == tenant_id,
+            PlanCuentas.type.in_(["INCOME", "EXPENSE"]),
+            PlanCuentas.active == True,  # noqa: E712
+            AsientoContable.tenant_id == tenant_id,
+            AsientoContable.status.in_(allowed_statuses),
+            AsientoContable.date >= date_from,
+            AsientoContable.date <= date_to,
+        )
+        .group_by(PlanCuentas.id, PlanCuentas.code, PlanCuentas.name, PlanCuentas.type)
+        .order_by(PlanCuentas.code)
+    )
+
+    rows = db.execute(stmt).all()
+
+    income_lines: list[ReportAccountLine] = []
+    expense_lines: list[ReportAccountLine] = []
+    total_income = Decimal("0")
+    total_expenses = Decimal("0")
+
+    for row in rows:
+        # Para INCOME: saldo normal es crédito (credit - debit)
+        # Para EXPENSE: saldo normal es débito (debit - credit)
+        if row.type == "INCOME":
+            balance = (row.sum_credit or Decimal("0")) - (row.sum_debit or Decimal("0"))
+            if balance != Decimal("0"):
+                income_lines.append(
+                    ReportAccountLine(code=row.code, name=row.name, balance=balance)
+                )
+                total_income += balance
+        else:  # EXPENSE
+            balance = (row.sum_debit or Decimal("0")) - (row.sum_credit or Decimal("0"))
+            if balance != Decimal("0"):
+                expense_lines.append(
+                    ReportAccountLine(code=row.code, name=row.name, balance=balance)
+                )
+                total_expenses += balance
+
+    net_result = total_income - total_expenses
+
+    return ProfitLossReportResponse(
+        date_from=date_from,
+        date_to=date_to,
+        income=income_lines,
+        expenses=expense_lines,
+        total_income=total_income,
+        total_expenses=total_expenses,
+        net_result=net_result,
+        currency="USD",
+    )
+
+
+@router.get("/reports/balance-sheet", response_model=BalanceSheetReportResponse)
+async def get_balance_sheet(
+    as_of_date: date = Query(default=None, description="Fecha de corte (default: hoy)"),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Balance de Situación a una fecha de corte.
+
+    Suma los saldos acumulados (todos los asientos POSTED hasta as_of_date) de
+    cuentas tipo ASSET, LIABILITY y EQUITY, y verifica la ecuación contable:
+    Activo = Pasivo + Patrimonio.
+    """
+    if as_of_date is None:
+        from datetime import date as _date
+
+        as_of_date = _date.today()
+
+    tenant_id = UUID(str(claims["tenant_id"]))
+
+    # Query: suma de débitos y créditos por cuenta hasta as_of_date
+    stmt = (
+        select(
+            PlanCuentas.id,
+            PlanCuentas.code,
+            PlanCuentas.name,
+            PlanCuentas.type,
+            func.coalesce(func.sum(AsientoLinea.debit), Decimal("0")).label("sum_debit"),
+            func.coalesce(func.sum(AsientoLinea.credit), Decimal("0")).label("sum_credit"),
+        )
+        .join(AsientoLinea, AsientoLinea.account_id == PlanCuentas.id)
+        .join(AsientoContable, AsientoContable.id == AsientoLinea.entry_id)
+        .where(
+            PlanCuentas.tenant_id == tenant_id,
+            PlanCuentas.type.in_(["ASSET", "LIABILITY", "EQUITY"]),
+            PlanCuentas.active == True,  # noqa: E712
+            AsientoContable.tenant_id == tenant_id,
+            AsientoContable.status == "POSTED",
+            AsientoContable.date <= as_of_date,
+        )
+        .group_by(PlanCuentas.id, PlanCuentas.code, PlanCuentas.name, PlanCuentas.type)
+        .order_by(PlanCuentas.code)
+    )
+
+    rows = db.execute(stmt).all()
+
+    asset_lines: list[ReportAccountLine] = []
+    liability_lines: list[ReportAccountLine] = []
+    equity_lines: list[ReportAccountLine] = []
+    total_assets = Decimal("0")
+    total_liabilities = Decimal("0")
+    total_equity = Decimal("0")
+
+    for row in rows:
+        sum_debit = row.sum_debit or Decimal("0")
+        sum_credit = row.sum_credit or Decimal("0")
+
+        if row.type == "ASSET":
+            # Activo: saldo normal débito (debit - credit)
+            balance = sum_debit - sum_credit
+            if balance != Decimal("0"):
+                asset_lines.append(
+                    ReportAccountLine(code=row.code, name=row.name, balance=balance)
+                )
+                total_assets += balance
+        elif row.type == "LIABILITY":
+            # Pasivo: saldo normal crédito (credit - debit)
+            balance = sum_credit - sum_debit
+            if balance != Decimal("0"):
+                liability_lines.append(
+                    ReportAccountLine(code=row.code, name=row.name, balance=balance)
+                )
+                total_liabilities += balance
+        else:  # EQUITY
+            # Patrimonio: saldo normal crédito (credit - debit)
+            balance = sum_credit - sum_debit
+            if balance != Decimal("0"):
+                equity_lines.append(
+                    ReportAccountLine(code=row.code, name=row.name, balance=balance)
+                )
+                total_equity += balance
+
+    # Verificar ecuación contable: Activo = Pasivo + Patrimonio
+    difference = abs(total_assets - (total_liabilities + total_equity))
+    balanced = difference < Decimal("0.02")
+    if not balanced:
+        logger.warning(
+            "Balance sheet does not balance for tenant_id=%s as_of_date=%s "
+            "assets=%.2f liabilities=%.2f equity=%.2f diff=%.2f",
+            tenant_id,
+            as_of_date,
+            total_assets,
+            total_liabilities,
+            total_equity,
+            difference,
+        )
+
+    return BalanceSheetReportResponse(
+        as_of_date=as_of_date,
+        assets=asset_lines,
+        liabilities=liability_lines,
+        equity=equity_lines,
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        total_equity=total_equity,
+        balanced=balanced,
+        currency="USD",
     )

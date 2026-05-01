@@ -295,6 +295,7 @@ export function getAllSchemas() {
 }
 
 export function logValidationErrors(entity: EntityType, data: any) {
+  if (!import.meta.env.DEV) return
   const errors = validateEntity(entity, data)
   if (errors.length > 0) {
     console.group(`❌ Validation errors for ${entity}`)

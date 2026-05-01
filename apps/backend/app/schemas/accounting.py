@@ -295,6 +295,46 @@ class ProfitLossResponse(BaseModel):
 
 
 # ============================================================================
+# REPORTES CONTABLES (nuevos endpoints /reports/*)
+# ============================================================================
+
+
+class ReportAccountLine(BaseModel):
+    """Línea de cuenta en un reporte contable"""
+
+    code: str
+    name: str
+    balance: Decimal
+
+
+class ProfitLossReportResponse(BaseModel):
+    """Estado de Resultados (P&G) — respuesta del endpoint /reports/profit-loss"""
+
+    date_from: date
+    date_to: date
+    income: list[ReportAccountLine]
+    expenses: list[ReportAccountLine]
+    total_income: Decimal
+    total_expenses: Decimal
+    net_result: Decimal
+    currency: str = "USD"
+
+
+class BalanceSheetReportResponse(BaseModel):
+    """Balance de Situación — respuesta del endpoint /reports/balance-sheet"""
+
+    as_of_date: date
+    assets: list[ReportAccountLine]
+    liabilities: list[ReportAccountLine]
+    equity: list[ReportAccountLine]
+    total_assets: Decimal
+    total_liabilities: Decimal
+    total_equity: Decimal
+    balanced: bool
+    currency: str = "USD"
+
+
+# ============================================================================
 # ESTADÍSTICAS
 # ============================================================================
 

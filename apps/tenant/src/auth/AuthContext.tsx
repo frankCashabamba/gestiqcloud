@@ -160,7 +160,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
           const restored = await restoreOfflineSession()
           if (restored) {
-            console.log('[auth] Offline fallback loaded cached profile')
+            if (import.meta.env.DEV) { console.log('[auth] Offline fallback loaded cached profile') }
           } else {
             clear()
           }
@@ -263,7 +263,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           setProfile(offlineResult.profile as MeCompany)
           markOfflineSession()
           setOfflineMode(true)
-          console.log('[auth] Offline login successful')
+          if (import.meta.env.DEV) { console.log('[auth] Offline login successful') }
           return { scope: 'tenant' as LoginScope, accessToken: offlineResult.token }
         }
       }
@@ -295,7 +295,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         await loadMe(token)
         markOnlineSession()
         setOfflineMode(false)
-        console.log('[auth] Reconnected and session validated online')
+        if (import.meta.env.DEV) { console.log('[auth] Reconnected and session validated online') }
       } catch {
         const ok = await refresh()
         if (ok) {

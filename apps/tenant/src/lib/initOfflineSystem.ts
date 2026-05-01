@@ -11,27 +11,27 @@ import { registerAllOfflineAdapters } from './offlineAdapters'
 
 export async function initializeOfflineSystem() {
   try {
-    console.log('[offline] Initializing offline system...')
+    if (import.meta.env.DEV) { console.log('[offline] Initializing offline system...') }
 
     // Step 1: Initialize storage
     await initOfflineStore()
-    console.log('[offline] Offline store initialized')
+    if (import.meta.env.DEV) { console.log('[offline] Offline store initialized') }
 
     // Step 2: Setup event listener
     initSyncEventListener()
-    console.log('[offline] Sync event listener initialized')
+    if (import.meta.env.DEV) { console.log('[offline] Sync event listener initialized') }
 
     // Step 3: Register adapters
     const manager = getSyncManager()
 
     registerAllOfflineAdapters()
 
-    console.log(`[offline] ${manager.getAdapterCount()} sync adapters registered`)
+    if (import.meta.env.DEV) { console.log(`[offline] ${manager.getAdapterCount()} sync adapters registered`) }
 
     // Step 4: Start periodic sync check
     startPeriodicSyncCheck()
 
-    console.log('[offline] Offline system fully initialized')
+    if (import.meta.env.DEV) { console.log('[offline] Offline system fully initialized') }
     return true
   } catch (error) {
     console.error('[offline] Failed to initialize offline system:', error)
@@ -45,7 +45,7 @@ export async function initializeOfflineSystem() {
 function startPeriodicSyncCheck() {
   // Auto-sync when coming online
   window.addEventListener('online', () => {
-    console.log('[offline] Online detected - triggering sync')
+    if (import.meta.env.DEV) { console.log('[offline] Online detected - triggering sync') }
     window.dispatchEvent(new CustomEvent('offline:sync-requested'))
   })
 

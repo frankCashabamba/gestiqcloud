@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from uuid import UUID
 
@@ -89,6 +90,7 @@ async def upload_file(
     import_type: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    from app.config.database import SessionLocal
     from app.modules.historical.application.use_cases import UploadHistoricalFileUseCase
 
     tid = _require_tenant_id(request)
@@ -102,13 +104,48 @@ async def upload_file(
         raise HTTPException(status_code=413, detail="file_too_large")
     filename = file.filename or "unknown"
 
-    return UploadHistoricalFileUseCase(db).execute(
-        tenant_id=UUID(tid),
-        file_bytes=file_bytes,
-        filename=filename,
-        import_type=import_type,
-        user_id=UUID(uid) if uid else None,
-    )
+    # Capture the RLS context set on the request-scoped session so we can
+    # replicate it in the worker-thread session (SQLAlchemy sessions are not
+    # thread-safe; we open a dedicated one inside the thread).
+    rls_info = {
+        "tenant_id": db.info.get("tenant_id"),
+        "user_id": db.info.get("user_id"),
+        "bypass_rls": bool(db.info.get("bypass_rls", False)),
+    }
+
+    def _run_in_thread() -> dict:
+        thread_db = SessionLocal()
+        try:
+            thread_db.info.update(rls_info)
+            result = UploadHistoricalFileUseCase(thread_db).execute(
+                tenant_id=UUID(tid),
+                file_bytes=file_bytes,
+                filename=filename,
+                import_type=import_type,
+                user_id=UUID(uid) if uid else None,
+            )
+            return result
+        finally:
+            thread_db.close()
+
+    try:
+        return await asyncio.to_thread(_run_in_thread)
+    except ValueError as exc:
+        msg = str(exc)
+        if msg.startswith("duplicate_file_hash:"):
+            existing_id = msg.split(":", 1)[1]
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "duplicate_file_hash", "existing_id": existing_id},
+            )
+        # legacy basic-dedup error
+        if msg.startswith("Duplicate historical import:"):
+            existing_id = msg.split(":", 1)[1].strip()
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "duplicate_import", "existing_id": existing_id},
+            )
+        raise HTTPException(status_code=422, detail=msg)
 
 
 # ── Sales ────────────────────────────────────────────────────────────────────

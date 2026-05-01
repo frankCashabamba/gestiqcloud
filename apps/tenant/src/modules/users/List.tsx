@@ -16,6 +16,8 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import type { Usuario, ModuloOption, RolOption, Rol } from './types'
 import { useAuth } from '../../auth/AuthContext'
+import { usePermission } from '../../hooks/usePermission'
+import ProtectedButton from '../../components/ProtectedButton'
 import RolModal from './RoleModal'
 
 function formatNombre(usuario: Usuario): string {
@@ -42,6 +44,9 @@ export default function UsuariosList() {
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
   const { profile, loading: authLoading, token } = useAuth()
+  const can = usePermission()
+  // Permisos granulares del backend (users:create, users:update, users:delete, users:set_password)
+  // isAdminEmpresa conservado solo para acciones de gestión de roles (no cuentan con permiso granular aún)
   const isAdminEmpresa =
     Boolean((profile as any)?.es_admin_empresa) ||
     Boolean((profile as any)?.is_company_admin) ||
@@ -155,22 +160,24 @@ export default function UsuariosList() {
           <h2 className="text-lg font-semibold text-slate-900">{t('users:title')}</h2>
           <p className="text-sm text-slate-500">{t('users:subtitle')}</p>
         </div>
-        {isAdminEmpresa && (
-          <div className="flex gap-2">
-            <button
-              className="rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
-              onClick={() => {
-                loadRoles()
-                setShowRolesModal(true)
-              }}
-            >
-              {t('users:manageRoles')}
-            </button>
-            <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
-              {t('users:newUser')}
-            </button>
+        <div className="flex gap-2">
+            {isAdminEmpresa && (
+              <button
+                className="rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+                onClick={() => {
+                  loadRoles()
+                  setShowRolesModal(true)
+                }}
+              >
+                {t('users:manageRoles')}
+              </button>
+            )}
+            {can('users:create') && (
+              <ProtectedButton permission="users:create" variant="primary" onClick={() => nav('nuevo')}>
+                {t('users:newUser')}
+              </ProtectedButton>
+            )}
           </div>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -222,24 +229,29 @@ export default function UsuariosList() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-wrap items-center justify-end gap-3">
-                      {isAdminEmpresa && (
-                        <>
-                          <Link to={`${u.id}/editar`} className="text-sm font-medium text-blue-600 hover:text-blue-500">
-                            {t('users:edit')}
-                          </Link>
-                          <button
-                            className="text-sm font-medium text-slate-600 hover:text-slate-900"
-                            onClick={() => { setSetPwdUserId(u.id); setNewPwd('') }}
-                          >
-                            {t('users:setPassword')}
-                          </button>
-                          <button
-                            className="text-sm font-medium text-rose-600 hover:text-rose-500"
-                            onClick={() => setRemoveTarget(u)}
-                          >
-                            {t('users:deactivate')}
-                          </button>
-                        </>
+                      {can('users:update') && (
+                        <Link to={`${u.id}/editar`} className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                          {t('users:edit')}
+                        </Link>
+                      )}
+                      {can('users:set_password') && (
+                        <button
+                          className="text-sm font-medium text-slate-600 hover:text-slate-900"
+                          onClick={() => { setSetPwdUserId(u.id); setNewPwd('') }}
+                        >
+                          {t('users:setPassword')}
+                        </button>
+                      )}
+                      {can('users:delete') && (
+                        <ProtectedButton
+                          permission="users:delete"
+                          variant="ghost"
+                          unstyled
+                          onClick={() => setRemoveTarget(u)}
+                          className="text-sm font-medium text-rose-600 hover:text-rose-500"
+                        >
+                          {t('users:deactivate')}
+                        </ProtectedButton>
                       )}
                     </div>
                   </td>

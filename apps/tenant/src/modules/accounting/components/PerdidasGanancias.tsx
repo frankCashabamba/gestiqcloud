@@ -1,13 +1,53 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listGastos, type Gasto } from '../../expenses/services'
-import { listVentas, type Venta } from '../../sales/services'
+import {
+  getProfitLossReport,
+  type ProfitLossReport,
+  type ReportAccountLine,
+} from '../services'
 
 function fmt(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const CONFIRMED_STATES = new Set(['emitida', 'facturada', 'entregado', 'confirmed', 'invoiced', 'delivered'])
+function AccountTable({
+  lines,
+  total,
+  emptyLabel,
+}: {
+  lines: ReportAccountLine[]
+  total: number
+  emptyLabel: string
+}) {
+  if (lines.length === 0) {
+    return <p className="text-sm text-gray-400 italic px-1">{emptyLabel}</p>
+  }
+  return (
+    <table className="w-full text-sm">
+      <tbody>
+        {lines.map((l) => (
+          <tr key={l.code} className="border-b border-gray-100 last:border-0">
+            <td className="py-1.5 text-gray-500 font-mono w-20">{l.code}</td>
+            <td className="py-1.5 text-gray-700 flex-1">{l.name}</td>
+            <td className="py-1.5 text-right font-mono text-gray-900">
+              {l.balance < 0 ? `(${fmt(Math.abs(l.balance))})` : fmt(l.balance)}
+            </td>
+          </tr>
+        ))}
+        <tr className="border-t border-gray-300 font-semibold">
+          <td colSpan={2} className="pt-2 text-gray-700">
+            Total
+          </td>
+          <td
+            className={`pt-2 text-right font-mono ${total < 0 ? 'text-red-600' : 'text-gray-900'}`}
+          >
+            {total < 0 ? `(${fmt(Math.abs(total))})` : fmt(total)}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  )
+}
 
 export const PerdidasGanancias: React.FC = () => {
   const { t } = useTranslation()
@@ -17,73 +57,36 @@ export const PerdidasGanancias: React.FC = () => {
   const [desde, setDesde] = useState(firstOfYear)
   const [hasta, setHasta] = useState(today)
 
-  const [gastos, setGastos] = useState<Gasto[]>([])
-  const [ventas, setVentas] = useState<Venta[]>([])
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<ProfitLossReport | null>(null)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    Promise.all([listVentas(), listGastos()])
-      .then(([v, g]) => { setVentas(v); setGastos(g) })
-      .catch(() => setError(t('accounting.errors.loadTransactions')))
+  const fetchReport = useCallback(() => {
+    if (!desde || !hasta) return
+    setLoading(true)
+    setError(null)
+    getProfitLossReport(desde, hasta)
+      .then(setData)
+      .catch((err: unknown) => {
+        const msg =
+          err instanceof Error ? err.message : t('accounting.errors.loadTransactions')
+        setError(msg)
+      })
       .finally(() => setLoading(false))
-  }, [])
+  }, [desde, hasta, t])
 
-  const { ventas: filteredVentas, gastos: filteredGastos } = useMemo(() => {
-    const inRange = (d: string) => {
-      const f = d.slice(0, 10)
-      if (desde && f < desde) return false
-      if (hasta && f > hasta) return false
-      return true
-    }
-    return {
-      ventas: ventas.filter((v) => inRange(v.fecha) && CONFIRMED_STATES.has(v.estado ?? '')),
-      gastos: gastos.filter((g) => inRange(g.date)),
-    }
-  }, [ventas, gastos, desde, hasta])
+  useEffect(() => {
+    fetchReport()
+  }, [fetchReport])
 
-  const { totalVentas, totalGastos, resultado } = useMemo(() => {
-    const totalVentas = filteredVentas.reduce((s, v) => s + (v.total ?? 0), 0)
-    const totalGastos = filteredGastos.reduce((s, g) => s + (g.amount ?? 0), 0)
-    return { totalVentas, totalGastos, resultado: totalVentas - totalGastos }
-  }, [filteredVentas, filteredGastos])
-
-  const margenNeto = totalVentas > 0 ? (resultado / totalVentas) * 100 : 0
-
-  // Desglose de gastos por categoría
-  const gastosPorCategoria = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const g of filteredGastos) {
-      const cat = g.category || t('accounting.dashboard.uncategorized')
-      map[cat] = (map[cat] ?? 0) + (g.amount ?? 0)
-    }
-    return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [filteredGastos])
-
-  if (loading) {
-    return (
-      <div className="p-6 animate-pulse space-y-3">
-        {[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-6 rounded bg-gray-100" />)}
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="m-4 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-        {error}
-      </div>
-    )
-  }
-
-  const rows = [
-    { label: t('accounting.pl.totalSales'), value: totalVentas, bold: false, indent: false },
-    { label: t('accounting.pl.cogs'), value: -totalGastos, bold: false, indent: true },
-    { label: t('accounting.pl.netResult'), value: resultado, bold: true, indent: false },
-  ]
+  const netResult = data?.net_result ?? 0
+  const totalIncome = data?.total_income ?? 0
+  const totalExpenses = data?.total_expenses ?? 0
+  const margenNeto = totalIncome > 0 ? (netResult / totalIncome) * 100 : 0
 
   return (
     <div className="p-4 max-w-2xl space-y-6">
+      {/* Header + filtros */}
       <div className="flex flex-col sm:flex-row sm:items-end gap-3">
         <h2 className="text-lg font-semibold flex-1">{t('accounting.pl.title')}</h2>
         <div className="flex items-center gap-2 text-sm">
@@ -104,64 +107,99 @@ export const PerdidasGanancias: React.FC = () => {
         </div>
       </div>
 
-      {/* Resumen */}
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        {rows.map((row, i) => (
-          <div
-            key={i}
-            className={`flex items-center justify-between px-5 py-3 ${
-              row.bold ? 'bg-gray-50 border-t border-gray-200' : 'border-b border-gray-100'
-            }`}
-          >
-            <span className={`text-sm ${row.bold ? 'font-semibold text-gray-900' : 'text-gray-600'} ${row.indent ? 'pl-4' : ''}`}>
-              {row.label}
-            </span>
-            <span className={`text-sm font-mono ${row.bold ? 'font-bold' : 'font-medium'} ${
-              row.value < 0 ? 'text-red-600' : 'text-gray-800'
-            }`}>
-              {row.value < 0 ? `(${fmt(Math.abs(row.value))})` : fmt(row.value)}
-            </span>
-          </div>
-        ))}
-        <div className="flex items-center justify-between px-5 py-3 bg-blue-50 border-t border-blue-200">
-          <span className="text-xs text-gray-500">{t('accounting.pl.netMargin')}</span>
-          <span className={`text-sm font-bold font-mono ${margenNeto >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-            {margenNeto.toFixed(1)}%
-          </span>
-        </div>
-      </div>
-
-      {/* Desglose gastos */}
-      {gastosPorCategoria.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('accounting.pl.expenseBreakdown')}</h3>
-          <div className="space-y-2">
-            {gastosPorCategoria.map(([cat, amount]) => (
-              <div key={cat} className="flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between text-sm mb-0.5">
-                    <span className="text-gray-600 truncate">{cat}</span>
-                    <span className="text-gray-900 font-mono font-medium ml-2 shrink-0">{fmt(amount)}</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-red-400 rounded-full"
-                      style={{ width: `${totalGastos > 0 ? Math.min(100, (amount / totalGastos) * 100) : 0}%` }}
-                    />
-                  </div>
-                </div>
-                <span className="text-xs text-gray-400 w-8 text-right shrink-0">
-                  {totalGastos > 0 ? `${((amount / totalGastos) * 100).toFixed(0)}%` : ''}
-                </span>
-              </div>
-            ))}
-          </div>
+      {/* Loading */}
+      {loading && (
+        <div className="animate-pulse space-y-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-6 rounded bg-gray-100" />
+          ))}
         </div>
       )}
 
-      <p className="text-xs text-gray-400">
-        {filteredVentas.length} {t('accounting.dashboard.salesCount')} · {filteredGastos.length} {t('accounting.dashboard.expensesCount')}
-      </p>
+      {/* Error */}
+      {!loading && error && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+          {error}
+          <button
+            onClick={fetchReport}
+            className="ml-3 underline text-red-600 hover:text-red-800"
+          >
+            {t('common.retry', 'Reintentar')}
+          </button>
+        </div>
+      )}
+
+      {/* Datos */}
+      {!loading && !error && data && (
+        <>
+          {/* Ingresos */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-green-700">
+              {t('accounting.pl.income', 'Ingresos')}
+            </h3>
+            <AccountTable
+              lines={data.income}
+              total={totalIncome}
+              emptyLabel={t('accounting.pl.noIncome', 'Sin ingresos en el período')}
+            />
+          </div>
+
+          {/* Gastos */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-red-700">
+              {t('accounting.pl.expenses', 'Gastos')}
+            </h3>
+            <AccountTable
+              lines={data.expenses}
+              total={totalExpenses}
+              emptyLabel={t('accounting.pl.noExpenses', 'Sin gastos en el período')}
+            />
+          </div>
+
+          {/* Resumen */}
+          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <span className="text-sm text-gray-600">
+                {t('accounting.pl.totalSales', 'Total ingresos')}
+              </span>
+              <span className="text-sm font-mono font-medium text-gray-900">
+                {fmt(totalIncome)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <span className="text-sm text-gray-600 pl-4">
+                {t('accounting.pl.cogs', 'Total gastos')}
+              </span>
+              <span className="text-sm font-mono font-medium text-gray-800">
+                ({fmt(totalExpenses)})
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-t border-gray-200">
+              <span className="text-sm font-semibold text-gray-900">
+                {t('accounting.pl.netResult', 'Resultado neto')}
+              </span>
+              <span
+                className={`text-sm font-bold font-mono ${netResult < 0 ? 'text-red-600' : 'text-gray-900'}`}
+              >
+                {netResult < 0 ? `(${fmt(Math.abs(netResult))})` : fmt(netResult)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 bg-blue-50 border-t border-blue-200">
+              <span className="text-xs text-gray-500">{t('accounting.pl.netMargin', 'Margen neto')}</span>
+              <span
+                className={`text-sm font-bold font-mono ${margenNeto >= 0 ? 'text-blue-700' : 'text-red-600'}`}
+              >
+                {margenNeto.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400">
+            {t('accounting.pl.currency', 'Moneda')}: {data.currency} ·{' '}
+            {t('accounting.pl.period', 'Período')}: {data.date_from} → {data.date_to}
+          </p>
+        </>
+      )}
     </div>
   )
 }

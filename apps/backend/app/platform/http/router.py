@@ -299,6 +299,12 @@ def build_api_router() -> APIRouter:
         ("app.modules.documents.interface.http.tenant", "documents_router"),
         prefix="/tenant",
     )
+    # Documents Storage (list, detail, upload)
+    include_router_safe(
+        r,
+        ("app.modules.documents.interface.http.document_storage", "router"),
+        prefix="/tenant",
+    )
 
     # Purchases
     include_router_safe(
@@ -432,6 +438,13 @@ def build_api_router() -> APIRouter:
 
     # POS / Caja
     include_router_safe(r, ("app.modules.pos.interface.http.tenant", "router"), prefix="/tenant")
+
+    # Restaurant (mesas, comandas, items)
+    include_router_safe(
+        r,
+        ("app.modules.restaurant.interface.http.tenant", "router"),
+        prefix="/tenant",
+    )
 
     # Reconciliation (Payments AR/AP)
     include_router_safe(
