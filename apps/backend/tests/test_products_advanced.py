@@ -1,7 +1,7 @@
 """
 Advanced product endpoint tests: duplicates/similar, duplicates/merge, POST /purge.
 
-Rutas reales (prefijo /api/v1/products):
+Rutas reales (prefijo /api/v1/tenant/products):
   GET  /duplicates/similar
   POST /duplicates/merge
   POST /purge
@@ -9,14 +9,11 @@ Rutas reales (prefijo /api/v1/products):
 
 from __future__ import annotations
 
-import secrets
 import uuid
-from datetime import datetime
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.core.products import Product
@@ -27,7 +24,7 @@ from app.models.tenant import Tenant
 # Helpers
 # ---------------------------------------------------------------------------
 
-BASE = "/api/v1/products"
+BASE = "/api/v1/tenant/products"
 
 
 def _make_product(db: Session, tenant_id: Any, name: str, sku: str | None = None) -> Product:
@@ -47,14 +44,20 @@ def _make_product(db: Session, tenant_id: Any, name: str, sku: str | None = None
     return p
 
 
-def _login_tenant(client: TestClient, email: str, username: str, password: str) -> str:
-    """Devuelve el access_token de un usuario tenant."""
-    r = client.post(
-        "/api/v1/tenant/auth/login",
-        json={"identificador": username, "password": password},
+def _token_for_tenant(tenant_id: Any, *, is_company_admin: bool = True) -> str:
+    """Devuelve un access_token tenant sin depender del flujo de login completo."""
+    from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+
+    return PyJWTTokenService().issue_access(
+        {
+            "user_id": str(uuid.uuid4()),
+            "tenant_id": str(tenant_id),
+            "scope": "tenant",
+            "kind": "tenant",
+            "is_company_admin": is_company_admin,
+            "permisos": {},
+        }
     )
-    assert r.status_code == 200, f"Login failed: {r.text}"
-    return r.json()["access_token"]
 
 
 def _auth(token: str) -> dict:
@@ -74,69 +77,29 @@ def _ensure_product_table(db: Session) -> None:
 @pytest.fixture
 def tenant_a(db: Session):
     """Tenant A con usuario companyAdmin para pruebas de aislamiento."""
-    password = secrets.token_urlsafe(12)
-    email = f"ta-{uuid.uuid4().hex[:6]}@example.com"
-    username = f"ta-{uuid.uuid4().hex[:6]}"
     empresa = f"TenantA-{uuid.uuid4().hex[:4]}"
 
-    from app.models.company.company_user import CompanyUser
-    from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
-
-    hasher = PasslibPasswordHasher()
+    Tenant.__table__.create(bind=db.get_bind(), checkfirst=True)
     tid = uuid.uuid4()
     tenant = Tenant(id=tid, name=empresa, slug=f"ta-{tid.hex[:8]}")
     db.add(tenant)
-    db.flush()
-
-    user = CompanyUser(
-        tenant_id=tid,
-        first_name="A",
-        last_name="User",
-        email=email,
-        username=username,
-        is_company_admin=True,
-        password_hash=hasher.hash(password),
-        is_active=True,
-        is_verified=True,
-    )
-    db.add(user)
     db.commit()
 
-    return {"tenant_id": tid, "email": email, "username": username, "password": password}
+    return {"tenant_id": tid}
 
 
 @pytest.fixture
 def tenant_b(db: Session):
     """Tenant B independiente para pruebas de aislamiento."""
-    password = secrets.token_urlsafe(12)
-    email = f"tb-{uuid.uuid4().hex[:6]}@example.com"
-    username = f"tb-{uuid.uuid4().hex[:6]}"
     empresa = f"TenantB-{uuid.uuid4().hex[:4]}"
 
-    from app.models.company.company_user import CompanyUser
-    from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
-
-    hasher = PasslibPasswordHasher()
+    Tenant.__table__.create(bind=db.get_bind(), checkfirst=True)
     tid = uuid.uuid4()
     tenant = Tenant(id=tid, name=empresa, slug=f"tb-{tid.hex[:8]}")
     db.add(tenant)
-    db.flush()
-
-    user = CompanyUser(
-        tenant_id=tid,
-        first_name="B",
-        last_name="User",
-        email=email,
-        username=username,
-        is_company_admin=True,
-        password_hash=hasher.hash(password),
-        is_active=True,
-        is_verified=True,
-    )
-    db.add(user)
     db.commit()
 
-    return {"tenant_id": tid, "email": email, "username": username, "password": password}
+    return {"tenant_id": tid}
 
 
 # ===========================================================================
@@ -145,7 +108,7 @@ def tenant_b(db: Session):
 
 
 class TestDuplicatesSimilar:
-    """GET /api/v1/products/duplicates/similar"""
+    """GET /api/v1/tenant/products/duplicates/similar"""
 
     def test_lista_vacia_sin_duplicados(self, client: TestClient, db: Session):
         """Sin productos similares devuelve grupos vacíos."""
@@ -172,7 +135,7 @@ class TestDuplicatesSimilar:
         _make_product(db, tid_a, "leche entera 1l")  # mismo texto, distinta capitalización
         db.commit()
 
-        tok_a = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok_a = _token_for_tenant(tenant_a["tenant_id"])
         r = client.get(f"{BASE}/duplicates/similar", headers=_auth(tok_a))
         assert r.status_code == 200
         body = r.json()
@@ -196,7 +159,7 @@ class TestDuplicatesSimilar:
         _make_product(db, tid_a, f"Producto Unico {uuid.uuid4().hex[:6]}")
         db.commit()
 
-        tok_a = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok_a = _token_for_tenant(tenant_a["tenant_id"])
         r = client.get(f"{BASE}/duplicates/similar", headers=_auth(tok_a))
         assert r.status_code == 200
         body = r.json()
@@ -218,7 +181,7 @@ class TestDuplicatesSimilar:
 
 
 class TestDuplicatesMerge:
-    """POST /api/v1/products/duplicates/merge"""
+    """POST /api/v1/tenant/products/duplicates/merge"""
 
     def test_merge_exitoso(self, client: TestClient, db: Session, tenant_a):
         """Merge correcto: borra el loser, devuelve winner_id y merged=1."""
@@ -227,9 +190,10 @@ class TestDuplicatesMerge:
 
         winner = _make_product(db, tid_a, "Queso Manchego", sku="QM-001")
         loser = _make_product(db, tid_a, "queso manchego", sku=None)
+        loser_id = loser.id
         db.commit()
 
-        tok = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok = _token_for_tenant(tenant_a["tenant_id"])
         r = client.post(
             f"{BASE}/duplicates/merge",
             json={"winner_id": str(winner.id), "loser_ids": [str(loser.id)]},
@@ -239,11 +203,11 @@ class TestDuplicatesMerge:
         body = r.json()
         assert body["merged"] == 1
         assert body["winner_id"] == str(winner.id)
-        assert str(loser.id) in body["deleted_ids"]
+        assert str(loser_id) in body["deleted_ids"]
 
         # Verificar que el loser ya no existe
         db.expire_all()
-        gone = db.query(Product).filter(Product.id == loser.id).first()
+        gone = db.query(Product).filter(Product.id == loser_id).first()
         assert gone is None
 
     def test_merge_requiere_permiso(self, client: TestClient, db: Session, tenant_a, tenant_b):
@@ -255,30 +219,7 @@ class TestDuplicatesMerge:
         loser = _make_product(db, tid_b, "aceite oliva")
         db.commit()
 
-        # Creamos un usuario de tenant_b SIN is_company_admin
-        password = secrets.token_urlsafe(12)
-        email = f"nonadmin-{uuid.uuid4().hex[:6]}@example.com"
-        username = f"nonadmin-{uuid.uuid4().hex[:6]}"
-
-        from app.models.company.company_user import CompanyUser
-        from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
-
-        hasher = PasslibPasswordHasher()
-        limited_user = CompanyUser(
-            tenant_id=tid_b,
-            first_name="Limited",
-            last_name="User",
-            email=email,
-            username=username,
-            is_company_admin=False,
-            password_hash=hasher.hash(password),
-            is_active=True,
-            is_verified=True,
-        )
-        db.add(limited_user)
-        db.commit()
-
-        tok = _login_tenant(client, email, username, password)
+        tok = _token_for_tenant(tid_b, is_company_admin=False)
         r = client.post(
             f"{BASE}/duplicates/merge",
             json={"winner_id": str(winner.id), "loser_ids": [str(loser.id)]},
@@ -296,7 +237,7 @@ class TestDuplicatesMerge:
         product_b = _make_product(db, tid_b, "vino tinto")  # pertenece a otro tenant
         db.commit()
 
-        tok_a = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok_a = _token_for_tenant(tenant_a["tenant_id"])
         r = client.post(
             f"{BASE}/duplicates/merge",
             json={"winner_id": str(winner_a.id), "loser_ids": [str(product_b.id)]},
@@ -313,7 +254,7 @@ class TestDuplicatesMerge:
         winner = _make_product(db, tid_a, "Yogur Natural")
         db.commit()
 
-        tok = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok = _token_for_tenant(tenant_a["tenant_id"])
         r = client.post(
             f"{BASE}/duplicates/merge",
             json={"winner_id": str(winner.id), "loser_ids": []},
@@ -329,7 +270,7 @@ class TestDuplicatesMerge:
 
 
 class TestPurge:
-    """POST /api/v1/products/purge"""
+    """POST /api/v1/tenant/products/purge"""
 
     def test_purge_dry_run_no_elimina(self, client: TestClient, db: Session, tenant_a):
         """dry_run=True devuelve conteos pero no borra nada."""
@@ -340,7 +281,7 @@ class TestPurge:
         _make_product(db, tid_a, "Arroz Corto")
         db.commit()
 
-        tok = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok = _token_for_tenant(tenant_a["tenant_id"])
         r = client.post(
             f"{BASE}/purge",
             json={"confirm": "PURGE", "dry_run": True},
@@ -367,7 +308,7 @@ class TestPurge:
         _make_product(db, tid_a, "Producto Purge B")
         db.commit()
 
-        tok = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok = _token_for_tenant(tenant_a["tenant_id"])
         r = client.post(
             f"{BASE}/purge",
             json={"confirm": "PURGE", "dry_run": False},
@@ -387,7 +328,7 @@ class TestPurge:
         """confirm distinto a 'PURGE' debe devolver 400."""
         _ensure_product_table(db)
 
-        tok = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok = _token_for_tenant(tenant_a["tenant_id"])
         r = client.post(
             f"{BASE}/purge",
             json={"confirm": "SI", "dry_run": False},
@@ -407,7 +348,7 @@ class TestPurge:
         db.commit()
 
         # Purge desde tenant_a
-        tok_a = _login_tenant(client, tenant_a["email"], tenant_a["username"], tenant_a["password"])
+        tok_a = _token_for_tenant(tenant_a["tenant_id"])
         r = client.post(
             f"{BASE}/purge",
             json={"confirm": "PURGE", "dry_run": False},
@@ -426,29 +367,7 @@ class TestPurge:
         _ensure_product_table(db)
         tid_b = tenant_b["tenant_id"]
 
-        password = secrets.token_urlsafe(12)
-        email = f"nopurge-{uuid.uuid4().hex[:6]}@example.com"
-        username = f"nopurge-{uuid.uuid4().hex[:6]}"
-
-        from app.models.company.company_user import CompanyUser
-        from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
-
-        hasher = PasslibPasswordHasher()
-        limited = CompanyUser(
-            tenant_id=tid_b,
-            first_name="No",
-            last_name="Purge",
-            email=email,
-            username=username,
-            is_company_admin=False,
-            password_hash=hasher.hash(password),
-            is_active=True,
-            is_verified=True,
-        )
-        db.add(limited)
-        db.commit()
-
-        tok = _login_tenant(client, email, username, password)
+        tok = _token_for_tenant(tid_b, is_company_admin=False)
         r = client.post(
             f"{BASE}/purge",
             json={"confirm": "PURGE", "dry_run": False},

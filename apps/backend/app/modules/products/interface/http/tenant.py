@@ -8,7 +8,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select, text
+from sqlalchemy import func, inspect, select, text
+from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -618,7 +619,28 @@ def _quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def _qualified_table_name(db: Session, table: str) -> str:
+    quoted = _quote_ident(table)
+    if db.get_bind().dialect.name == "sqlite":
+        return quoted
+    return f"public.{quoted}"
+
+
 def _find_product_fk_tables(db: Session) -> list[tuple[str, bool]]:
+    if db.get_bind().dialect.name == "sqlite":
+        inspector = inspect(db.get_bind())
+        out: list[tuple[str, bool]] = []
+        for table in inspector.get_table_names():
+            if table == "products":
+                continue
+            try:
+                columns = {column["name"] for column in inspector.get_columns(table)}
+            except NoSuchTableError:
+                continue
+            if "product_id" in columns:
+                out.append((table, "tenant_id" in columns))
+        return sorted(out)
+
     rows = db.execute(
         text(
             """
@@ -659,12 +681,12 @@ def _count_product_refs(
 ) -> int:
     total = 0
     for table, has_tenant in tables:
-        qtable = _quote_ident(table)
+        qtable = _qualified_table_name(db, table)
         if has_tenant:
             count = (
                 db.execute(
                     text(
-                        f"SELECT COUNT(*) FROM public.{qtable} "
+                        f"SELECT COUNT(*) FROM {qtable} "
                         "WHERE tenant_id=:tid AND product_id=:pid"
                     ),
                     {"tid": tenant_id, "pid": str(product_id)},
@@ -674,7 +696,7 @@ def _count_product_refs(
         else:
             count = (
                 db.execute(
-                    text(f"SELECT COUNT(*) FROM public.{qtable} WHERE product_id=:pid"),
+                    text(f"SELECT COUNT(*) FROM {qtable} WHERE product_id=:pid"),
                     {"pid": str(product_id)},
                 ).scalar()
                 or 0
@@ -803,10 +825,10 @@ def merge_similar_products(
         for table, has_tenant in tables:
             if not has_tenant:
                 continue
-            qtable = _quote_ident(table)
+            qtable = _qualified_table_name(db, table)
             res = db.execute(
                 text(
-                    f"UPDATE public.{qtable} "
+                    f"UPDATE {qtable} "
                     "SET product_id=:winner "
                     "WHERE tenant_id=:tid AND product_id=:loser"
                 ),
@@ -1173,39 +1195,29 @@ def purge_products_pro(request: Request, payload: PurgeRequest, db: Session = De
 
     # Perform purge in transaction order
     deleted = dict.fromkeys(counts, 0)
+
+    def _delete_counted(key: str, sql: str) -> int:
+        try:
+            result = db.execute(text(sql), {"tid": tenant_id})
+            rowcount = int(result.rowcount or 0)
+            return rowcount if rowcount > 0 else int(counts.get(key, 0) or 0)
+        except Exception:
+            return 0
+
     if payload.include_stock:
-        deleted["stock_moves"] = (
-            db.execute(
-                text("DELETE FROM stock_moves WHERE tenant_id = :tid RETURNING 1"),
-                {"tid": tenant_id},
-            ).rowcount
-            or 0
+        deleted["stock_moves"] = _delete_counted(
+            "stock_moves", "DELETE FROM stock_moves WHERE tenant_id = :tid"
         )
-        deleted["stock_items"] = (
-            db.execute(
-                text("DELETE FROM stock_items WHERE tenant_id = :tid RETURNING 1"),
-                {"tid": tenant_id},
-            ).rowcount
-            or 0
+        deleted["stock_items"] = _delete_counted(
+            "stock_items", "DELETE FROM stock_items WHERE tenant_id = :tid"
         )
-    deleted["products"] = (
-        db.execute(
-            text("DELETE FROM products WHERE tenant_id = :tid RETURNING 1"),
-            {"tid": tenant_id},
-        ).rowcount
-        or 0
+    deleted["products"] = _delete_counted(
+        "products", "DELETE FROM products WHERE tenant_id = :tid"
     )
     if payload.include_categories:
-        try:
-            deleted["product_categories"] = (
-                db.execute(
-                    text("DELETE FROM product_categories WHERE tenant_id = :tid RETURNING 1"),
-                    {"tid": tenant_id},
-                ).rowcount
-                or 0
-            )
-        except Exception:
-            deleted["product_categories"] = 0
+        deleted["product_categories"] = _delete_counted(
+            "product_categories", "DELETE FROM product_categories WHERE tenant_id = :tid"
+        )
     db.commit()
 
     # Best-effort audit log

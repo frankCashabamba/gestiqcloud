@@ -1293,9 +1293,7 @@ async def get_balance_sheet(
             # Activo: saldo normal débito (debit - credit)
             balance = sum_debit - sum_credit
             if balance != Decimal("0"):
-                asset_lines.append(
-                    ReportAccountLine(code=row.code, name=row.name, balance=balance)
-                )
+                asset_lines.append(ReportAccountLine(code=row.code, name=row.name, balance=balance))
                 total_assets += balance
         elif row.type == "LIABILITY":
             # Pasivo: saldo normal crédito (credit - debit)

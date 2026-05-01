@@ -422,8 +422,8 @@ def test_analyze_with_context_image_pre_extract_can_skip_ai(monkeypatch):
         lambda *args, **kwargs: None,
     )
 
-    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
-        del file_bytes, filename, bypass_cache
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False, tenant_id=None):
+        del file_bytes, filename, bypass_cache, tenant_id
         return {
             "text": "texto OCR suficientemente largo y limpio para resolver el documento",
             "format": "IMAGE_OCR",
@@ -520,8 +520,8 @@ def test_pre_extract_skip_ai_applies_ocr_repairs_before_persist(monkeypatch):
     VALOR TOTAL 2,145.00
     """.strip()
 
-    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
-        del file_bytes, filename, bypass_cache
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False, tenant_id=None):
+        del file_bytes, filename, bypass_cache, tenant_id
         return {
             "text": ocr_text,
             "format": "IMAGE_OCR",
@@ -603,8 +603,8 @@ def test_low_evidence_visual_doc_skips_ai_and_marks_review_message(monkeypatch):
         lambda *args, **kwargs: None,
     )
 
-    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
-        del file_bytes, filename, bypass_cache
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False, tenant_id=None):
+        del file_bytes, filename, bypass_cache, tenant_id
         return {
             "text": "NOTA DE VENTA RE\nDIRECCION\nCIUDAD\nR.U.C\nTELEFONO\nF. DE PAGO\nCANT.\nDESCRIPCION\nVUNIT\nVTOTAL\n",
             "format": "IMAGE_OCR",
@@ -687,8 +687,8 @@ def test_low_evidence_visual_doc_skips_ai_when_only_secondary_fields_exist(monke
         lambda *args, **kwargs: None,
     )
 
-    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
-        del file_bytes, filename, bypass_cache
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False, tenant_id=None):
+        del file_bytes, filename, bypass_cache, tenant_id
         return {
             "text": (
                 "FACTURA SIMPLIFICADA\n"

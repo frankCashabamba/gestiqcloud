@@ -1,8 +1,18 @@
 # Plan de Produccion: Parches vs Bloqueos
 
 Fecha: 2026-04-29
+Revision codigo: 2026-05-01
 
 Objetivo: dejar listos para produccion los modulos que estan cerca del 100%, aplicando parches acotados. Los modulos con trabajo estructural, legal, fiscal o de arquitectura quedan fuera del pase a produccion hasta completar una fase aparte.
+
+## Actualizacion 2026-05-01 contra codigo
+
+- `docs/modulos-bloqueados-desglose.md` queda como fuente detallada para modulos bloqueados.
+- Production no estaba clasificado en este plan. El codigo actual ya tiene ciclo de orden `DRAFT/SCHEDULED -> IN_PROGRESS -> COMPLETED/CANCELLED`, consumo de ingredientes, entrada de producto terminado, lote/batch y merma en UI. Se clasifica como candidato beta condicionado a pruebas integradas de inventario/coste.
+- Historical no debe aparecer en la lista de "no subir" general: el hardening core esta completado y queda como beta, con UX de progreso y carga en background como mejoras.
+- Reports sigue bloqueado para schedules/avanzado porque `SalesReportGenerator` consulta `sales_orders` y falta Celery beat. Los reportes simples acotados pueden validarse de forma separada.
+- Accounting ya tiene libro mayor, P&G y Balance; el bloqueo real restante es contabilidad completa sin asientos automaticos de ventas, compras y caja, mas cierres/permisos.
+- Restaurant tiene router montado y CRUD, pero el manifest esta deshabilitado y `close` devuelve 501. No debe exponerse hasta integrar POS/facturacion, impuestos y KDS.
 
 ## Criterio de decision
 
@@ -81,6 +91,8 @@ Un modulo queda fuera de produccion si:
 - Documents backend: [PARCHEADO 2026-04-30] country pack Ecuador falla cerrado para paises no soportados (`documents_country_not_supported`).
 - Documents backend: [HECHO 2026-04-30] router `document_storage` montado en `platform/http/router.py` bajo `/tenant` — `GET /documents/storage`, `GET /documents/storage/{id}` y `POST /documents/storage/upload` accesibles.
 - Restaurant backend: [HECHO 2026-04-30] router `restaurant/interface/http/tenant` montado en `platform/http/router.py` bajo `/tenant` — todos los endpoints `/tenant/restaurant/*` responden (CRUD mesas, comandas, items, send-kitchen; close devuelve 501).
+
+- Production backend/frontend: [VERIFICADO 2026-05-01] router `/tenant/production` montado; ordenes soportan crear, iniciar, completar y cancelar; completar consume ingredientes, crea stock terminado, asigna lote y registra merma; frontend expone modal de completar con cantidad producida, merma, motivo y batch. Pendiente: pruebas integradas y revisar fallback de `user_id` en gasto automatico.
 
 ## Modulos candidatos a produccion con parches
 
@@ -249,6 +261,20 @@ Parches pendientes:
 
 Condicion para subir: permitir OCR/revision/guardado, pero bloquear aprendizaje global si no se corrige.
 
+### Production
+
+Estado: candidato beta con pruebas obligatorias.
+
+Parches pendientes:
+
+- [VERIFICADO 2026-05-01] Backend: `POST /orders/{id}/complete` consume ingredientes, crea movimiento de salida `production_consume`, crea movimiento de entrada `production_output`, actualiza `StockItem`, asigna `batch_number` y guarda `waste_qty`/`waste_reason`.
+- [VERIFICADO 2026-05-01] Frontend: `OrdersList.tsx` permite iniciar, completar y cancelar; el modal de completar captura cantidad producida, merma, motivo, batch y notas.
+- [PENDIENTE] Agregar/ejecutar tests integrados de receta -> orden -> start -> complete -> stock ingredientes -> stock terminado -> lote -> merma.
+- [PENDIENTE] Revisar fallback de `user_id` a `order_id` al crear gasto automatico de produccion; debe fallar claro, usar usuario de sistema o quedar auditado.
+- [PENDIENTE] Validar warehouse por sector y politica de stock negativo antes de activarlo fuera de beta.
+
+Condicion para subir: smoke test completo de produccion con inventario, lote, merma, coste/gasto y rollback ante error de stock.
+
 ## Modulos que NO deben subir a produccion todavia
 
 ### Einvoicing
@@ -291,9 +317,10 @@ Bloqueos:
 - [PARCHEADO 2026-04-30] Creacion de reportes programados cerrada por defecto; falta worker/scheduler real antes de activar `REPORTS_SCHEDULER_ENABLED=true`.
 - Reportes grandes pueden seguir ejecutandose en memoria aunque exports CSV/XLSX ya tengan limite operativo.
 - Algunos filtros de fecha incompletos.
-- Faltan libro mayor, aging, flujo de caja, gastos avanzados.
+- Faltan aging, flujo de caja y validacion de gastos/reportes avanzados; libro mayor ya esta implementado en Accounting.
 - [HECHO 2026-04-30] RLS añadido al router tenant.
 - `SalesReportGenerator` depende de tablas que pueden no existir o no coincidir con el flujo POS/ventas real.
+- Profit snapshots y recalculate manual existen; falta recalculo nocturno con Celery beat.
 
 Decision: habilitar solo reportes simples si tienen rango acotado. No activar schedules.
 
@@ -303,9 +330,9 @@ Motivo: auth/modelos/flujo bancario no cerrados.
 
 Bloqueos:
 
-- Auth paralela pendiente de homogeneizar.
+- Rutas tenant y pagos autenticados ya usan RLS; queda validar con Postgres/RLS activo en integracion.
 - Modelos paralelos con Finance.
-- Refund y provider validation incompletos.
+- Refund existe; queda validar providers y webhooks con payloads reales.
 - Falta desmatching y conciliacion formal.
 - [HECHO 2026-04-30] Webhooks de pago fallan cerrado sin secret/firma. Pendiente validar payloads reales de proveedor.
 - [HECHO 2026-04-30] RLS añadido a rutas tenant y pagos autenticados; pendiente validacion de integracion con Postgres/RLS activo.
@@ -342,13 +369,13 @@ Decision: mantener desactivado o solo admin interno.
 
 ### Analytics
 
-Motivo: modulo vacio.
+Motivo: backend de KPIs existe, pero no hay modulo frontend/producto cerrado.
 
 Bloqueos:
 
 - Alcance funcional no definido para v1.
 - [PARCHEADO 2026-04-30] Rutas existentes de analytics/dashboard protegidas con scope tenant/admin y RLS en KPIs tenant.
-- Pendiente evidencia validada de migraciones, frontend productivo o pruebas de negocio.
+- Pendiente frontend tenant dedicado, pruebas de negocio y validacion con datos reales.
 
 Decision: no registrar como modulo productivo. Mantener oculto por feature flag hasta definir alcance y validar implementacion.
 
@@ -364,6 +391,7 @@ Bloqueos:
 - [PARCHEADO 2026-04-30] Cierre de comanda bloqueado con 501 para evitar estado `paid` sin caja/factura.
 - Impuestos hardcodeados a cero.
 - Falta Kitchen Display System (KDS).
+- La busqueda de productos no filtra menu/productos vendibles; puede mostrar materias primas.
 
 Decision: beta o desactivado por feature flag.
 
@@ -410,7 +438,7 @@ Parches recomendados:
 
 1. Cerrar parches de seguridad ya identificados en modulos candidatos.
 2. Alinear permisos frontend/backend.
-3. Ejecutar pruebas enfocadas por flujo: POS, Inventory, Sales, Purchases, Clients, Suppliers, Expenses, Billing.
+3. Ejecutar pruebas enfocadas por flujo: POS, Inventory, Sales, Purchases, Clients, Suppliers, Expenses, Billing, Production e Historical beta.
 4. Desactivar por feature flag los modulos bloqueados.
 5. Preparar checklist de release con migraciones, variables de entorno, workers y smoke tests.
 
@@ -431,17 +459,18 @@ Parches recomendados:
 | Webhooks | Candidato con requisito deploy | Worker Celery | Confirmar delivery real, retry, firma HMAC y anti-SSRF |
 | CRM | Candidato | Pruebas de conversion | Smoke CRUD leads/oportunidades/dashboard/conversion |
 | Importador | Candidato parcial | Aprendizaje ML global desactivado | Probar OCR/revision/guardado con ML_LEARNING_ENABLED=false |
+| Production | Candidato beta | Falta prueba integrada stock/lote/merma/coste | Smoke receta/orden/start/complete/stock/output/lote/merma |
+| Historical | Listo para beta | UX progreso y carga masiva pendientes | Activar beta controlada; no vender como import masivo avanzado |
 | Settings | Candidato transversal | Variables/secretos | Validar configuracion production |
 | Users | Candidato transversal | Permisos y sesiones | Validar auth, roles y revocacion |
 | Einvoicing | No subir | Stubs fiscales y certificados | Mantener sandbox/demo interno |
-| Accounting completo | No subir completo | Reportes/asientos/cierres incompletos | Solo configuracion basica/POS accounting protegida |
+| Accounting completo | No subir completo | Asientos automaticos/cierres/permisos incompletos | Solo configuracion basica/POS accounting protegida |
 | Reconciliation | No subir | Provider validation/refunds/upload extractos pendientes | Beta interna o feature flag |
 | Reports avanzado | No subir schedules | Scheduler/exactitud | Solo reportes simples acotados; schedules cerrados por defecto |
 | Documents/Quotes | No subir | Quotes y country packs incompletos | Mantener fuera de oferta v1 |
 | AI Agent | No subir tenant | Mocks operativos y destinatarios | Solo admin interno si se mantiene |
 | Analytics | No subir | Modulo sin alcance validado | Ocultar por feature flag |
 | Restaurant | No subir | Router/checkout/fiscal/KDS incompletos | Beta o feature flag |
-| Historical | Listo para beta | [HECHO 2026-04-30] Upload async + hash dedupe completados | Activar en beta; UX progreso pendiente |
 
 ## Lista corta para primer pase a produccion
 
@@ -460,6 +489,8 @@ Subir si pasan pruebas y permisos:
 - Webhooks
 - CRM
 - Importador
+- Production (beta controlada)
+- Historical (beta controlada)
 - Settings
 - Users
 
@@ -473,9 +504,8 @@ No subir todavia:
 - AI Agent
 - Analytics
 - Restaurant
-- Historical
 
-## Estado de completitud por modulo (2026-04-30)
+## Estado de completitud por modulo (2026-05-01)
 
 Notas sobre la columna "Decision pendiente":
 - COMPLETO = todas las decisiones de alcance v1 estan documentadas en este fichero (ya sea como [DECISION v1], [HECHO], [TODO FASE 2] o [REQUISITO DEPLOY]).
@@ -496,5 +526,7 @@ Notas sobre la columna "Decision pendiente":
 | Webhooks     | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI                 |
 | CRM          | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI                 |
 | Importador   | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
+| Production   | COMPLETO core   | COMPLETO core    | COMPLETO          | SI (beta; falta test integrado stock/lote/merma/coste) |
+| Historical   | COMPLETO core   | PENDIENTE UX progreso | COMPLETO     | SI (beta controlada) |
 | Settings     | COMPLETO        | COMPLETO         | COMPLETO          | SI (smoke config)  |
 | Users        | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI (smoke auth/roles) |

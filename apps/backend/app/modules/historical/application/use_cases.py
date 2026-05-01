@@ -529,9 +529,7 @@ class UploadHistoricalFileUseCase:
             {"tid": tenant_id, "fh": file_hash},
         ).scalar()
         if existing_by_hash:
-            raise ValueError(
-                f"duplicate_file_hash:{existing_by_hash}"
-            )
+            raise ValueError(f"duplicate_file_hash:{existing_by_hash}")
 
         # ── Fallback: basic name/size dedup (kept for safety) ────────────────
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
