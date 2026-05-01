@@ -25,6 +25,26 @@ ACCOUNTING_PERMISSIONS: tuple[str, ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Finance — permisos granulares
+# ---------------------------------------------------------------------------
+PERM_FINANCE_CASHBOX_WRITE = "finance.cashbox.write"
+
+FINANCE_PERMISSIONS: tuple[str, ...] = (PERM_FINANCE_CASHBOX_WRITE,)
+
+
+# ---------------------------------------------------------------------------
+# Restaurant — KDS permisos granulares
+# ---------------------------------------------------------------------------
+PERM_RESTAURANT_KDS_VIEW = "restaurant.kds.view"
+PERM_RESTAURANT_KDS_MANAGE = "restaurant.kds.manage"
+
+RESTAURANT_PERMISSIONS: tuple[str, ...] = (
+    PERM_RESTAURANT_KDS_VIEW,
+    PERM_RESTAURANT_KDS_MANAGE,
+)
+
+
 def validar_acceso_empresa(tenant_id: int, current_user):
     """Function validar_acceso_empresa - auto-generated docstring."""
     if not current_user.is_superadmin and current_user.tenant_id != tenant_id:

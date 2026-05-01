@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
+from app.core.permissions import PERM_RESTAURANT_KDS_MANAGE, PERM_RESTAURANT_KDS_VIEW
 from app.db.rls import ensure_guc_from_request, ensure_rls
 
 logger = logging.getLogger(__name__)
@@ -722,7 +723,11 @@ def _recalculate_order_totals(db: Session, order_id: str) -> dict[str, float]:
 # ===========================================================================
 
 
-@router.get("/kds/orders", response_model=list[dict[str, Any]])
+@router.get(
+    "/kds/orders",
+    response_model=list[dict[str, Any]],
+    dependencies=[Depends(require_permission(PERM_RESTAURANT_KDS_VIEW))],
+)
 def kds_list_orders(request: Request, db: Session = Depends(get_db)):
     """Devuelve órdenes con items pending/preparing/ready agrupadas por mesa.
 
@@ -776,9 +781,9 @@ def _kds_set_item_status(
     db: Session, item_id: str, *, new_status: str, ready: bool = False
 ) -> dict[str, Any]:
     item = db.execute(
-        text(
-            "SELECT id, order_id, status FROM restaurant_order_items WHERE id = :iid"
-        ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
+        text("SELECT id, order_id, status FROM restaurant_order_items WHERE id = :iid").bindparams(
+            bindparam("iid", type_=PGUUID(as_uuid=True))
+        ),
         {"iid": item_id},
     ).first()
     if not item:
@@ -788,30 +793,37 @@ def _kds_set_item_status(
     if ready:
         db.execute(
             text(
-                "UPDATE restaurant_order_items "
-                "SET status = :st, ready_at = :now WHERE id = :iid"
+                "UPDATE restaurant_order_items " "SET status = :st, ready_at = :now WHERE id = :iid"
             ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
             {"iid": item_id, "st": new_status, "now": now},
         )
     else:
         db.execute(
-            text(
-                "UPDATE restaurant_order_items SET status = :st WHERE id = :iid"
-            ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
+            text("UPDATE restaurant_order_items SET status = :st WHERE id = :iid").bindparams(
+                bindparam("iid", type_=PGUUID(as_uuid=True))
+            ),
             {"iid": item_id, "st": new_status},
         )
     db.commit()
     return {"id": item_id, "order_id": str(item[1]), "status": new_status}
 
 
-@router.post("/kds/items/{item_id}/ready", response_model=dict[str, Any])
+@router.post(
+    "/kds/items/{item_id}/ready",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require_permission(PERM_RESTAURANT_KDS_MANAGE))],
+)
 def kds_mark_ready(item_id: str, request: Request, db: Session = Depends(get_db)):
     """Marca un ítem como listo (ready). Permiso: restaurant.kds.manage"""
     ensure_guc_from_request(request, db, persist=True)
     return _kds_set_item_status(db, item_id, new_status="ready", ready=True)
 
 
-@router.post("/kds/items/{item_id}/served", response_model=dict[str, Any])
+@router.post(
+    "/kds/items/{item_id}/served",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require_permission(PERM_RESTAURANT_KDS_MANAGE))],
+)
 def kds_mark_served(item_id: str, request: Request, db: Session = Depends(get_db)):
     """Marca un ítem como servido. Permiso: restaurant.kds.manage"""
     ensure_guc_from_request(request, db, persist=True)

@@ -43,15 +43,17 @@ class SalesReportGenerator(BaseReportGenerator):
             #   __tablename__ = "sales_orders" y "sales_order_items".
             # RecalculationService (app/modules/reports/application/recalculation_service.py)
             # también consume SalesOrder/SalesOrderItem para los snapshots de profit.
-            # NOTA: la columna real de cantidad en SalesOrderItem es `qty` (no `quantity`)
-            # según el modelo ORM; el SQL crudo aquí asume el nombre legacy "quantity".
-            # Si en runtime falla, alinear a `qty`/`line_total`.
+            # NOTA (corregido 2026-05-01): el atributo ORM de SalesOrderItem se llama `qty`,
+            # pero mapped_column("quantity", ...) indica que la columna física en la BD
+            # ES "quantity" — por lo tanto soi.quantity en SQL crudo es correcto.
+            # total_venta usa soi.line_total (columna almacenada) en lugar del cálculo
+            # soi.quantity * soi.unit_price para mayor precisión (respeta descuentos/redondeo).
             query = """
                 SELECT
                     DATE(so.created_at) as fecha,
                     COUNT(DISTINCT so.id) as num_pedidos,
                     SUM(soi.quantity) as total_items,
-                    SUM(soi.quantity * soi.unit_price) as total_venta
+                    SUM(soi.line_total) as total_venta
                 FROM sales_orders so
                 LEFT JOIN sales_order_items soi ON so.id = soi.sales_order_id
                 WHERE so.tenant_id = :tenant_id

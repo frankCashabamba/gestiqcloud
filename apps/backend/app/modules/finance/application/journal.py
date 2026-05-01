@@ -36,12 +36,16 @@ CODE_DEFAULT_EXPENSE = "5.1"
 
 
 def _find_account(db: Session, tenant_id: UUID, code: str) -> ChartOfAccounts | None:
-    return db.execute(
-        select(ChartOfAccounts).where(
-            ChartOfAccounts.tenant_id == tenant_id,
-            ChartOfAccounts.code == code,
+    return (
+        db.execute(
+            select(ChartOfAccounts).where(
+                ChartOfAccounts.tenant_id == tenant_id,
+                ChartOfAccounts.code == code,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
@@ -49,13 +53,17 @@ def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
 
 
 def _find_existing_entry(db: Session, movement_id: UUID) -> JournalEntry | None:
-    return db.execute(
-        select(JournalEntry).where(
-            JournalEntry.ref_doc_type == "cash_movement",
-            JournalEntry.ref_doc_id == movement_id,
-            JournalEntry.status != "CANCELLED",
+    return (
+        db.execute(
+            select(JournalEntry).where(
+                JournalEntry.ref_doc_type == "cash_movement",
+                JournalEntry.ref_doc_id == movement_id,
+                JournalEntry.status != "CANCELLED",
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _reverse_entry(db: Session, entry: JournalEntry) -> None:
@@ -93,14 +101,13 @@ def post_cash_movement_entry(
         else:
             counterpart = _find_account(db, tenant_id, CODE_DEFAULT_EXPENSE)
             if cfg is not None and getattr(cfg, "default_expense_account_id", None):
-                counterpart = (
-                    db.get(ChartOfAccounts, cfg.default_expense_account_id) or counterpart
-                )
+                counterpart = db.get(ChartOfAccounts, cfg.default_expense_account_id) or counterpart
 
         if not (cash_acct and counterpart):
             logger.warning(
                 "post_cash_movement_entry: cuentas por defecto faltantes (tenant=%s movement=%s) - skip",
-                tenant_id, movement.id,
+                tenant_id,
+                movement.id,
             )
             return None
 
@@ -144,7 +151,4 @@ def reverse_cash_movement_entry(db: Session, movement_id: UUID) -> None:
         if existing:
             _reverse_entry(db, existing)
     except Exception:
-        logger.exception(
-            "Could not reverse journal entry for cash_movement %s", movement_id
-        )
-
+        logger.exception("Could not reverse journal entry for cash_movement %s", movement_id)

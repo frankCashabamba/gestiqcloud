@@ -235,13 +235,9 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.config.database import SessionLocal
-        from app.services.product_raw_materials import (
-            backfill_bakery_raw_material_products,
-            ensure_products_raw_material_column,
-        )
+        from app.services.product_raw_materials import backfill_bakery_raw_material_products
 
         with SessionLocal() as db:
-            ensure_products_raw_material_column(db)
             backfill_bakery_raw_material_products(db)
     except Exception:
         logging.getLogger("app.startup").warning(

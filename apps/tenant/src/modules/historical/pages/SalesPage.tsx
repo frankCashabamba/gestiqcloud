@@ -8,16 +8,16 @@ export default function SalesPage() {
   const [data, setData] = useState<PaginatedResponse<HistSale>>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const load = () => {
     setLoading(true)
     listSales({
       page,
       page_size: 50,
-      fecha_desde: fechaDesde || undefined,
-      fecha_hasta: fechaHasta || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
     })
       .then(setData)
       .catch(() => setData(EMPTY))
@@ -35,11 +35,11 @@ export default function SalesPage() {
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
         <div>
           <label style={filterLabel}>Desde</label>
-          <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} style={filterInput} />
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={filterInput} />
         </div>
         <div>
           <label style={filterLabel}>Hasta</label>
-          <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} style={filterInput} />
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={filterInput} />
         </div>
         <button onClick={() => { setPage(1); load() }} style={filterBtn}>Filtrar</button>
       </div>
@@ -66,12 +66,12 @@ export default function SalesPage() {
               <tbody>
                 {data.items.map((s) => (
                   <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={td}>{s.fecha}</td>
-                    <td style={td}>{s.numero || '-'}</td>
-                    <td style={td}>{s.cliente_nombre || s.cliente_code || '-'}</td>
-                    <td style={td}>{s.producto_nombre || s.producto_code || '-'}</td>
-                    <td style={tdR}>{s.cantidad}</td>
-                    <td style={tdR}>{s.precio_unitario.toFixed(2)}</td>
+                    <td style={td}>{s.date}</td>
+                    <td style={td}>{s.number || '-'}</td>
+                    <td style={td}>{s.customer_name || s.customer_code || '-'}</td>
+                    <td style={td}>{s.product_name || s.product_code || '-'}</td>
+                    <td style={tdR}>{s.quantity}</td>
+                    <td style={tdR}>{s.unit_price.toFixed(2)}</td>
                     <td style={tdR}>{s.total.toFixed(2)}</td>
                   </tr>
                 ))}

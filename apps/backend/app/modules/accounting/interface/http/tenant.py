@@ -38,16 +38,16 @@ from app.core.permissions import (
     PERM_ACCOUNTING_REPORTS_READ,
 )
 from app.db.rls import ensure_rls
-from app.models.accounting.period import AccountingPeriod
-from app.modules.accounting.application.journal_service import (
-    generate_entry_number,
-    assert_period_open,
-)
 from app.models.accounting.chart_of_accounts import ChartOfAccounts as PlanCuentas
 from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable
 from app.models.accounting.chart_of_accounts import JournalEntryLine as AsientoLinea
+from app.models.accounting.period import AccountingPeriod
 from app.models.accounting.pos_settings import PaymentMethod, TenantAccountingSettings
 from app.models.core.global_catalogs import PaymentMethodTemplate
+from app.modules.accounting.application.journal_service import (
+    assert_period_open,
+    generate_entry_number,
+)
 from app.schemas.accounting import (
     AsientoContableCreate,
     AsientoContableList,
@@ -1128,6 +1128,90 @@ async def contabilizar_asiento(
     return _asiento_to_response(asiento)
 
 
+@router.post(
+    "/journal-entries/{asiento_id}/cancel",
+    response_model=AsientoContableResponse,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_ENTRY_CANCEL))],
+)
+async def cancelar_asiento(
+    asiento_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Cancela un asiento POSTED creando un asiento de reversión.
+
+    - Solo se pueden cancelar asientos en estado POSTED.
+    - El período del asiento original debe estar abierto.
+    - Crea un asiento espejo con débitos y créditos intercambiados, estado POSTED,
+      descripción «Reversión: <descripción original>».
+    - Marca el asiento original como CANCELLED.
+    - Devuelve el asiento original ya cancelado.
+    """
+    from app.modules.accounting.application.journal_service import (
+        JournalLineIn,
+        create_posted_entry,
+    )
+
+    tenant_id = UUID(str(claims["tenant_id"]))
+    user_id = claims.get("user_id")
+
+    stmt = select(AsientoContable).where(
+        AsientoContable.id == asiento_id, AsientoContable.tenant_id == tenant_id
+    )
+    asiento = db.execute(stmt).scalar_one_or_none()
+    if not asiento:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no encontrado")
+
+    if asiento.status != "POSTED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden cancelar asientos contabilizados (POSTED)",
+        )
+
+    # Verificar período abierto antes de cualquier escritura.
+    assert_period_open(db, tenant_id, asiento.date)
+
+    # Cargar líneas del asiento original.
+    lineas_originales = (
+        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id)).scalars().all()
+    )
+
+    # Construir líneas de reversión: débito y crédito intercambiados.
+    lineas_reversion: list[JournalLineIn] = [
+        JournalLineIn(
+            account_id=linea.account_id,
+            debit=linea.credit,
+            credit=linea.debit,
+            description=linea.description,
+            line_number=linea.line_number,
+        )
+        for linea in lineas_originales
+    ]
+
+    # Crear asiento de reversión (POSTED) y actualizar saldos de cuentas.
+    _ = create_posted_entry(
+        db,
+        tenant_id=tenant_id,
+        entry_date=asiento.date,
+        description=f"Reversión: {asiento.description}",
+        ref_doc_type="reversal",
+        ref_doc_id=asiento.id,
+        created_by=UUID(str(user_id)) if user_id else None,
+        lines=lineas_reversion,
+    )
+
+    # Marcar el asiento original como CANCELLED y revertir sus saldos de cuenta.
+    asiento.status = "CANCELLED"
+    for linea in lineas_originales:
+        _recalcular_saldos_cuenta(db, linea.account_id)
+
+    db.commit()
+    db.refresh(asiento)
+    asiento.lineas = lineas_originales
+
+    return _asiento_to_response(asiento)
+
+
 # Alias for frontend compatibility
 @router.get("/transactions", response_model=AsientoContableList)
 async def list_movimientos(
@@ -1389,9 +1473,7 @@ class PeriodOut(BaseModel):
     closed_by: UUID | None = None
 
 
-def _get_or_create_period(
-    db: Session, tenant_id: UUID, year: int, month: int
-) -> AccountingPeriod:
+def _get_or_create_period(db: Session, tenant_id: UUID, year: int, month: int) -> AccountingPeriod:
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="mes_invalido")
     stmt = select(AccountingPeriod).where(
@@ -1401,9 +1483,7 @@ def _get_or_create_period(
     )
     period = db.execute(stmt).scalar_one_or_none()
     if period is None:
-        period = AccountingPeriod(
-            tenant_id=tenant_id, year=year, month=month, status="OPEN"
-        )
+        period = AccountingPeriod(tenant_id=tenant_id, year=year, month=month, status="OPEN")
         db.add(period)
         db.flush()
     return period
@@ -1542,17 +1622,13 @@ async def regularize_period(
             balance = credit - debit  # saldo natural del ingreso
             if balance > 0:
                 # Cancelamos el ingreso debitándolo
-                lines.append(
-                    JournalLineIn(account_id=row.id, debit=balance, credit=Decimal("0"))
-                )
+                lines.append(JournalLineIn(account_id=row.id, debit=balance, credit=Decimal("0")))
                 total_income += balance
         else:  # EXPENSE
             balance = debit - credit
             if balance > 0:
                 # Cancelamos el gasto acreditándolo
-                lines.append(
-                    JournalLineIn(account_id=row.id, debit=Decimal("0"), credit=balance)
-                )
+                lines.append(JournalLineIn(account_id=row.id, debit=Decimal("0"), credit=balance))
                 total_expense += balance
 
     net_result = total_income - total_expense  # >0 utilidad / <0 pérdida
@@ -1625,4 +1701,3 @@ async def regularize_period(
     db.commit()
     db.refresh(entry)
     return _asiento_to_response(entry)
-

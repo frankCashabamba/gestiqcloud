@@ -47,9 +47,7 @@ def test_tax_total_uses_product_tax_rate(monkeypatch):
     def _boom(*a, **kw):
         raise AssertionError("default tenant tax should not be queried")
 
-    monkeypatch.setattr(
-        "app.modules.shared.services.tax.resolve_tenant_default_tax_rate", _boom
-    )
+    monkeypatch.setattr("app.modules.shared.services.tax.resolve_tenant_default_tax_rate", _boom)
 
     result = t._recalculate_order_totals(db, str(uuid4()))
 

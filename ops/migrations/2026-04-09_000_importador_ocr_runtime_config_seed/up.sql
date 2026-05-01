@@ -1,5 +1,8 @@
 BEGIN;
 
+-- Ensure the unique constraint exists (may be missing if imp_config was pre-created).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_imp_config_module_key ON imp_config (module, key);
+
 -- Runtime OCR config for importador.
 -- This migrates the in-code defaults into imp_config so DB becomes the source of truth.
 INSERT INTO imp_config (id, module, key, value_text, value_list, label) VALUES

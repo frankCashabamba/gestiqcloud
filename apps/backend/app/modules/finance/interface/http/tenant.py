@@ -1,5 +1,6 @@
 """Finance Module - HTTP API (Tenant)"""
 
+import logging
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -11,11 +12,15 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
+from app.core.permissions import PERM_FINANCE_CASHBOX_WRITE
 from app.db.rls import ensure_rls
 from app.models.finance.banco import BankMovement
 from app.models.finance.cash_management import CashMovement
 from app.modules.finance.application.cash_service import CashPositionService
+from app.schemas.finance_caja import CashMovementCreate, CashMovementResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/finance",
@@ -262,6 +267,57 @@ def list_cashbox_movements(
         )
         for r in rows
     ]
+
+
+@router.post(
+    "/cashbox/movements",
+    response_model=CashMovementResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission(PERM_FINANCE_CASHBOX_WRITE))],
+)
+def create_cashbox_movement(
+    body: CashMovementCreate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> CashMovementResponse:
+    """Registra un movimiento manual de caja y genera el asiento contable."""
+    tenant_id: UUID = claims["tenant_id"]
+    user_id: UUID | None = claims.get("user_id")
+
+    movement = CashMovement(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        type=body.movement_type,
+        category=body.category,
+        amount=body.amount,
+        currency=body.currency or "USD",
+        description=body.description,
+        notes=body.notes,
+        date=body.date,
+        ref_doc_type=body.ref_doc_type,
+        ref_doc_id=body.ref_doc_id,
+        cash_box_id=body.cash_box_id,
+    )
+    db.add(movement)
+    db.flush()
+    db.commit()
+    db.refresh(movement)
+
+    # Asiento contable automático — no bloquea si falla.
+    try:
+        from app.modules.finance.application.journal import post_cash_movement_entry
+
+        post_cash_movement_entry(db, movement, user_id)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "post_cash_movement_entry hook failed for movement_id=%s",
+            movement.id,
+            exc_info=True,
+        )
+        db.rollback()
+
+    return CashMovementResponse.model_validate(movement)
 
 
 # ============================================================================

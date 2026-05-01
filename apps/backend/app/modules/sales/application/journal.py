@@ -35,19 +35,23 @@ from app.modules.accounting.application.journal_service import (
 logger = logging.getLogger(__name__)
 
 # Códigos estándar (alineados con seed _SEED_ACCOUNTS de accounting/interface/http/tenant.py).
-CODE_AR = "1.1.02"          # Clientes (cuentas por cobrar)
-CODE_SALES = "4.1"          # Ventas (genérica)
+CODE_AR = "1.1.02"  # Clientes (cuentas por cobrar)
+CODE_SALES = "4.1"  # Ventas (genérica)
 CODE_VAT_OUTPUT = "2.1.04"  # IVA por pagar
-CODE_CASH = "1.1.01"        # Caja
+CODE_CASH = "1.1.01"  # Caja
 
 
 def _find_account(db: Session, tenant_id: UUID, code: str) -> ChartOfAccounts | None:
-    return db.execute(
-        select(ChartOfAccounts).where(
-            ChartOfAccounts.tenant_id == tenant_id,
-            ChartOfAccounts.code == code,
+    return (
+        db.execute(
+            select(ChartOfAccounts).where(
+                ChartOfAccounts.tenant_id == tenant_id,
+                ChartOfAccounts.code == code,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
@@ -55,13 +59,17 @@ def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
 
 
 def _find_existing_entry(db: Session, sale_order_id: UUID) -> JournalEntry | None:
-    return db.execute(
-        select(JournalEntry).where(
-            JournalEntry.ref_doc_type == "sales_order",
-            JournalEntry.ref_doc_id == sale_order_id,
-            JournalEntry.status != "CANCELLED",
+    return (
+        db.execute(
+            select(JournalEntry).where(
+                JournalEntry.ref_doc_type == "sales_order",
+                JournalEntry.ref_doc_id == sale_order_id,
+                JournalEntry.status != "CANCELLED",
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _reverse_entry(db: Session, entry: JournalEntry) -> None:
@@ -115,7 +123,8 @@ def post_sale_entry(
         if not (debit_acct and sales_acct):
             logger.warning(
                 "post_sale_entry: cuentas por defecto faltantes (tenant=%s order=%s) — skip",
-                tenant_id, sale_order.id,
+                tenant_id,
+                sale_order.id,
             )
             return None
 
@@ -129,16 +138,16 @@ def post_sale_entry(
             JournalLineIn(account_id=sales_acct.id, debit=Decimal("0"), credit=subtotal),
         ]
         if tax > 0 and vat_acct is not None:
-            lines.append(
-                JournalLineIn(account_id=vat_acct.id, debit=Decimal("0"), credit=tax)
-            )
+            lines.append(JournalLineIn(account_id=vat_acct.id, debit=Decimal("0"), credit=tax))
         else:
             # Sin IVA — fusionar tax en ventas para mantener cuadre.
             lines[1] = JournalLineIn(
                 account_id=sales_acct.id, debit=Decimal("0"), credit=subtotal + tax
             )
 
-        entry_date = sale_order.order_date if isinstance(sale_order.order_date, date) else date.today()
+        entry_date = (
+            sale_order.order_date if isinstance(sale_order.order_date, date) else date.today()
+        )
         return create_posted_entry(
             db,
             tenant_id=tenant_id,
@@ -150,7 +159,9 @@ def post_sale_entry(
             lines=lines,
         )
     except Exception:
-        logger.exception("Could not create journal entry for sales_order %s", getattr(sale_order, "id", None))
+        logger.exception(
+            "Could not create journal entry for sales_order %s", getattr(sale_order, "id", None)
+        )
         return None
 
 

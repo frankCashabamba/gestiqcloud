@@ -8,16 +8,16 @@ export default function PurchasesPage() {
   const [data, setData] = useState<PaginatedResponse<HistPurchase>>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const load = () => {
     setLoading(true)
     listPurchases({
       page,
       page_size: 50,
-      fecha_desde: fechaDesde || undefined,
-      fecha_hasta: fechaHasta || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
     })
       .then(setData)
       .catch(() => setData(EMPTY))
@@ -35,11 +35,11 @@ export default function PurchasesPage() {
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
         <div>
           <label style={filterLabel}>Desde</label>
-          <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} style={filterInput} />
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={filterInput} />
         </div>
         <div>
           <label style={filterLabel}>Hasta</label>
-          <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} style={filterInput} />
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={filterInput} />
         </div>
         <button onClick={() => { setPage(1); load() }} style={filterBtn}>Filtrar</button>
       </div>
@@ -66,12 +66,12 @@ export default function PurchasesPage() {
               <tbody>
                 {data.items.map((p) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={td}>{p.fecha}</td>
-                    <td style={td}>{p.numero || '-'}</td>
-                    <td style={td}>{p.proveedor_nombre || p.proveedor_code || '-'}</td>
-                    <td style={td}>{p.producto_nombre || p.producto_code || '-'}</td>
-                    <td style={tdR}>{p.cantidad}</td>
-                    <td style={tdR}>{p.precio_unitario.toFixed(2)}</td>
+                    <td style={td}>{p.date}</td>
+                    <td style={td}>{p.number || '-'}</td>
+                    <td style={td}>{p.supplier_name || p.supplier_code || '-'}</td>
+                    <td style={td}>{p.product_name || p.product_code || '-'}</td>
+                    <td style={tdR}>{p.quantity}</td>
+                    <td style={tdR}>{p.unit_price.toFixed(2)}</td>
                     <td style={tdR}>{p.total.toFixed(2)}</td>
                   </tr>
                 ))}

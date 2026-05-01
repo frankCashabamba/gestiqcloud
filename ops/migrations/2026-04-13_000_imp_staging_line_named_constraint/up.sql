@@ -18,8 +18,17 @@
 
 DO $$
 BEGIN
-    -- Eliminar el índice de expresión antiguo si todavía existe
+    -- Eliminar el constraint/índice antiguo si todavía existe.
+    -- Puede ser un UNIQUE CONSTRAINT (requiere DROP CONSTRAINT) o un índice
+    -- standalone (requiere DROP INDEX) dependiendo de cómo fue creado.
     IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'imp_staging_line'::regclass
+          AND conname  = 'uq_imp_staging_line_doc_line_sheet'
+          AND contype  = 'u'
+    ) THEN
+        ALTER TABLE imp_staging_line DROP CONSTRAINT uq_imp_staging_line_doc_line_sheet;
+    ELSIF EXISTS (
         SELECT 1 FROM pg_indexes
         WHERE schemaname = 'public'
           AND indexname  = 'uq_imp_staging_line_doc_line_sheet'

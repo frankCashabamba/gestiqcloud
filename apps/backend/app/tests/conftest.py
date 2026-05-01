@@ -345,7 +345,37 @@ def db():
         session.close()
         # Keep SQLite schema alive across tests because session-scoped fixtures
         # (e.g. `client`) may execute after other tests and still need tables.
+@pytest.fixture(autouse=True)
+def clean_db_between_tests(db):
+    engine = db.get_bind()
 
+    if engine.dialect.name != "postgresql":
+        yield
+        return
+
+    from sqlalchemy import text
+
+    # BEFORE each test
+    with engine.begin() as conn:
+        conn.execute(text("SET session_replication_role = replica"))
+
+        tables = conn.execute(text("""
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename NOT IN ('schema_migrations')
+        """)).scalars().all()
+
+        if tables:
+            quoted = ", ".join(f'"{t}"' for t in tables)
+            conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
+
+        conn.execute(text("SET session_replication_role = DEFAULT"))
+
+    yield
+
+    # AFTER (extra safety)
+    db.rollback()
 
 def _ensure_ui_field_config_scope_rules(session) -> None:
     from app.models.core.ui_field_config import UiFieldConfigScopeRule

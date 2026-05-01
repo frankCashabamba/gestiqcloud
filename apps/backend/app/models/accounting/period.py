@@ -41,9 +41,7 @@ class AccountingPeriod(Base):
     year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     month: Mapped[int] = mapped_column(Integer, nullable=False)
     quarter: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="OPEN", index=True
-    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="OPEN", index=True)
     closed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     closed_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

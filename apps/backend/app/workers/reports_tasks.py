@@ -76,9 +76,7 @@ def _next_run_from_cron(now: datetime, cron_expression: str | None) -> datetime 
 
         return croniter(cron_expression, now).get_next(datetime)
     except Exception:  # pragma: no cover - croniter optional
-        logger.warning(
-            "croniter not available or invalid cron expression %r", cron_expression
-        )
+        logger.warning("croniter not available or invalid cron expression %r", cron_expression)
         return None
 
 
@@ -134,9 +132,7 @@ def process_due_scheduled_reports() -> dict[str, Any]:
                 report_type = ReportType(report_type_value)
                 export_format = ReportFormat(export_format_value)
             except ValueError:
-                logger.error(
-                    "Invalid report_type/format on scheduled_reports id=%s", schedule_id
-                )
+                logger.error("Invalid report_type/format on scheduled_reports id=%s", schedule_id)
                 summary["errors"] += 1
                 continue
 
@@ -150,9 +146,7 @@ def process_due_scheduled_reports() -> dict[str, Any]:
                     export_format=export_format,
                 )
             except Exception as exc:  # pragma: no cover - defensive
-                logger.exception(
-                    "Failed to generate scheduled report id=%s: %s", schedule_id, exc
-                )
+                logger.exception("Failed to generate scheduled report id=%s: %s", schedule_id, exc)
                 summary["errors"] += 1
                 continue
 
@@ -228,7 +222,9 @@ def recalculate_profit_snapshots(target_date: str | None = None) -> dict[str, An
             except Exception as exc:  # pragma: no cover - defensive
                 logger.exception(
                     "Failed to recalc profit snapshot tenant=%s date=%s: %s",
-                    tenant_id, day, exc,
+                    tenant_id,
+                    day,
+                    exc,
                 )
                 summary["errors"] += 1
 

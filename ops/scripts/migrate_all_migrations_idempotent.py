@@ -71,7 +71,7 @@ def read_sql_file(filepath: Path) -> str:
     if not filepath.exists():
         raise FileNotFoundError(f"SQL file not found: {filepath}")
 
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, "r", encoding="utf-8-sig") as f:
         return f.read()
 
 

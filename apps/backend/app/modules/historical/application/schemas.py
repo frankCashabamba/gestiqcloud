@@ -31,18 +31,18 @@ class HistImportOut(BaseModel):
 class HistSaleOut(BaseModel):
     id: UUID
     import_id: UUID | None = None
-    fecha: date
-    numero: str | None = None
-    cliente_code: str | None = None
-    cliente_nombre: str | None = None
-    producto_code: str | None = None
-    producto_nombre: str | None = None
-    cantidad: Decimal = Decimal("0")
-    precio_unitario: Decimal = Decimal("0")
+    date: date
+    number: str | None = None
+    customer_code: str | None = None
+    customer_name: str | None = None
+    product_code: str | None = None
+    product_name: str | None = None
+    quantity: Decimal = Decimal("0")
+    unit_price: Decimal = Decimal("0")
     subtotal: Decimal = Decimal("0")
-    impuesto: Decimal = Decimal("0")
+    tax: Decimal = Decimal("0")
     total: Decimal = Decimal("0")
-    moneda: str = "USD"
+    currency: str = "USD"
     created_at: datetime
 
     class Config:
@@ -52,18 +52,18 @@ class HistSaleOut(BaseModel):
 class HistPurchaseOut(BaseModel):
     id: UUID
     import_id: UUID | None = None
-    fecha: date
-    numero: str | None = None
-    proveedor_code: str | None = None
-    proveedor_nombre: str | None = None
-    producto_code: str | None = None
-    producto_nombre: str | None = None
-    cantidad: Decimal = Decimal("0")
-    precio_unitario: Decimal = Decimal("0")
+    date: date
+    number: str | None = None
+    supplier_code: str | None = None
+    supplier_name: str | None = None
+    product_code: str | None = None
+    product_name: str | None = None
+    quantity: Decimal = Decimal("0")
+    unit_price: Decimal = Decimal("0")
     subtotal: Decimal = Decimal("0")
-    impuesto: Decimal = Decimal("0")
+    tax: Decimal = Decimal("0")
     total: Decimal = Decimal("0")
-    moneda: str = "USD"
+    currency: str = "USD"
     created_at: datetime
 
     class Config:
@@ -73,13 +73,13 @@ class HistPurchaseOut(BaseModel):
 class HistStockOut(BaseModel):
     id: UUID
     import_id: UUID | None = None
-    fecha: date
-    producto_code: str | None = None
-    producto_nombre: str | None = None
-    cantidad: Decimal = Decimal("0")
-    costo_unitario: Decimal = Decimal("0")
-    valor_total: Decimal = Decimal("0")
-    almacen: str | None = None
+    date: date
+    product_code: str | None = None
+    product_name: str | None = None
+    quantity: Decimal = Decimal("0")
+    unit_cost: Decimal = Decimal("0")
+    total_value: Decimal = Decimal("0")
+    warehouse: str | None = None
     created_at: datetime
 
     class Config:
@@ -89,10 +89,10 @@ class HistStockOut(BaseModel):
 class HistDailySalesOut(BaseModel):
     id: UUID
     import_id: UUID | None = None
-    fecha: date
-    total_ventas: Decimal = Decimal("0")
+    date: date
+    sales_total: Decimal = Decimal("0")
     total_items: int = 0
-    ticket_promedio: Decimal = Decimal("0")
+    avg_ticket: Decimal = Decimal("0")
     created_at: datetime
 
     class Config:

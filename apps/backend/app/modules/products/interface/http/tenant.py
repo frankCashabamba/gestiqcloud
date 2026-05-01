@@ -21,10 +21,7 @@ from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem
 from app.models.inventory.warehouse import Warehouse
-from app.services.product_raw_materials import (
-    ensure_products_raw_material_column,
-    validate_raw_material_unit,
-)
+from app.services.product_raw_materials import validate_raw_material_unit
 from app.shared.jsonb_schemas import ProductMetadataJSON
 
 router = APIRouter(
@@ -904,7 +901,6 @@ def _generate_next_sku(db: Session, tenant_id: str, categoria: str | None) -> st
 
 @router.post("", response_model=ProductOut, status_code=201, dependencies=protected)
 def create_product(payload: ProductCreate, request: Request, db: Session = Depends(get_db)):
-    ensure_products_raw_material_column(db)
     tenant_id = str(get_current_tenant_id(request))
     validate_raw_material_unit(
         db,
@@ -960,7 +956,6 @@ def update_product(
     product_id: str, payload: ProductUpdate, request: Request, db: Session = Depends(get_db)
 ):
     """Actualizar producto (soporta UUID)"""
-    ensure_products_raw_material_column(db)
     tenant_id = str(get_current_tenant_id(request))
 
     # Intentar UUID primero

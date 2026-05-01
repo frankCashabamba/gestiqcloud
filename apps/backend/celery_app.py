@@ -237,6 +237,26 @@ def _import_task_modules():
         except Exception:
             continue
 
+    for task_module in (
+        "app.workers.einvoicing_tasks",
+        "apps.backend.app.workers.einvoicing_tasks",
+    ):
+        try:
+            __import__(task_module)
+            break
+        except Exception:
+            continue
+
+    for task_module in (
+        "app.workers.reports_tasks",
+        "apps.backend.app.workers.reports_tasks",
+    ):
+        try:
+            __import__(task_module)
+            break
+        except Exception:
+            continue
+
 # Auto-import task modules when the app is created
 # This ensures tasks are registered in production/development
 if not _is_testing_environment():

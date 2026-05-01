@@ -37,12 +37,16 @@ CODE_VAT_OUTPUT = "2.1.04"
 
 
 def _find_account(db: Session, tenant_id: UUID, code: str) -> ChartOfAccounts | None:
-    return db.execute(
-        select(ChartOfAccounts).where(
-            ChartOfAccounts.tenant_id == tenant_id,
-            ChartOfAccounts.code == code,
+    return (
+        db.execute(
+            select(ChartOfAccounts).where(
+                ChartOfAccounts.tenant_id == tenant_id,
+                ChartOfAccounts.code == code,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
@@ -50,13 +54,17 @@ def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
 
 
 def _find_existing_entry(db: Session, invoice_id: UUID) -> JournalEntry | None:
-    return db.execute(
-        select(JournalEntry).where(
-            JournalEntry.ref_doc_type == "invoice",
-            JournalEntry.ref_doc_id == invoice_id,
-            JournalEntry.status != "CANCELLED",
+    return (
+        db.execute(
+            select(JournalEntry).where(
+                JournalEntry.ref_doc_type == "invoice",
+                JournalEntry.ref_doc_id == invoice_id,
+                JournalEntry.status != "CANCELLED",
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _reverse_entry(db: Session, entry: JournalEntry) -> None:
@@ -108,7 +116,8 @@ def post_invoice_entry(
         if not (ar_acct and sales_acct):
             logger.warning(
                 "post_invoice_entry: cuentas por defecto faltantes (tenant=%s invoice=%s) - skip",
-                tenant_id, invoice.id,
+                tenant_id,
+                invoice.id,
             )
             return None
 
@@ -120,7 +129,9 @@ def post_invoice_entry(
             JournalLineIn(account_id=ar_acct.id, debit=total, credit=Decimal("0")),
         ]
         if tax > 0 and vat_acct is not None:
-            lines.append(JournalLineIn(account_id=sales_acct.id, debit=Decimal("0"), credit=subtotal))
+            lines.append(
+                JournalLineIn(account_id=sales_acct.id, debit=Decimal("0"), credit=subtotal)
+            )
             lines.append(JournalLineIn(account_id=vat_acct.id, debit=Decimal("0"), credit=tax))
         else:
             lines.append(
@@ -153,4 +164,3 @@ def reverse_invoice_entry(db: Session, invoice_id: UUID) -> None:
             _reverse_entry(db, existing)
     except Exception:
         logger.exception("Could not reverse journal entry for invoice %s", invoice_id)
-

@@ -1,5 +1,8 @@
 BEGIN;
 
+-- Ensure the unique constraint exists (may be missing if imp_config was pre-created).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_imp_config_module_key ON imp_config (module, key);
+
 INSERT INTO imp_config (module, key, value_list, label) VALUES
     ('filename_normalization', 'uuid_patterns', $$["[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"]$$::jsonb, 'Filename UUID patterns'),
     ('filename_normalization', 'date_patterns', $$["\\b\\d{4}[-_]\\d{2}[-_]\\d{2}\\b","\\b\\d{2}[-_]\\d{2}[-_]\\d{4}\\b"]$$::jsonb, 'Filename date patterns'),

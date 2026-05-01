@@ -4,6 +4,8 @@
 -- tipo de documento (regexes, label_search), extrae los campos directamente
 -- evitando llamadas a Ollama para documentos que se repiten con frecuencia.
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS imp_doc_type_template (
     id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                   UUID REFERENCES tenants(id) ON DELETE CASCADE,

@@ -18,18 +18,18 @@ logger = logging.getLogger(__name__)
 # ── Column name mapping for auto-detection ──────────────────────────────────
 
 _COLUMN_MAP: dict[str, list[str]] = {
-    "fecha": [
-        "fecha",
+    "date": [
         "date",
+        "fecha",
         "fecha_venta",
         "fecha_compra",
         "fecha_factura",
         "invoice_date",
         "order_date",
     ],
-    "numero": [
-        "numero",
+    "number": [
         "number",
+        "numero",
         "invoice",
         "factura",
         "nro",
@@ -37,11 +37,11 @@ _COLUMN_MAP: dict[str, list[str]] = {
         "doc_number",
         "invoice_number",
     ],
-    "cliente_code": ["codigo_cliente", "client_code", "customer_code", "cod_cliente"],
-    "cliente_nombre": ["cliente", "customer", "client", "cliente_nombre", "customer_name", "buyer"],
-    "proveedor_code": ["codigo_proveedor", "supplier_code", "vendor_code", "cod_proveedor"],
-    "proveedor_nombre": ["proveedor", "supplier", "vendor", "proveedor_nombre", "supplier_name"],
-    "producto_code": [
+    "customer_code": ["codigo_cliente", "client_code", "customer_code", "cod_cliente"],
+    "customer_name": ["cliente", "customer", "client", "cliente_nombre", "customer_name", "buyer"],
+    "supplier_code": ["codigo_proveedor", "supplier_code", "vendor_code", "cod_proveedor"],
+    "supplier_name": ["proveedor", "supplier", "vendor", "proveedor_nombre", "supplier_name"],
+    "product_code": [
         "codigo",
         "code",
         "sku",
@@ -50,7 +50,7 @@ _COLUMN_MAP: dict[str, list[str]] = {
         "cod_producto",
         "ref",
     ],
-    "producto_nombre": [
+    "product_name": [
         "producto",
         "product",
         "item",
@@ -60,18 +60,18 @@ _COLUMN_MAP: dict[str, list[str]] = {
         "descripcion",
         "description",
     ],
-    "cantidad": ["cantidad", "qty", "quantity", "cant", "units"],
-    "precio_unitario": ["precio", "price", "unit_price", "precio_unitario", "pvu", "p_unit"],
+    "quantity": ["cantidad", "qty", "quantity", "cant", "units"],
+    "unit_price": ["precio", "price", "unit_price", "precio_unitario", "pvu", "p_unit"],
     "subtotal": ["subtotal", "sub_total", "base", "base_imponible"],
-    "impuesto": ["impuesto", "tax", "iva", "igv", "tax_amount"],
+    "tax": ["impuesto", "tax", "iva", "igv", "tax_amount"],
     "total": ["total", "amount", "monto", "importe", "grand_total", "total_line"],
-    "moneda": ["moneda", "currency", "divisa"],
-    "almacen": ["almacen", "warehouse", "bodega", "ubicacion", "location"],
-    "costo_unitario": ["costo", "cost", "unit_cost", "costo_unitario", "precio_costo"],
-    "valor_total": ["valor_total", "total_value", "stock_value", "valor"],
-    "total_ventas": ["total_ventas", "sales_total", "venta_total", "total"],
+    "currency": ["moneda", "currency", "divisa"],
+    "warehouse": ["almacen", "warehouse", "bodega", "ubicacion", "location"],
+    "unit_cost": ["costo", "cost", "unit_cost", "costo_unitario", "precio_costo"],
+    "total_value": ["valor_total", "total_value", "stock_value", "valor"],
+    "sales_total": ["total_ventas", "sales_total", "venta_total", "total"],
     "total_items": ["total_items", "items", "num_items", "cantidad_items", "transactions"],
-    "ticket_promedio": ["ticket_promedio", "avg_ticket", "average_ticket", "ticket_medio"],
+    "avg_ticket": ["ticket_promedio", "avg_ticket", "average_ticket", "ticket_medio"],
 }
 
 
@@ -209,20 +209,20 @@ class ListHistSalesUseCase:
         tenant_id: UUID,
         page: int = 1,
         page_size: int = 50,
-        fecha_desde: date | None = None,
-        fecha_hasta: date | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         import_id: UUID | None = None,
     ) -> dict[str, Any]:
         where = "WHERE tenant_id = :tid"
         params: dict[str, Any] = {"tid": tenant_id}
         binds = [bindparam("tid", type_=PGUUID(as_uuid=True))]
 
-        if fecha_desde:
-            where += " AND fecha >= :fd"
-            params["fd"] = fecha_desde
-        if fecha_hasta:
-            where += " AND fecha <= :fh"
-            params["fh"] = fecha_hasta
+        if date_from:
+            where += " AND date >= :fd"
+            params["fd"] = date_from
+        if date_to:
+            where += " AND date <= :fh"
+            params["fh"] = date_to
         if import_id:
             where += " AND import_id = :iid"
             params["iid"] = import_id
@@ -240,10 +240,10 @@ class ListHistSalesUseCase:
         rows = (
             self.db.execute(
                 text(
-                    f"SELECT id, import_id, fecha, numero, cliente_code, cliente_nombre, "
-                    f"producto_code, producto_nombre, cantidad, precio_unitario, "
-                    f"subtotal, impuesto, total, moneda, created_at "
-                    f"FROM hist_sales {where} ORDER BY fecha DESC, created_at DESC "
+                    f'SELECT id, import_id, "date", number, customer_code, customer_name, '
+                    f"product_code, product_name, quantity, unit_price, "
+                    f"subtotal, tax, total, currency, created_at "
+                    f"FROM hist_sales {where} ORDER BY date DESC, created_at DESC "
                     f"LIMIT :lim OFFSET :off"
                 ).bindparams(*binds),
                 {**params, "lim": page_size, "off": offset},
@@ -269,20 +269,20 @@ class ListHistPurchasesUseCase:
         tenant_id: UUID,
         page: int = 1,
         page_size: int = 50,
-        fecha_desde: date | None = None,
-        fecha_hasta: date | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         import_id: UUID | None = None,
     ) -> dict[str, Any]:
         where = "WHERE tenant_id = :tid"
         params: dict[str, Any] = {"tid": tenant_id}
         binds = [bindparam("tid", type_=PGUUID(as_uuid=True))]
 
-        if fecha_desde:
-            where += " AND fecha >= :fd"
-            params["fd"] = fecha_desde
-        if fecha_hasta:
-            where += " AND fecha <= :fh"
-            params["fh"] = fecha_hasta
+        if date_from:
+            where += " AND date >= :fd"
+            params["fd"] = date_from
+        if date_to:
+            where += " AND date <= :fh"
+            params["fh"] = date_to
         if import_id:
             where += " AND import_id = :iid"
             params["iid"] = import_id
@@ -300,10 +300,10 @@ class ListHistPurchasesUseCase:
         rows = (
             self.db.execute(
                 text(
-                    f"SELECT id, import_id, fecha, numero, proveedor_code, proveedor_nombre, "
-                    f"producto_code, producto_nombre, cantidad, precio_unitario, "
-                    f"subtotal, impuesto, total, moneda, created_at "
-                    f"FROM hist_purchases {where} ORDER BY fecha DESC, created_at DESC "
+                    f'SELECT id, import_id, "date", number, supplier_code, supplier_name, '
+                    f"product_code, product_name, quantity, unit_price, "
+                    f"subtotal, tax, total, currency, created_at "
+                    f"FROM hist_purchases {where} ORDER BY date DESC, created_at DESC "
                     f"LIMIT :lim OFFSET :off"
                 ).bindparams(*binds),
                 {**params, "lim": page_size, "off": offset},
@@ -329,16 +329,16 @@ class ListHistStockUseCase:
         tenant_id: UUID,
         page: int = 1,
         page_size: int = 50,
-        fecha: date | None = None,
+        date_filter: date | None = None,
         import_id: UUID | None = None,
     ) -> dict[str, Any]:
         where = "WHERE tenant_id = :tid"
         params: dict[str, Any] = {"tid": tenant_id}
         binds = [bindparam("tid", type_=PGUUID(as_uuid=True))]
 
-        if fecha:
-            where += " AND fecha = :f"
-            params["f"] = fecha
+        if date_filter:
+            where += ' AND "date" = :f'
+            params["f"] = date_filter
         if import_id:
             where += " AND import_id = :iid"
             params["iid"] = import_id
@@ -356,9 +356,9 @@ class ListHistStockUseCase:
         rows = (
             self.db.execute(
                 text(
-                    f"SELECT id, import_id, fecha, producto_code, producto_nombre, "
-                    f"cantidad, costo_unitario, valor_total, almacen, created_at "
-                    f"FROM hist_stock {where} ORDER BY fecha DESC, created_at DESC "
+                    f'SELECT id, import_id, "date", product_code, product_name, '
+                    f"quantity, unit_cost, total_value, warehouse, created_at "
+                    f"FROM hist_stock {where} ORDER BY date DESC, created_at DESC "
                     f"LIMIT :lim OFFSET :off"
                 ).bindparams(*binds),
                 {**params, "lim": page_size, "off": offset},
@@ -382,26 +382,26 @@ class ListHistDailySalesUseCase:
     def execute(
         self,
         tenant_id: UUID,
-        fecha_desde: date | None = None,
-        fecha_hasta: date | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
     ) -> list[dict[str, Any]]:
         where = "WHERE tenant_id = :tid"
         params: dict[str, Any] = {"tid": tenant_id}
         binds = [bindparam("tid", type_=PGUUID(as_uuid=True))]
 
-        if fecha_desde:
-            where += " AND fecha >= :fd"
-            params["fd"] = fecha_desde
-        if fecha_hasta:
-            where += " AND fecha <= :fh"
-            params["fh"] = fecha_hasta
+        if date_from:
+            where += " AND date >= :fd"
+            params["fd"] = date_from
+        if date_to:
+            where += " AND date <= :fh"
+            params["fh"] = date_to
 
         rows = (
             self.db.execute(
                 text(
-                    f"SELECT id, import_id, fecha, total_ventas, total_items, "
-                    f"ticket_promedio, created_at "
-                    f"FROM hist_daily_sales {where} ORDER BY fecha DESC"
+                    f'SELECT id, import_id, "date", sales_total, total_items, '
+                    f"avg_ticket, created_at "
+                    f"FROM hist_daily_sales {where} ORDER BY date DESC"
                 ).bindparams(*binds),
                 params,
             )
@@ -476,10 +476,10 @@ class GetHistDashboardUseCase:
 
         date_range = self.db.execute(
             text(
-                "SELECT MIN(fecha), MAX(fecha) FROM ("
-                "  SELECT fecha FROM hist_sales WHERE tenant_id = :tid"
+                'SELECT MIN("date"), MAX("date") FROM ('
+                '  SELECT "date" FROM hist_sales WHERE tenant_id = :tid'
                 "  UNION ALL"
-                "  SELECT fecha FROM hist_purchases WHERE tenant_id = :tid"
+                '  SELECT "date" FROM hist_purchases WHERE tenant_id = :tid'
                 ") sub"
             ).bindparams(*binds),
             params,
@@ -567,7 +567,6 @@ class UploadHistoricalFileUseCase:
             else:
                 raise ValueError(f"Unsupported file type: {ext}")
         except Exception as e:
-            # Create failed import record (include file_hash for traceability)
             row = (
                 self.db.execute(
                     text(
@@ -601,7 +600,6 @@ class UploadHistoricalFileUseCase:
         total_rows = len(df)
         cols = list(df.columns)
 
-        # Create import record (store file_hash for strong deduplication)
         imp_row = self.db.execute(
             text(
                 "INSERT INTO hist_imports (tenant_id, filename, file_type, file_size_bytes, "
@@ -640,7 +638,6 @@ class UploadHistoricalFileUseCase:
         else:
             failed = total_rows
 
-        # Update import record
         status = "completed" if failed == 0 else ("completed" if imported > 0 else "failed")
         self.db.execute(
             text(
@@ -668,33 +665,33 @@ class UploadHistoricalFileUseCase:
     def _import_sales(
         self, tenant_id: UUID, import_id: UUID, df: Any, cols: list[str]
     ) -> tuple[int, int]:
-        fecha_col = _resolve_column(cols, "fecha")
-        numero_col = _resolve_column(cols, "numero")
-        cli_code_col = _resolve_column(cols, "cliente_code")
-        cli_name_col = _resolve_column(cols, "cliente_nombre")
-        prod_code_col = _resolve_column(cols, "producto_code")
-        prod_name_col = _resolve_column(cols, "producto_nombre")
-        cant_col = _resolve_column(cols, "cantidad")
-        precio_col = _resolve_column(cols, "precio_unitario")
+        date_col = _resolve_column(cols, "date")
+        number_col = _resolve_column(cols, "number")
+        cust_code_col = _resolve_column(cols, "customer_code")
+        cust_name_col = _resolve_column(cols, "customer_name")
+        prod_code_col = _resolve_column(cols, "product_code")
+        prod_name_col = _resolve_column(cols, "product_name")
+        qty_col = _resolve_column(cols, "quantity")
+        price_col = _resolve_column(cols, "unit_price")
         sub_col = _resolve_column(cols, "subtotal")
-        imp_col = _resolve_column(cols, "impuesto")
+        tax_col = _resolve_column(cols, "tax")
         total_col = _resolve_column(cols, "total")
-        moneda_col = _resolve_column(cols, "moneda")
+        currency_col = _resolve_column(cols, "currency")
 
         imported = 0
         failed = 0
 
         for _, row in df.iterrows():
             try:
-                fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
-                if not fecha:
-                    raise ValueError("missing_fecha")
+                record_date = _safe_date(row.get(date_col) if date_col else None)
+                if not record_date:
+                    raise ValueError("missing_date")
 
                 self.db.execute(
                     text(
-                        "INSERT INTO hist_sales (tenant_id, import_id, fecha, numero, "
-                        "cliente_code, cliente_nombre, producto_code, producto_nombre, "
-                        "cantidad, precio_unitario, subtotal, impuesto, total, moneda) "
+                        'INSERT INTO hist_sales (tenant_id, import_id, "date", number, '
+                        "customer_code, customer_name, product_code, product_name, "
+                        "quantity, unit_price, subtotal, tax, total, currency) "
                         "VALUES (:tid, :iid, :f, :n, :cc, :cn, :pc, :pn, :ca, :pu, :st, :im, :tt, :mo)"
                     ).bindparams(
                         bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -703,18 +700,18 @@ class UploadHistoricalFileUseCase:
                     {
                         "tid": tenant_id,
                         "iid": import_id,
-                        "f": fecha,
-                        "n": _safe_str(row.get(numero_col) if numero_col else None, 100),
-                        "cc": _safe_str(row.get(cli_code_col) if cli_code_col else None, 100),
-                        "cn": _safe_str(row.get(cli_name_col) if cli_name_col else None, 500),
+                        "f": record_date,
+                        "n": _safe_str(row.get(number_col) if number_col else None, 100),
+                        "cc": _safe_str(row.get(cust_code_col) if cust_code_col else None, 100),
+                        "cn": _safe_str(row.get(cust_name_col) if cust_name_col else None, 500),
                         "pc": _safe_str(row.get(prod_code_col) if prod_code_col else None, 100),
                         "pn": _safe_str(row.get(prod_name_col) if prod_name_col else None, 500),
-                        "ca": _safe_decimal(row.get(cant_col) if cant_col else None),
-                        "pu": _safe_decimal(row.get(precio_col) if precio_col else None),
+                        "ca": _safe_decimal(row.get(qty_col) if qty_col else None),
+                        "pu": _safe_decimal(row.get(price_col) if price_col else None),
                         "st": _safe_decimal(row.get(sub_col) if sub_col else None),
-                        "im": _safe_decimal(row.get(imp_col) if imp_col else None),
+                        "im": _safe_decimal(row.get(tax_col) if tax_col else None),
                         "tt": _safe_decimal(row.get(total_col) if total_col else None),
-                        "mo": _safe_str(row.get(moneda_col) if moneda_col else None, 10) or "USD",
+                        "mo": _safe_str(row.get(currency_col) if currency_col else None, 10) or "USD",
                     },
                 )
                 imported += 1
@@ -728,33 +725,33 @@ class UploadHistoricalFileUseCase:
     def _import_purchases(
         self, tenant_id: UUID, import_id: UUID, df: Any, cols: list[str]
     ) -> tuple[int, int]:
-        fecha_col = _resolve_column(cols, "fecha")
-        numero_col = _resolve_column(cols, "numero")
-        prov_code_col = _resolve_column(cols, "proveedor_code")
-        prov_name_col = _resolve_column(cols, "proveedor_nombre")
-        prod_code_col = _resolve_column(cols, "producto_code")
-        prod_name_col = _resolve_column(cols, "producto_nombre")
-        cant_col = _resolve_column(cols, "cantidad")
-        precio_col = _resolve_column(cols, "precio_unitario")
+        date_col = _resolve_column(cols, "date")
+        number_col = _resolve_column(cols, "number")
+        supp_code_col = _resolve_column(cols, "supplier_code")
+        supp_name_col = _resolve_column(cols, "supplier_name")
+        prod_code_col = _resolve_column(cols, "product_code")
+        prod_name_col = _resolve_column(cols, "product_name")
+        qty_col = _resolve_column(cols, "quantity")
+        price_col = _resolve_column(cols, "unit_price")
         sub_col = _resolve_column(cols, "subtotal")
-        imp_col = _resolve_column(cols, "impuesto")
+        tax_col = _resolve_column(cols, "tax")
         total_col = _resolve_column(cols, "total")
-        moneda_col = _resolve_column(cols, "moneda")
+        currency_col = _resolve_column(cols, "currency")
 
         imported = 0
         failed = 0
 
         for _, row in df.iterrows():
             try:
-                fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
-                if not fecha:
-                    raise ValueError("missing_fecha")
+                record_date = _safe_date(row.get(date_col) if date_col else None)
+                if not record_date:
+                    raise ValueError("missing_date")
 
                 self.db.execute(
                     text(
-                        "INSERT INTO hist_purchases (tenant_id, import_id, fecha, numero, "
-                        "proveedor_code, proveedor_nombre, producto_code, producto_nombre, "
-                        "cantidad, precio_unitario, subtotal, impuesto, total, moneda) "
+                        'INSERT INTO hist_purchases (tenant_id, import_id, "date", number, '
+                        "supplier_code, supplier_name, product_code, product_name, "
+                        "quantity, unit_price, subtotal, tax, total, currency) "
                         "VALUES (:tid, :iid, :f, :n, :vc, :vn, :pc, :pn, :ca, :pu, :st, :im, :tt, :mo)"
                     ).bindparams(
                         bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -763,18 +760,18 @@ class UploadHistoricalFileUseCase:
                     {
                         "tid": tenant_id,
                         "iid": import_id,
-                        "f": fecha,
-                        "n": _safe_str(row.get(numero_col) if numero_col else None, 100),
-                        "vc": _safe_str(row.get(prov_code_col) if prov_code_col else None, 100),
-                        "vn": _safe_str(row.get(prov_name_col) if prov_name_col else None, 500),
+                        "f": record_date,
+                        "n": _safe_str(row.get(number_col) if number_col else None, 100),
+                        "vc": _safe_str(row.get(supp_code_col) if supp_code_col else None, 100),
+                        "vn": _safe_str(row.get(supp_name_col) if supp_name_col else None, 500),
                         "pc": _safe_str(row.get(prod_code_col) if prod_code_col else None, 100),
                         "pn": _safe_str(row.get(prod_name_col) if prod_name_col else None, 500),
-                        "ca": _safe_decimal(row.get(cant_col) if cant_col else None),
-                        "pu": _safe_decimal(row.get(precio_col) if precio_col else None),
+                        "ca": _safe_decimal(row.get(qty_col) if qty_col else None),
+                        "pu": _safe_decimal(row.get(price_col) if price_col else None),
                         "st": _safe_decimal(row.get(sub_col) if sub_col else None),
-                        "im": _safe_decimal(row.get(imp_col) if imp_col else None),
+                        "im": _safe_decimal(row.get(tax_col) if tax_col else None),
                         "tt": _safe_decimal(row.get(total_col) if total_col else None),
-                        "mo": _safe_str(row.get(moneda_col) if moneda_col else None, 10) or "USD",
+                        "mo": _safe_str(row.get(currency_col) if currency_col else None, 10) or "USD",
                     },
                 )
                 imported += 1
@@ -788,28 +785,28 @@ class UploadHistoricalFileUseCase:
     def _import_stock(
         self, tenant_id: UUID, import_id: UUID, df: Any, cols: list[str]
     ) -> tuple[int, int]:
-        fecha_col = _resolve_column(cols, "fecha")
-        prod_code_col = _resolve_column(cols, "producto_code")
-        prod_name_col = _resolve_column(cols, "producto_nombre")
-        cant_col = _resolve_column(cols, "cantidad")
-        costo_col = _resolve_column(cols, "costo_unitario")
-        valor_col = _resolve_column(cols, "valor_total")
-        almacen_col = _resolve_column(cols, "almacen")
+        date_col = _resolve_column(cols, "date")
+        prod_code_col = _resolve_column(cols, "product_code")
+        prod_name_col = _resolve_column(cols, "product_name")
+        qty_col = _resolve_column(cols, "quantity")
+        cost_col = _resolve_column(cols, "unit_cost")
+        value_col = _resolve_column(cols, "total_value")
+        wh_col = _resolve_column(cols, "warehouse")
 
         imported = 0
         failed = 0
 
         for _, row in df.iterrows():
             try:
-                fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
-                if not fecha:
-                    raise ValueError("missing_fecha")
+                record_date = _safe_date(row.get(date_col) if date_col else None)
+                if not record_date:
+                    raise ValueError("missing_date")
 
                 self.db.execute(
                     text(
-                        "INSERT INTO hist_stock (tenant_id, import_id, fecha, "
-                        "producto_code, producto_nombre, cantidad, costo_unitario, "
-                        "valor_total, almacen) "
+                        'INSERT INTO hist_stock (tenant_id, import_id, "date", '
+                        "product_code, product_name, quantity, unit_cost, "
+                        "total_value, warehouse) "
                         "VALUES (:tid, :iid, :f, :pc, :pn, :ca, :cu, :vt, :al)"
                     ).bindparams(
                         bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -818,13 +815,13 @@ class UploadHistoricalFileUseCase:
                     {
                         "tid": tenant_id,
                         "iid": import_id,
-                        "f": fecha,
+                        "f": record_date,
                         "pc": _safe_str(row.get(prod_code_col) if prod_code_col else None, 100),
                         "pn": _safe_str(row.get(prod_name_col) if prod_name_col else None, 500),
-                        "ca": _safe_decimal(row.get(cant_col) if cant_col else None),
-                        "cu": _safe_decimal(row.get(costo_col) if costo_col else None),
-                        "vt": _safe_decimal(row.get(valor_col) if valor_col else None),
-                        "al": _safe_str(row.get(almacen_col) if almacen_col else None, 200),
+                        "ca": _safe_decimal(row.get(qty_col) if qty_col else None),
+                        "cu": _safe_decimal(row.get(cost_col) if cost_col else None),
+                        "vt": _safe_decimal(row.get(value_col) if value_col else None),
+                        "al": _safe_str(row.get(wh_col) if wh_col else None, 200),
                     },
                 )
                 imported += 1
@@ -837,29 +834,29 @@ class UploadHistoricalFileUseCase:
     def _import_daily_sales(
         self, tenant_id: UUID, import_id: UUID, df: Any, cols: list[str]
     ) -> tuple[int, int]:
-        fecha_col = _resolve_column(cols, "fecha")
-        ventas_col = _resolve_column(cols, "total_ventas")
+        date_col = _resolve_column(cols, "date")
+        sales_total_col = _resolve_column(cols, "sales_total")
         items_col = _resolve_column(cols, "total_items")
-        ticket_col = _resolve_column(cols, "ticket_promedio")
+        avg_ticket_col = _resolve_column(cols, "avg_ticket")
 
         imported = 0
         failed = 0
 
         for _, row in df.iterrows():
             try:
-                fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
-                if not fecha:
-                    raise ValueError("missing_fecha")
+                record_date = _safe_date(row.get(date_col) if date_col else None)
+                if not record_date:
+                    raise ValueError("missing_date")
 
                 self.db.execute(
                     text(
-                        "INSERT INTO hist_daily_sales (tenant_id, import_id, fecha, "
-                        "total_ventas, total_items, ticket_promedio) "
+                        'INSERT INTO hist_daily_sales (tenant_id, import_id, "date", '
+                        "sales_total, total_items, avg_ticket) "
                         "VALUES (:tid, :iid, :f, :tv, :ti, :tp) "
-                        "ON CONFLICT (tenant_id, fecha) DO UPDATE SET "
-                        "total_ventas = EXCLUDED.total_ventas, "
+                        'ON CONFLICT (tenant_id, "date") DO UPDATE SET '
+                        "sales_total = EXCLUDED.sales_total, "
                         "total_items = EXCLUDED.total_items, "
-                        "ticket_promedio = EXCLUDED.ticket_promedio, "
+                        "avg_ticket = EXCLUDED.avg_ticket, "
                         "import_id = EXCLUDED.import_id"
                     ).bindparams(
                         bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -868,10 +865,10 @@ class UploadHistoricalFileUseCase:
                     {
                         "tid": tenant_id,
                         "iid": import_id,
-                        "f": fecha,
-                        "tv": _safe_decimal(row.get(ventas_col) if ventas_col else None),
+                        "f": record_date,
+                        "tv": _safe_decimal(row.get(sales_total_col) if sales_total_col else None),
                         "ti": int(_safe_decimal(row.get(items_col) if items_col else None)),
-                        "tp": _safe_decimal(row.get(ticket_col) if ticket_col else None),
+                        "tp": _safe_decimal(row.get(avg_ticket_col) if avg_ticket_col else None),
                     },
                 )
                 imported += 1
@@ -882,16 +879,16 @@ class UploadHistoricalFileUseCase:
         return imported, failed
 
     def _upsert_masters_from_sales(self, tenant_id: UUID, df: Any, cols: list[str]) -> None:
-        prod_code_col = _resolve_column(cols, "producto_code")
-        prod_name_col = _resolve_column(cols, "producto_nombre")
-        cli_code_col = _resolve_column(cols, "cliente_code")
-        cli_name_col = _resolve_column(cols, "cliente_nombre")
+        prod_code_col = _resolve_column(cols, "product_code")
+        prod_name_col = _resolve_column(cols, "product_name")
+        cust_code_col = _resolve_column(cols, "customer_code")
+        cust_name_col = _resolve_column(cols, "customer_name")
 
         seen: set[tuple[str, str]] = set()
         for _, row in df.iterrows():
             for entity_type, code_col, name_col in [
                 ("product", prod_code_col, prod_name_col),
-                ("client", cli_code_col, cli_name_col),
+                ("client", cust_code_col, cust_name_col),
             ]:
                 code = _safe_str(row.get(code_col) if code_col else None, 100)
                 name = _safe_str(row.get(name_col) if name_col else None, 500)
@@ -918,16 +915,16 @@ class UploadHistoricalFileUseCase:
                     )
 
     def _upsert_masters_from_purchases(self, tenant_id: UUID, df: Any, cols: list[str]) -> None:
-        prod_code_col = _resolve_column(cols, "producto_code")
-        prod_name_col = _resolve_column(cols, "producto_nombre")
-        prov_code_col = _resolve_column(cols, "proveedor_code")
-        prov_name_col = _resolve_column(cols, "proveedor_nombre")
+        prod_code_col = _resolve_column(cols, "product_code")
+        prod_name_col = _resolve_column(cols, "product_name")
+        supp_code_col = _resolve_column(cols, "supplier_code")
+        supp_name_col = _resolve_column(cols, "supplier_name")
 
         seen: set[tuple[str, str]] = set()
         for _, row in df.iterrows():
             for entity_type, code_col, name_col in [
                 ("product", prod_code_col, prod_name_col),
-                ("supplier", prov_code_col, prov_name_col),
+                ("supplier", supp_code_col, supp_name_col),
             ]:
                 code = _safe_str(row.get(code_col) if code_col else None, 100)
                 name = _safe_str(row.get(name_col) if name_col else None, 500)

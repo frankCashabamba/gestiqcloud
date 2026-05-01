@@ -66,7 +66,7 @@ CREATE INDEX IF NOT EXISTS ix_scheduled_reports_tenant
 -- to cheaply find rows whose next run is due.
 CREATE INDEX IF NOT EXISTS ix_scheduled_reports_due
     ON scheduled_reports(next_scheduled_at)
-    WHERE is_active = TRUE;
+    WHERE is_active IS TRUE;
 
 ALTER TABLE scheduled_reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS scheduled_reports_tenant_isolation ON scheduled_reports;

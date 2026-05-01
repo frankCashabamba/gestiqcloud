@@ -77,9 +77,7 @@ def _run_async(coro):
     return asyncio.run(coro)
 
 
-def _get_settings(
-    db: Session, tenant_id: UUID, country: str
-) -> EInvoicingCountrySettings | None:
+def _get_settings(db: Session, tenant_id: UUID, country: str) -> EInvoicingCountrySettings | None:
     return db.execute(
         select(EInvoicingCountrySettings).where(
             EInvoicingCountrySettings.tenant_id == tenant_id,
@@ -298,4 +296,3 @@ def update_einvoicing_settings(
         datetime.now(UTC).isoformat(),
     )
     return _to_out(settings, tid, type)
-

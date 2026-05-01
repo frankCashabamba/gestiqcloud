@@ -140,8 +140,7 @@ def _should_run_inline_ai(
         return False
     timings = run.get("timings_ms")
     if isinstance(timings, dict) and (
-        int(timings.get("ai_primary") or 0) > 0
-        or int(timings.get("ai_escalation") or 0) > 0
+        int(timings.get("ai_primary") or 0) > 0 or int(timings.get("ai_escalation") or 0) > 0
     ):
         return False
     return str(estado or "") == "REVIEW" and str(doc_tipo or "").upper() in ("OTHER", "")

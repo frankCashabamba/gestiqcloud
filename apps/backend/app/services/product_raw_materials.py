@@ -5,10 +5,8 @@ from collections import defaultdict
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
-from app.config.database import IS_SQLITE
 from app.models.core.products import Product
 from app.models.recipes import Recipe, RecipeIngredient
 from app.models.tenant import Tenant
@@ -16,33 +14,6 @@ from app.services.field_config import resolve_sector_code
 from app.services.unit_catalog_service import normalize_operational_unit
 
 logger = logging.getLogger(__name__)
-
-
-def ensure_products_raw_material_column(db: Session) -> None:
-    cached = db.info.get("products_raw_material_column_ready")
-    if cached is True:
-        return
-
-    inspector = inspect(db.get_bind())
-    schema = None if IS_SQLITE else "public"
-    columns = {col["name"] for col in inspector.get_columns("products", schema=schema)}
-    if "is_raw_material" in columns:
-        db.info["products_raw_material_column_ready"] = True
-        return
-
-    if IS_SQLITE:
-        db.execute(
-            text("ALTER TABLE products " "ADD COLUMN is_raw_material BOOLEAN NOT NULL DEFAULT 0")
-        )
-    else:
-        db.execute(
-            text(
-                "ALTER TABLE public.products "
-                "ADD COLUMN IF NOT EXISTS is_raw_material BOOLEAN NOT NULL DEFAULT FALSE"
-            )
-        )
-    db.commit()
-    db.info["products_raw_material_column_ready"] = True
 
 
 def tenant_sector_code(db: Session, tenant_id: UUID | str | None) -> str:
@@ -118,8 +89,6 @@ def sync_product_as_raw_material_from_recipe_line(
 
 
 def backfill_bakery_raw_material_products(db: Session) -> int:
-    ensure_products_raw_material_column(db)
-
     bakery_tenants = {
         tenant.id
         for tenant in db.query(Tenant).all()

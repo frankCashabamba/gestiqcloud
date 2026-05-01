@@ -206,16 +206,12 @@ class DocumentConverter:
         from app.modules.shared.services.numbering import generar_numero_documento
 
         quote = (
-            self.db.query(Quote)
-            .filter(Quote.id == quote_id, Quote.tenant_id == tenant_id)
-            .first()
+            self.db.query(Quote).filter(Quote.id == quote_id, Quote.tenant_id == tenant_id).first()
         )
         if not quote:
             raise ValueError(f"Presupuesto {quote_id} no encontrado")
         if quote.status != QuoteStatus.APPROVED.value:
-            raise ValueError(
-                f"El presupuesto debe estar APPROVED (estado actual: {quote.status})"
-            )
+            raise ValueError(f"El presupuesto debe estar APPROVED (estado actual: {quote.status})")
         if quote.converted_to_order_id:
             raise ValueError(
                 f"El presupuesto ya fue convertido (orden {quote.converted_to_order_id})"

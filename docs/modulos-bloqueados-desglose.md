@@ -62,7 +62,7 @@ No activar en produccion real. Mantener en sandbox/demo interno hasta cerrar con
 
 ### Falta o esta roto
 
-1. [HECHO 2026-05-01, verificado] Asientos automaticos hookeados en ventas (`post_sale_entry` en `sales/application/journal.py`: confirm + mark_paid, idempotente) y compras (`post_purchase_entry` en `purchases/application/journal.py`: recepcion, idempotente). [PENDIENTE real] `post_cash_movement_entry` en `finance/application/journal.py` existe e implementada, pero NO esta invocada en ningun handler HTTP de movimientos de caja — finance no contabiliza automaticamente.
+1. [HECHO 2026-05-01, verificado] Asientos automaticos hookeados en ventas (`post_sale_entry` en `sales/application/journal.py`: confirm + mark_paid, idempotente) y compras (`post_purchase_entry` en `purchases/application/journal.py`: recepcion, idempotente). [PENDIENTE estructural] `post_cash_movement_entry` en `finance/application/journal.py` esta implementada e idempotente, pero no existe ningun endpoint `POST /finance/cashbox/movements` ni ninguna creacion de `CashMovement` en el codebase; `CashMovementCreate` schema existe sin usar. El hookeo requiere primero crear la feature de registro de movimientos de caja.
 2. [HECHO 2026-05-01, verificado] Cierre/apertura/regularizacion con modelo `AccountingPeriod` (`models/accounting/period.py`) y endpoints `POST /periods/close|open|regularize`. `create_posted_entry` rechaza con 409 `periodo_cerrado` via `assert_period_open()`.
 3. [HECHO 2026-05-01, verificado] Permisos granulares aplicados en handlers. Excepcion: permiso `accounting.entry.cancel` esta definido en `permissions.py` e importado en `tenant.py` pero no existe endpoint de cancelacion de asientos.
 4. POS sigue construyendo `AsientoContable` directo en `shifts.py`; no migrado a `create_posted_entry`. Inconsistencia de patron con el resto del modulo.
@@ -187,7 +187,7 @@ Mantener desactivado para tenants. Como maximo, uso admin interno con credencial
 3. [HECHO 2026-05-01, verificado] KDS basico: `GET /kds/orders`, `POST /kds/items/{id}/ready|served` en backend; `KDSView.tsx` con polling 5s en frontend; ruta `/restaurant/kds` registrada en `Routes.tsx` con `ProtectedRoute(restaurant.kds.view)`.
 4. [HECHO 2026-05-01, verificado] `GET /tenant/restaurant/menu` filtra vendibles (`active=true`, `is_raw_material=false`); `MenuPicker.tsx` consumido por `OrderView.tsx`. `add_order_item` valida y devuelve 400 `product_not_sellable`.
 5. [HECHO 2026-05-01, verificado] Codigo muerto eliminado de `close_order`; manifests unificados con `enabled:false` en `module.json` y `manifest.ts`.
-6. [PENDIENTE] Endpoints KDS declaran permisos `restaurant.kds.view|manage` en docstring pero no aplican `@require_permission()` — solo valida scope "tenant". Cualquier usuario autenticado como tenant puede acceder al KDS.
+6. [HECHO] Permisos KDS aplicados: `PERM_RESTAURANT_KDS_VIEW` y `PERM_RESTAURANT_KDS_MANAGE` agregados a `permissions.py`; `require_permission()` aplicado como `dependencies=` en los 3 endpoints KDS de `restaurant/interface/http/tenant.py`.
 
 ### Decision
 

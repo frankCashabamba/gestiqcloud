@@ -54,7 +54,9 @@ class Quote(BaseTransactionalModel):
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
 
     # Dates
-    quote_date: Mapped[date] = mapped_column(Date, nullable=False, server_default=func.current_date())
+    quote_date: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=func.current_date()
+    )
     valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Misc

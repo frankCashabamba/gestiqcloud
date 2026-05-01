@@ -37,12 +37,16 @@ CODE_AP = "2.1.01"
 
 
 def _find_account(db: Session, tenant_id: UUID, code: str) -> ChartOfAccounts | None:
-    return db.execute(
-        select(ChartOfAccounts).where(
-            ChartOfAccounts.tenant_id == tenant_id,
-            ChartOfAccounts.code == code,
+    return (
+        db.execute(
+            select(ChartOfAccounts).where(
+                ChartOfAccounts.tenant_id == tenant_id,
+                ChartOfAccounts.code == code,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
@@ -50,13 +54,17 @@ def _settings(db: Session, tenant_id: UUID) -> TenantAccountingSettings | None:
 
 
 def _find_existing_entry(db: Session, purchase_id: UUID) -> JournalEntry | None:
-    return db.execute(
-        select(JournalEntry).where(
-            JournalEntry.ref_doc_type == "purchase",
-            JournalEntry.ref_doc_id == purchase_id,
-            JournalEntry.status != "CANCELLED",
+    return (
+        db.execute(
+            select(JournalEntry).where(
+                JournalEntry.ref_doc_type == "purchase",
+                JournalEntry.ref_doc_id == purchase_id,
+                JournalEntry.status != "CANCELLED",
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 def _reverse_entry(db: Session, entry: JournalEntry) -> None:
@@ -98,7 +106,8 @@ def post_purchase_entry(
         if not (inv_acct and ap_acct):
             logger.warning(
                 "post_purchase_entry: cuentas por defecto faltantes (tenant=%s purchase=%s) — skip",
-                tenant_id, purchase.id,
+                tenant_id,
+                purchase.id,
             )
             return None
 
@@ -112,7 +121,9 @@ def post_purchase_entry(
         if tax > 0 and vat_acct is not None:
             lines.append(JournalLineIn(account_id=vat_acct.id, debit=tax, credit=Decimal("0")))
         else:
-            lines[0] = JournalLineIn(account_id=inv_acct.id, debit=subtotal + tax, credit=Decimal("0"))
+            lines[0] = JournalLineIn(
+                account_id=inv_acct.id, debit=subtotal + tax, credit=Decimal("0")
+            )
         lines.append(JournalLineIn(account_id=ap_acct.id, debit=Decimal("0"), credit=total))
 
         entry_date = purchase.date if isinstance(purchase.date, date) else date.today()
@@ -127,7 +138,9 @@ def post_purchase_entry(
             lines=lines,
         )
     except Exception:
-        logger.exception("Could not create journal entry for purchase %s", getattr(purchase, "id", None))
+        logger.exception(
+            "Could not create journal entry for purchase %s", getattr(purchase, "id", None)
+        )
         return None
 
 

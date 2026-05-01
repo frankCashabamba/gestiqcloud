@@ -156,8 +156,8 @@ def list_sales(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    fecha_desde: date | None = Query(None),
-    fecha_hasta: date | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
     import_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -168,8 +168,8 @@ def list_sales(
         tenant_id=UUID(tid),
         page=page,
         page_size=page_size,
-        fecha_desde=fecha_desde,
-        fecha_hasta=fecha_hasta,
+        date_from=date_from,
+        date_to=date_to,
         import_id=UUID(import_id) if import_id else None,
     )
 
@@ -182,8 +182,8 @@ def list_purchases(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    fecha_desde: date | None = Query(None),
-    fecha_hasta: date | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
     import_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -194,8 +194,8 @@ def list_purchases(
         tenant_id=UUID(tid),
         page=page,
         page_size=page_size,
-        fecha_desde=fecha_desde,
-        fecha_hasta=fecha_hasta,
+        date_from=date_from,
+        date_to=date_to,
         import_id=UUID(import_id) if import_id else None,
     )
 
@@ -208,7 +208,7 @@ def list_stock(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    fecha: date | None = Query(None),
+    date_filter: date | None = Query(None),
     import_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -219,7 +219,7 @@ def list_stock(
         tenant_id=UUID(tid),
         page=page,
         page_size=page_size,
-        fecha=fecha,
+        date_filter=date_filter,
         import_id=UUID(import_id) if import_id else None,
     )
 
@@ -230,8 +230,8 @@ def list_stock(
 @router.get("/daily-sales")
 def list_daily_sales(
     request: Request,
-    fecha_desde: date | None = Query(None),
-    fecha_hasta: date | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
     db: Session = Depends(get_db),
 ):
     from app.modules.historical.application.use_cases import ListHistDailySalesUseCase
@@ -239,8 +239,8 @@ def list_daily_sales(
     tid = _require_tenant_id(request)
     return ListHistDailySalesUseCase(db).execute(
         tenant_id=UUID(tid),
-        fecha_desde=fecha_desde,
-        fecha_hasta=fecha_hasta,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

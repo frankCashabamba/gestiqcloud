@@ -1,5 +1,15 @@
 BEGIN;
 
+-- Ensure content_json is JSONB (was created as JSON in some envs).
+DO $$
+BEGIN
+    IF (SELECT data_type FROM information_schema.columns
+        WHERE table_name = 'icu_recipe_snapshot' AND column_name = 'content_json') = 'json' THEN
+        ALTER TABLE icu_recipe_snapshot
+            ALTER COLUMN content_json TYPE JSONB USING content_json::jsonb;
+    END IF;
+END $$;
+
 -- Backfill flattened Excel headers for fuzzy reuse pre-filtering.
 UPDATE icu_recipe_snapshot AS snap
 SET content_json = jsonb_set(

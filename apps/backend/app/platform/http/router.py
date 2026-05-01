@@ -377,6 +377,7 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.analytics.interface.http.tenant", "router"), prefix="/tenant"
     )
+
     # Legacy alias /api/v1/dashboard/kpis (kept 1 release; emits X-Deprecated header)
     def _analytics_legacy_header(response: Response):
         response.headers["X-Deprecated"] = "use /api/v1/tenant/dashboard/kpis"
@@ -392,7 +393,9 @@ def build_api_router() -> APIRouter:
             legacy_wrapper = APIRouter(dependencies=[Depends(_analytics_legacy_header)])
             legacy_wrapper.include_router(legacy_analytics)
             r.include_router(legacy_wrapper)
-            logger.debug("Mounted legacy analytics alias at /dashboard/kpis with X-Deprecated header")
+            logger.debug(
+                "Mounted legacy analytics alias at /dashboard/kpis with X-Deprecated header"
+            )
     except Exception as e:  # pragma: no cover - optional
         logger.debug("Skip mounting legacy analytics alias: %s", e)
 

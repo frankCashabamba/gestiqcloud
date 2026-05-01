@@ -321,7 +321,7 @@ Bloqueos:
 - [HECHO 2026-04-30] Recalculo manual de saldos corregido para usar `debit_balance`/`credit_balance`/`balance`.
 - [HECHO 2026-04-30] Libro mayor por cuenta backend + frontend.
 - [HECHO 2026-04-30] Endpoints P&G y Balance de Situacion implementados; frontend actualizado.
-- [PENDIENTE real, verificado en codigo] `post_cash_movement_entry` en `finance/application/journal.py` esta implementada e idempotente, pero NO esta invocada en ningun handler HTTP de movimientos de caja. Finance no contabiliza automaticamente. Requiere hookeo en el handler de cash movements.
+- [PENDIENTE estructural, investigado en codigo] `post_cash_movement_entry` en `finance/application/journal.py` esta implementada e idempotente. El problema real es mayor: no existe ningun `POST /finance/cashbox/movements` ni ninguna creacion de `CashMovement` en el codebase (`db.add(CashMovement(...))` no aparece en ninguna parte). `CashMovementCreate` schema existe sin usar. El hookeo requiere primero crear el endpoint de creacion de movimiento; no es un parche pequeno. Opciones: (A) crear `POST /finance/cashbox/movements` con hookeo inline, (B) crear los movimientos como side-effect del cierre de turno POS.
 - [PENDIENTE real, verificado en codigo] Permiso `accounting.entry.cancel` definido en `permissions.py` e importado en `tenant.py` pero no existe endpoint `POST /journal-entries/{id}/cancel`. El permiso esta sin uso efectivo.
 - [PENDIENTE] POS construye `AsientoContable` directo en `shifts.py`, no migrado a `create_posted_entry`; inconsistente con el resto del modulo.
 
@@ -338,8 +338,8 @@ Bloqueos:
 - [HECHO 2026-05-01] Migracion formal `2026-05-01_003_reports_tables` con tablas `reports` y `scheduled_reports` + RLS policies.
 - [HECHO 2026-05-01] `SalesReportGenerator` confirmado contra `sales_orders` (tabla canonica del modelo `SalesOrder`); comentario explicito en `report_generator.py`.
 - [PARCHEADO 2026-04-30] Creacion de reportes programados cerrada por defecto; ahora se puede activar con `REPORTS_SCHEDULER_ENABLED=true`.
-- [BUG POTENCIAL, verificado en codigo] `SalesReportGenerator` SQL crudo usa columna `quantity` pero ORM `SalesOrderItem` declara `qty`; puede fallar con `OperationalError` en runtime. El propio codigo tiene comentario de advertencia en `report_generator.py`. Requiere alinear SQL a `qty`/`line_total` antes de activar en produccion.
-- [PENDIENTE] `reports_tasks.py` no se importa explicitamente en `_import_task_modules()` de `celery_app.py`; verificar que las tasks se registren al arrancar con `REPORTS_SCHEDULER_ENABLED=true`.
+- [HECHO, corregido codigo] `SalesReportGenerator`: `soi.quantity` era correcto a nivel DB (el ORM usa `mapped_column("quantity", ...)` — nombre fisico correcto). Lo que se corrigio fue `SUM(soi.quantity * soi.unit_price)` → `SUM(soi.line_total)` para incluir descuentos y redondeo. Mas preciso. Comentario de advertencia actualizado en `report_generator.py`.
+- [HECHO, corregido codigo] `reports_tasks.py` y `einvoicing_tasks.py` ahora se importan explicitamente en `_import_task_modules()` de `celery_app.py` siguiendo el patron try/break existente con doble variante de path.
 - Reportes grandes pueden seguir ejecutandose en memoria aunque exports CSV/XLSX ya tengan limite operativo.
 - Faltan aging, flujo de caja y validacion de gastos/reportes avanzados; libro mayor ya esta implementado en Accounting.
 
@@ -416,9 +416,9 @@ Bloqueos:
 - [HECHO 2026-05-01] Backend valida `is_raw_material`/`active` en `add_order_item` (400 `product_not_sellable`).
 - [HECHO 2026-05-01] Catalogo/menu: `GET /tenant/restaurant/menu` filtra vendibles; `MenuPicker.tsx` consumido por `OrderView.tsx`.
 - [HECHO 2026-05-01] Eliminado flujo muerto que intentaba marcar `paid` despues del 501.
-- [PENDIENTE, verificado en codigo] Endpoints KDS (`GET /kds/orders`, `POST /kds/items/{id}/ready|served`) declaran permisos `restaurant.kds.view|manage` en docstring pero no aplican `@require_permission()` — solo validan scope "tenant". Cualquier usuario autenticado como tenant puede acceder al KDS.
+- [HECHO, corregido codigo] Permisos KDS aplicados: `PERM_RESTAURANT_KDS_VIEW` y `PERM_RESTAURANT_KDS_MANAGE` agregados a `permissions.py` (con `RESTAURANT_PERMISSIONS` tuple). `require_permission()` aplicado como `dependencies=` en los 3 endpoints KDS de `restaurant/interface/http/tenant.py`.
 
-Decision: candidato beta. Activable cuando se cierre integracion POS/facturacion y se corrija enforcement de permisos KDS.
+Decision: candidato beta. Activable cuando se cierre integracion POS/facturacion para reemplazar el 501 de close.
 
 ### Historical
 

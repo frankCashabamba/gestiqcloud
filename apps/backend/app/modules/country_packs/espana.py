@@ -6,8 +6,7 @@ import re
 import unicodedata
 from decimal import Decimal
 
-from app.modules.documents.domain.config import TenantDocConfig
-from app.modules.documents.domain.models import BuyerInfo, SaleDraft, TaxLine, _q2
+from app.modules.documents.domain.models import BuyerInfo, TaxLine, _q2
 from app.modules.documents.domain.validation import ValidationError
 
 _NIF_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
@@ -91,23 +90,55 @@ class EspanaPack:
         errs = []
 
         def _g(key, default=None):
-            return invoice.get(key, default) if isinstance(invoice, dict) else getattr(invoice, key, default)
+            return (
+                invoice.get(key, default)
+                if isinstance(invoice, dict)
+                else getattr(invoice, key, default)
+            )
 
         currency = (_g("currency") or "").upper()
         if currency and currency != "EUR":
-            errs.append(ValidationError(code="invalid_currency", message="Spanish invoices must be in EUR", field="currency"))
+            errs.append(
+                ValidationError(
+                    code="invalid_currency",
+                    message="Spanish invoices must be in EUR",
+                    field="currency",
+                )
+            )
         try:
             if Decimal(str(_g("total") or _g("grandTotal") or 0)) <= 0:
-                errs.append(ValidationError(code="invalid_total", message="Invoice total must be positive", field="total"))
+                errs.append(
+                    ValidationError(
+                        code="invalid_total",
+                        message="Invoice total must be positive",
+                        field="total",
+                    )
+                )
         except Exception:
-            errs.append(ValidationError(code="invalid_total", message="Invoice total is not numeric", field="total"))
+            errs.append(
+                ValidationError(
+                    code="invalid_total", message="Invoice total is not numeric", field="total"
+                )
+            )
 
         buyer = _g("buyer") or {}
-        mode = (buyer.get("mode") if isinstance(buyer, dict) else getattr(buyer, "mode", None)) or ""
+        mode = (
+            buyer.get("mode") if isinstance(buyer, dict) else getattr(buyer, "mode", None)
+        ) or ""
         if mode == "IDENTIFIED":
-            tax_id = buyer.get("idNumber") if isinstance(buyer, dict) else getattr(buyer, "idNumber", None)
+            tax_id = (
+                buyer.get("idNumber")
+                if isinstance(buyer, dict)
+                else getattr(buyer, "idNumber", None)
+            )
             if not validate_tax_id(tax_id):
-                errs.append(ValidationError(code="invalid_tax_id", message="Invalid Spanish NIF/NIE/CIF", field="buyer.idNumber"))
+                errs.append(
+                    ValidationError(
+                        code="invalid_tax_id",
+                        message="Invalid Spanish NIF/NIE/CIF",
+                        field="buyer.idNumber",
+                    )
+                )
         return errs
 
     # --- Interfaz CountryPack (compatible con DocumentOrchestrator) ---
@@ -123,14 +154,31 @@ class EspanaPack:
     def validate(self, input, cfg):
         errs = []
         if (input.currency or "").upper() != "EUR":
-            errs.append(ValidationError(code="invalid_currency", message="Spanish documents must be in EUR", field="currency"))
+            errs.append(
+                ValidationError(
+                    code="invalid_currency",
+                    message="Spanish documents must be in EUR",
+                    field="currency",
+                )
+            )
         if input.buyer.mode == "IDENTIFIED" and not validate_tax_id(input.buyer.idNumber):
-            errs.append(ValidationError(code="invalid_tax_id", message="Invalid Spanish NIF/NIE/CIF", field="buyer.idNumber"))
+            errs.append(
+                ValidationError(
+                    code="invalid_tax_id",
+                    message="Invalid Spanish NIF/NIE/CIF",
+                    field="buyer.idNumber",
+                )
+            )
         return errs
 
     def build_buyer(self, input, cfg):
         if input.buyer.mode == "CONSUMER_FINAL":
-            return BuyerInfo(mode="CONSUMER_FINAL", idType="NONE", idNumber=None, name=input.buyer.name or "CONSUMIDOR FINAL")
+            return BuyerInfo(
+                mode="CONSUMER_FINAL",
+                idType="NONE",
+                idNumber=None,
+                name=input.buyer.name or "CONSUMIDOR FINAL",
+            )
         return BuyerInfo(
             mode="IDENTIFIED",
             idType=input.buyer.idType or "NIF",

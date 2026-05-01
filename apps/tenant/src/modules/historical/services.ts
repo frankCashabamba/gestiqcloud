@@ -21,59 +21,59 @@ export type HistImport = {
 export type HistSale = {
   id: string
   import_id: string | null
-  fecha: string
-  numero: string | null
-  cliente_code: string | null
-  cliente_nombre: string | null
-  producto_code: string | null
-  producto_nombre: string | null
-  cantidad: number
-  precio_unitario: number
+  date: string
+  number: string | null
+  customer_code: string | null
+  customer_name: string | null
+  product_code: string | null
+  product_name: string | null
+  quantity: number
+  unit_price: number
   subtotal: number
-  impuesto: number
+  tax: number
   total: number
-  moneda: string
+  currency: string
   created_at: string
 }
 
 export type HistPurchase = {
   id: string
   import_id: string | null
-  fecha: string
-  numero: string | null
-  proveedor_code: string | null
-  proveedor_nombre: string | null
-  producto_code: string | null
-  producto_nombre: string | null
-  cantidad: number
-  precio_unitario: number
+  date: string
+  number: string | null
+  supplier_code: string | null
+  supplier_name: string | null
+  product_code: string | null
+  product_name: string | null
+  quantity: number
+  unit_price: number
   subtotal: number
-  impuesto: number
+  tax: number
   total: number
-  moneda: string
+  currency: string
   created_at: string
 }
 
 export type HistStock = {
   id: string
   import_id: string | null
-  fecha: string
-  producto_code: string | null
-  producto_nombre: string | null
-  cantidad: number
-  costo_unitario: number
-  valor_total: number
-  almacen: string | null
+  date: string
+  product_code: string | null
+  product_name: string | null
+  quantity: number
+  unit_cost: number
+  total_value: number
+  warehouse: string | null
   created_at: string
 }
 
 export type HistDailySales = {
   id: string
   import_id: string | null
-  fecha: string
-  total_ventas: number
+  date: string
+  sales_total: number
   total_items: number
-  ticket_promedio: number
+  avg_ticket: number
   created_at: string
 }
 
@@ -130,8 +130,8 @@ export async function uploadFile(
 export async function listSales(params?: {
   page?: number
   page_size?: number
-  fecha_desde?: string
-  fecha_hasta?: string
+  date_from?: string
+  date_to?: string
 }): Promise<PaginatedResponse<HistSale>> {
   const { data } = await tenantApi.get<PaginatedResponse<HistSale>>(`${BASE}/sales`, { params })
   return data
@@ -140,8 +140,8 @@ export async function listSales(params?: {
 export async function listPurchases(params?: {
   page?: number
   page_size?: number
-  fecha_desde?: string
-  fecha_hasta?: string
+  date_from?: string
+  date_to?: string
 }): Promise<PaginatedResponse<HistPurchase>> {
   const { data } = await tenantApi.get<PaginatedResponse<HistPurchase>>(`${BASE}/purchases`, { params })
   return data
@@ -150,16 +150,16 @@ export async function listPurchases(params?: {
 export async function listStock(params?: {
   page?: number
   page_size?: number
-  fecha_desde?: string
-  fecha_hasta?: string
+  date_from?: string
+  date_to?: string
 }): Promise<PaginatedResponse<HistStock>> {
   const { data } = await tenantApi.get<PaginatedResponse<HistStock>>(`${BASE}/stock`, { params })
   return data
 }
 
 export async function listDailySales(params?: {
-  fecha_desde?: string
-  fecha_hasta?: string
+  date_from?: string
+  date_to?: string
 }): Promise<HistDailySales[]> {
   const { data } = await tenantApi.get<HistDailySales[]>(`${BASE}/daily-sales`, { params })
   return data

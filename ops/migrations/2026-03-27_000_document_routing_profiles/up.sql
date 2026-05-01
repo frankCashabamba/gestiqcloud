@@ -1,6 +1,9 @@
 -- Configurable document routing for importador.
 -- Source of truth moves from hardcoded rules to database tables.
 
+-- Ensure pgcrypto/uuid functions are available and DEFAULT is set.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS imp_routing_profile (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code                  VARCHAR(80) NOT NULL UNIQUE,
@@ -51,6 +54,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_imp_routing_rule_scope
     WHERE tenant_id IS NULL;
 
 INSERT INTO imp_routing_profile (
+    id,
     code,
     document_type,
     description,
@@ -62,6 +66,7 @@ INSERT INTO imp_routing_profile (
     confidence_threshold
 ) VALUES
     (
+        gen_random_uuid(),
         'supplier_invoice',
         'supplier_invoice',
         'Supplier invoices and purchase bills ready to post into purchases.',
@@ -73,6 +78,7 @@ INSERT INTO imp_routing_profile (
         0.80
     ),
     (
+        gen_random_uuid(),
         'expense',
         'expense',
         'Operational expenses and receipts saved into expenses.',
@@ -84,6 +90,7 @@ INSERT INTO imp_routing_profile (
         0.80
     ),
     (
+        gen_random_uuid(),
         'recipe',
         'recipe',
         'Recipe or costing sheets that can become production recipes.',
@@ -95,6 +102,7 @@ INSERT INTO imp_routing_profile (
         0.80
     ),
     (
+        gen_random_uuid(),
         'inventory',
         'inventory',
         'Inventory documents that should remain under review.',
@@ -106,6 +114,7 @@ INSERT INTO imp_routing_profile (
         0.80
     ),
     (
+        gen_random_uuid(),
         'bank_statement',
         'bank_statement',
         'Bank statements requiring dedicated reconciliation flows.',
@@ -117,6 +126,7 @@ INSERT INTO imp_routing_profile (
         0.80
     ),
     (
+        gen_random_uuid(),
         'payroll',
         'payroll',
         'Payroll documents requiring human review.',
@@ -128,6 +138,7 @@ INSERT INTO imp_routing_profile (
         0.80
     ),
     (
+        gen_random_uuid(),
         'other',
         'expense',
         'Fallback route when a document is not clearly classified.',

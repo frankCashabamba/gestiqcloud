@@ -9,7 +9,9 @@ from fastapi import HTTPException
 
 class _DbMustNotMutate:
     def execute(self, *args, **kwargs):  # pragma: no cover - only used on failure
-        raise AssertionError("restaurant close must not touch orders until POS/billing is integrated")
+        raise AssertionError(
+            "restaurant close must not touch orders until POS/billing is integrated"
+        )
 
     def commit(self):  # pragma: no cover - only used on failure
         raise AssertionError("restaurant close must not commit until POS/billing is integrated")
