@@ -629,57 +629,12 @@ def send_to_kitchen(order_id: str, request: Request, db: Session = Depends(get_d
 
 @router.post("/orders/{order_id}/close", response_model=dict[str, Any])
 def close_order(order_id: str, request: Request, db: Session = Depends(get_db)):
-    """Cierra una comanda (calcula totales, mesa pasa a 'cleaning')."""
+    """Block closing until restaurant orders can be paid and invoiced safely."""
     ensure_guc_from_request(request, db, persist=True)
     raise HTTPException(
         status_code=501,
         detail="restaurant_close_requires_pos_billing_integration",
     )
-
-    order = db.execute(
-        text("SELECT id, table_id, status FROM restaurant_orders WHERE id = :oid").bindparams(
-            bindparam("oid", type_=PGUUID(as_uuid=True))
-        ),
-        {"oid": order_id},
-    ).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="order_not_found")
-    if order[2] in ("paid", "canceled"):
-        raise HTTPException(status_code=400, detail="order_already_closed")
-
-    now = datetime.now(UTC)
-
-    # Recalculate totals
-    totals = _recalculate_order_totals(db, order_id)
-
-    # Close the order
-    db.execute(
-        text(
-            "UPDATE restaurant_orders SET status = 'paid', closed_at = :now, updated_at = :now "
-            "WHERE id = :oid"
-        ).bindparams(bindparam("oid", type_=PGUUID(as_uuid=True))),
-        {"oid": order_id, "now": now},
-    )
-
-    # Set table to cleaning
-    table_id = str(order[1])
-    db.execute(
-        text("UPDATE restaurant_tables SET status = 'cleaning' WHERE id = :tid").bindparams(
-            bindparam("tid", type_=PGUUID(as_uuid=True))
-        ),
-        {"tid": table_id},
-    )
-
-    db.commit()
-
-    return {
-        "order_id": order_id,
-        "status": "paid",
-        "subtotal": totals["subtotal"],
-        "tax_total": totals["tax_total"],
-        "total": totals["total"],
-        "closed_at": now.isoformat(),
-    }
 
 
 # ---------------------------------------------------------------------------

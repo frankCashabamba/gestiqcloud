@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
 
 def _claims(tenant_id: str, user_id: str) -> dict[str, str]:
@@ -18,6 +19,24 @@ def _claims(tenant_id: str, user_id: str) -> dict[str, str]:
 
 def _request_for_tenant(tenant_id: str, user_id: str):
     return SimpleNamespace(state=SimpleNamespace(access_claims=_claims(tenant_id, user_id)))
+
+
+def test_complete_production_requires_authenticated_user(db, tenant_minimal):
+    from app.modules.production.interface.http.tenant import complete_production
+    from app.schemas.production import ProductionOrderCompleteRequest
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            complete_production(
+                uuid4(),
+                ProductionOrderCompleteRequest(qty_produced=Decimal("1")),
+                db=db,
+                claims={"tenant_id": tenant_minimal["tenant_id_str"]},
+            )
+        )
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "production_completion_requires_user"
 
 
 def test_complete_production_consumes_inputs_and_generates_output(

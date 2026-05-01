@@ -1334,9 +1334,14 @@ async def complete_production(
     tenant_id = UUID(claims["tenant_id"])
     raw_user_id = claims.get("user_id")
     try:
-        user_id = UUID(str(raw_user_id)) if raw_user_id else UUID(str(order_id))
-    except Exception:
-        user_id = UUID(str(order_id))
+        user_id = UUID(str(raw_user_id)) if raw_user_id else None
+    except (TypeError, ValueError):
+        user_id = None
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="production_completion_requires_user",
+        )
     stmt = select(ProductionOrder).where(
         ProductionOrder.id == order_id,
         ProductionOrder.tenant_id == tenant_id,

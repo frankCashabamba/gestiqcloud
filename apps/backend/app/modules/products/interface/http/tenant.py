@@ -686,8 +686,7 @@ def _count_product_refs(
             count = (
                 db.execute(
                     text(
-                        f"SELECT COUNT(*) FROM {qtable} "
-                        "WHERE tenant_id=:tid AND product_id=:pid"
+                        f"SELECT COUNT(*) FROM {qtable} " "WHERE tenant_id=:tid AND product_id=:pid"
                     ),
                     {"tid": tenant_id, "pid": str(product_id)},
                 ).scalar()
@@ -1211,9 +1210,7 @@ def purge_products_pro(request: Request, payload: PurgeRequest, db: Session = De
         deleted["stock_items"] = _delete_counted(
             "stock_items", "DELETE FROM stock_items WHERE tenant_id = :tid"
         )
-    deleted["products"] = _delete_counted(
-        "products", "DELETE FROM products WHERE tenant_id = :tid"
-    )
+    deleted["products"] = _delete_counted("products", "DELETE FROM products WHERE tenant_id = :tid")
     if payload.include_categories:
         deleted["product_categories"] = _delete_counted(
             "product_categories", "DELETE FROM product_categories WHERE tenant_id = :tid"

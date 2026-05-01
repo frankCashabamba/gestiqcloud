@@ -185,7 +185,7 @@ Mantener desactivado para tenants. Como maximo, uso admin interno con credencial
 2. `tax_total = 0.0` sigue hardcodeado.
 3. Sin KDS real.
 4. La busqueda de productos no filtra menu/venta; puede mostrar materias primas.
-5. El codigo posterior al `raise HTTPException(501)` en `close_order` queda inaccesible y no debe considerarse flujo valido.
+5. [HECHO 2026-05-01] Eliminado el codigo muerto posterior al `raise HTTPException(501)` en `close_order`; el cierre queda explicitamente bloqueado hasta integrar POS/facturacion.
 
 ### Decision
 
@@ -252,7 +252,7 @@ No registrar como modulo productivo. Mantener oculto por feature flag o integrar
 
 1. Falta evidencia de tests integrados del flujo completo: receta -> orden -> start -> complete -> consumo stock -> stock terminado -> lote -> merma.
 2. Falta validar que el warehouse resuelto sea correcto para todos los sectores y que no cree stock negativo no deseado.
-3. `complete_production` usa fallback de `user_id` al `order_id` para crear gasto de produccion si no hay `user_id`; conviene fallar claro o registrar usuario de sistema.
+3. [HECHO 2026-05-01] `complete_production` ya no usa fallback de `user_id` al `order_id`; si falta o es invalido devuelve 401 `production_completion_requires_user`.
 4. El asiento/gasto de produccion se intenta crear, pero si falla no bloquea la orden; esto es aceptable para operacion, pero deja coste/contabilidad incompleta si no se monitorea.
 
 ### Decision
@@ -269,7 +269,7 @@ Candidato beta, no bloqueado por implementacion core. Antes de v1 requiere prueb
 |---|--------|--------|
 | 1 | Einvoicing | Conectar tasks Celery publicas al worker XAdES real y parametrizar ambiente SRI |
 | 2 | Reports | Corregir fuente de ventas (`sales_orders` vs flujo real POS/facturas) |
-| 3 | Restaurant | Mantener manifest deshabilitado y bloquear cualquier exposicion de close/cobro |
+| 3 | Restaurant | Mantener manifest deshabilitado y close/cobro bloqueado hasta integracion POS/facturacion |
 | 4 | Accounting | Definir automatismos minimos de asientos para ventas, compras y caja |
 | 5 | Production | Anadir/ejecutar tests de ciclo completo con stock, lote, merma y gasto |
 

@@ -92,7 +92,8 @@ Un modulo queda fuera de produccion si:
 - Documents backend: [HECHO 2026-04-30] router `document_storage` montado en `platform/http/router.py` bajo `/tenant` — `GET /documents/storage`, `GET /documents/storage/{id}` y `POST /documents/storage/upload` accesibles.
 - Restaurant backend: [HECHO 2026-04-30] router `restaurant/interface/http/tenant` montado en `platform/http/router.py` bajo `/tenant` — todos los endpoints `/tenant/restaurant/*` responden (CRUD mesas, comandas, items, send-kitchen; close devuelve 501).
 
-- Production backend/frontend: [VERIFICADO 2026-05-01] router `/tenant/production` montado; ordenes soportan crear, iniciar, completar y cancelar; completar consume ingredientes, crea stock terminado, asigna lote y registra merma; frontend expone modal de completar con cantidad producida, merma, motivo y batch. Pendiente: pruebas integradas y revisar fallback de `user_id` en gasto automatico.
+- Production backend/frontend: [VERIFICADO 2026-05-01] router `/tenant/production` montado; ordenes soportan crear, iniciar, completar y cancelar; completar consume ingredientes, crea stock terminado, asigna lote y registra merma; frontend expone modal de completar con cantidad producida, merma, motivo y batch. [HECHO 2026-05-01] eliminado fallback de `user_id` a `order_id` en gasto automatico; ahora falta user_id devuelve 401.
+- Restaurant backend: [HECHO 2026-05-01] eliminado codigo muerto posterior al 501 de `close`; el cierre queda explicitamente bloqueado hasta integrar POS/facturacion.
 
 ## Modulos candidatos a produccion con parches
 
@@ -270,7 +271,7 @@ Parches pendientes:
 - [VERIFICADO 2026-05-01] Backend: `POST /orders/{id}/complete` consume ingredientes, crea movimiento de salida `production_consume`, crea movimiento de entrada `production_output`, actualiza `StockItem`, asigna `batch_number` y guarda `waste_qty`/`waste_reason`.
 - [VERIFICADO 2026-05-01] Frontend: `OrdersList.tsx` permite iniciar, completar y cancelar; el modal de completar captura cantidad producida, merma, motivo, batch y notas.
 - [PENDIENTE] Agregar/ejecutar tests integrados de receta -> orden -> start -> complete -> stock ingredientes -> stock terminado -> lote -> merma.
-- [PENDIENTE] Revisar fallback de `user_id` a `order_id` al crear gasto automatico de produccion; debe fallar claro, usar usuario de sistema o quedar auditado.
+- [HECHO 2026-05-01] Revisar fallback de `user_id` a `order_id` al crear gasto automatico de produccion. Ahora falla claro con 401 `production_completion_requires_user` si el claim falta o es invalido.
 - [PENDIENTE] Validar warehouse por sector y politica de stock negativo antes de activarlo fuera de beta.
 
 Condicion para subir: smoke test completo de produccion con inventario, lote, merma, coste/gasto y rollback ante error de stock.
@@ -392,6 +393,7 @@ Bloqueos:
 - Impuestos hardcodeados a cero.
 - Falta Kitchen Display System (KDS).
 - La busqueda de productos no filtra menu/productos vendibles; puede mostrar materias primas.
+- [HECHO 2026-05-01] Eliminado flujo muerto que intentaba marcar `paid` despues del 501.
 
 Decision: beta o desactivado por feature flag.
 
