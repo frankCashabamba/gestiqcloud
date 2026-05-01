@@ -3,6 +3,8 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS ui_field_config_scope_rules (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     scope_type   VARCHAR(32)  NOT NULL,
@@ -13,11 +15,17 @@ CREATE TABLE IF NOT EXISTS ui_field_config_scope_rules (
     UNIQUE (scope_type, scope_value)
 );
 
+ALTER TABLE ui_field_config_scope_rules
+    ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
 CREATE INDEX IF NOT EXISTS ix_ui_field_config_scope_rules_scope_type
     ON ui_field_config_scope_rules (scope_type);
 
 CREATE INDEX IF NOT EXISTS ix_ui_field_config_scope_rules_scope_value
     ON ui_field_config_scope_rules (scope_value);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ui_field_config_scope_rules_scope
+    ON ui_field_config_scope_rules (scope_type, scope_value);
 
 INSERT INTO ui_field_config_scope_rules (scope_type, scope_value, action, reason, active)
 VALUES

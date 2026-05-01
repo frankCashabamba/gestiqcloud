@@ -17,6 +17,8 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS imp_config (
     id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     module      VARCHAR(100) NOT NULL,
@@ -29,6 +31,12 @@ CREATE TABLE IF NOT EXISTS imp_config (
 );
 
 -- ── classification ──────────────────────────────────────────────────────────
+ALTER TABLE imp_config
+    ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_imp_config_module_key
+    ON imp_config (module, key);
+
 INSERT INTO imp_config (module, key, value_text, label) VALUES
     ('classification', 'confidence_threshold', '0.85',
      'Umbral mínimo de confianza. Documentos por debajo requieren revisión humana.')

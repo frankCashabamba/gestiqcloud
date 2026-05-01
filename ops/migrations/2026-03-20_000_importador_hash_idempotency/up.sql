@@ -24,6 +24,9 @@ BEGIN
         ALTER TABLE imp_staging_line
             DROP CONSTRAINT IF EXISTS imp_staging_line_documento_id_line_number_sheet_name_key;
 
+        ALTER TABLE imp_staging_line
+            DROP CONSTRAINT IF EXISTS uq_imp_staging_line_doc_line_sheet;
+
         DROP INDEX IF EXISTS uq_imp_staging_line_doc_line_sheet;
 
         CREATE UNIQUE INDEX IF NOT EXISTS uq_imp_staging_line_doc_line_sheet
@@ -47,6 +50,9 @@ WHERE sheet_name IS NULL;
 
 ALTER TABLE imp_staging_line
     DROP CONSTRAINT IF EXISTS imp_staging_line_documento_id_line_number_sheet_name_key;
+
+ALTER TABLE imp_staging_line
+    DROP CONSTRAINT IF EXISTS uq_imp_staging_line_doc_line_sheet;
 
 DROP INDEX IF EXISTS uq_imp_staging_line_doc_line_sheet;
 

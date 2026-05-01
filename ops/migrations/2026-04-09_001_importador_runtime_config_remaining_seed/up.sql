@@ -1,5 +1,10 @@
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+ALTER TABLE imp_config
+    ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
 -- Ensure the unique constraint exists (may be missing if imp_config was pre-created).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_imp_config_module_key ON imp_config (module, key);
 

@@ -258,6 +258,38 @@ def _create_tables_in_order(engine, metadata):
 
 _ensure_test_env()
 
+_pg_test_db_cleaned = False
+
+
+def _truncate_pg_test_db_once(engine) -> None:
+    """Clean a PostgreSQL test database once per pytest process."""
+    global _pg_test_db_cleaned
+
+    if engine.dialect.name != "postgresql" or _pg_test_db_cleaned:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("SET session_replication_role = replica"))
+
+        tables = conn.execute(
+            text(
+                """
+                SELECT tablename
+                FROM pg_tables
+                WHERE schemaname = 'public'
+                  AND tablename NOT IN ('schema_migrations')
+                """
+            )
+        ).scalars().all()
+
+        if tables:
+            quoted = ", ".join(f'"{t}"' for t in tables)
+            conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
+
+        conn.execute(text("SET session_replication_role = DEFAULT"))
+
+    _pg_test_db_cleaned = True
+
 
 @pytest.fixture(scope="session")
 def client() -> TestClient:
@@ -298,8 +330,8 @@ def db():
     _prune_pg_only_tables(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
 
-    # For PostgreSQL: tables already exist from migrate_all_migrations.py
-    # For SQLite: create tables from metadata
+    # For PostgreSQL: tables already exist from migrate_all_migrations.py.
+    # For SQLite: create tables from metadata.
     if engine.dialect.name != "postgresql":
 
         try:
@@ -312,6 +344,7 @@ def db():
         _create_tables_in_order(engine, Base.metadata)
         _ensure_sqlite_stub_tables(engine)
     else:
+        _truncate_pg_test_db_once(engine)
         _ensure_pg_defaults(engine)
 
     # Ensure at least one tenant exists (for both SQLite and PostgreSQL)
@@ -334,6 +367,27 @@ def db():
         Base.metadata.create_all(bind=engine)
         missing = required.difference(Base.metadata.tables.keys())
         assert not missing, f"Missing tables after create_all: {missing}"
+
+    if engine.dialect.name == "postgresql":
+        connection = engine.connect()
+        transaction = connection.begin()
+        previous_kwargs = dict(SessionLocal.kw)
+        SessionLocal.configure(bind=connection, join_transaction_mode="create_savepoint")
+        session = SessionLocal()
+        try:
+            _ensure_ui_field_config_scope_rules(session)
+            yield session
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+            SessionLocal.configure(**previous_kwargs)
+            if transaction.is_active:
+                transaction.rollback()
+            connection.close()
+        return
+
     session = SessionLocal()
     try:
         _ensure_ui_field_config_scope_rules(session)
@@ -349,33 +403,11 @@ def db():
 def clean_db_between_tests(db):
     engine = db.get_bind()
 
-    if engine.dialect.name != "postgresql":
-        yield
-        return
-
-    from sqlalchemy import text
-
-    # BEFORE each test
-    with engine.begin() as conn:
-        conn.execute(text("SET session_replication_role = replica"))
-
-        tables = conn.execute(text("""
-            SELECT tablename
-            FROM pg_tables
-            WHERE schemaname = 'public'
-              AND tablename NOT IN ('schema_migrations')
-        """)).scalars().all()
-
-        if tables:
-            quoted = ", ".join(f'"{t}"' for t in tables)
-            conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
-
-        conn.execute(text("SET session_replication_role = DEFAULT"))
-
     yield
 
-    # AFTER (extra safety)
-    db.rollback()
+    if engine.dialect.name == "postgresql":
+        db.rollback()
+
 
 def _ensure_ui_field_config_scope_rules(session) -> None:
     from app.models.core.ui_field_config import UiFieldConfigScopeRule

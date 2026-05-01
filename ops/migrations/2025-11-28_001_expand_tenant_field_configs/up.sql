@@ -30,20 +30,41 @@ ALTER TABLE tenant_field_configs
   ADD COLUMN IF NOT EXISTS transform_expression TEXT DEFAULT NULL;
 
 -- Add constraints to validate data
-ALTER TABLE tenant_field_configs
-  ADD CONSTRAINT check_aliases_array CHECK (aliases IS NULL OR jsonb_typeof(aliases) = 'array');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'tenant_field_configs'::regclass
+      AND conname = 'check_aliases_array'
+  ) THEN
+    ALTER TABLE tenant_field_configs
+      ADD CONSTRAINT check_aliases_array CHECK (aliases IS NULL OR jsonb_typeof(aliases) = 'array');
+  END IF;
 
-ALTER TABLE tenant_field_configs
-  ADD CONSTRAINT check_field_type CHECK (
-    field_type IS NULL OR field_type IN (
-      'string', 'number', 'integer', 'decimal', 'date', 'datetime',
-      'time', 'boolean', 'email', 'phone', 'currency', 'percentage',
-      'uuid', 'json', 'enum'
-    )
-  );
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'tenant_field_configs'::regclass
+      AND conname = 'check_field_type'
+  ) THEN
+    ALTER TABLE tenant_field_configs
+      ADD CONSTRAINT check_field_type CHECK (
+        field_type IS NULL OR field_type IN (
+          'string', 'number', 'integer', 'decimal', 'date', 'datetime',
+          'time', 'boolean', 'email', 'phone', 'currency', 'percentage',
+          'uuid', 'json', 'enum'
+        )
+      );
+  END IF;
 
-ALTER TABLE tenant_field_configs
-  ADD CONSTRAINT check_validation_rules_object CHECK (validation_rules IS NULL OR jsonb_typeof(validation_rules) = 'object');
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'tenant_field_configs'::regclass
+      AND conname = 'check_validation_rules_object'
+  ) THEN
+    ALTER TABLE tenant_field_configs
+      ADD CONSTRAINT check_validation_rules_object CHECK (validation_rules IS NULL OR jsonb_typeof(validation_rules) = 'object');
+  END IF;
+END $$;
 
 -- Create index for common queries
 CREATE INDEX IF NOT EXISTS idx_tenant_field_configs_tenant_module

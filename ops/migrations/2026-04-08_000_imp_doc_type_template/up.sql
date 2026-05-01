@@ -88,6 +88,29 @@ CREATE TABLE IF NOT EXISTS imp_doc_type_template (
 );
 
 -- Index principal: búsqueda por tenant + tipo activo + prioridad
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN activo SET DEFAULT TRUE;
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN prioridad SET DEFAULT 0;
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN activacion_json SET DEFAULT '{}';
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN extraccion_json SET DEFAULT '{}';
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN min_confidence_para_skip SET DEFAULT 0.80;
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN campos_requeridos SET DEFAULT '{}';
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN total_usos SET DEFAULT 0;
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN total_exitosos SET DEFAULT 0;
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE imp_doc_type_template
+    ALTER COLUMN updated_at SET DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS idx_imp_doc_type_template_tenant_type
     ON imp_doc_type_template (tenant_id, doc_type, activo, prioridad DESC);
 
