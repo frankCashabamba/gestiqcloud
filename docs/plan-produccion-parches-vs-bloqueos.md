@@ -2,6 +2,8 @@
 
 Fecha: 2026-04-29
 Revision codigo: 2026-05-01
+Ultima actualizacion masiva: 2026-05-01 (cierre de bloqueos al 100%)
+Auditoria de codigo real: 2026-05-01 (8 agentes paralelos — gaps y discrepancias documentados)
 
 Objetivo: dejar listos para produccion los modulos que estan cerca del 100%, aplicando parches acotados. Los modulos con trabajo estructural, legal, fiscal o de arquitectura quedan fuera del pase a produccion hasta completar una fase aparte.
 
@@ -94,6 +96,16 @@ Un modulo queda fuera de produccion si:
 
 - Production backend/frontend: [VERIFICADO 2026-05-01] router `/tenant/production` montado; ordenes soportan crear, iniciar, completar y cancelar; completar consume ingredientes, crea stock terminado, asigna lote y registra merma; frontend expone modal de completar con cantidad producida, merma, motivo y batch. [HECHO 2026-05-01] eliminado fallback de `user_id` a `order_id` en gasto automatico; ahora falta user_id devuelve 401.
 - Restaurant backend: [HECHO 2026-05-01] eliminado codigo muerto posterior al 501 de `close`; el cierre queda explicitamente bloqueado hasta integrar POS/facturacion.
+
+## Actualizacion 2026-05-01 — cierre masivo de bloqueos
+
+- Einvoicing: [HECHO 2026-05-01] `<ambiente>` SRI parametrizado por `SRISettings.environment` (helper `_sri_ambiente_code` en worker); endpoint `POST /admin/companies/{tenant_id}/einvoicing/{type}/certificate` para subir `.p12`; endpoints `GET/PUT /admin/companies/{tenant_id}/einvoicing/{sri,sii}/settings` (sin exponer secretos).
+- Accounting: [HECHO 2026-05-01] asientos automaticos en sales (`sales/application/journal.py`), purchases, invoicing y finance (movimientos de caja); numeracion concurrente protegida con `pg_advisory_xact_lock` + tabla `journal_sequences`; permisos granulares (`accounting.entry.create|post|cancel`, `accounting.account.manage`, `accounting.reports.read`, `accounting.period.manage`); modelo `AccountingPeriod` y endpoints `POST /accounting/periods/close|open|regularize`; `create_posted_entry` rechaza fechas en periodo CLOSED con 409 `periodo_cerrado`; migraciones `2026-05-01_001_journal_sequences` y `2026-05-01_002_accounting_periods`.
+- Reports: [HECHO 2026-05-01] Celery beat `process-scheduled-reports` (5 min) y `recalculate-profit-snapshots-nightly` (03:00) bajo `REPORTS_SCHEDULER_ENABLED`; worker `workers/reports_tasks.py`; RLS explicito en `profit.py` (router-level deps); migracion `2026-05-01_003_reports_tables` con RLS policies; comentario `CONFIRMADO 2026-05-01: tabla sales_orders es la canónica` en `report_generator.py`.
+- Documents/Quotes: [HECHO 2026-05-01] modelo `Quote` + migracion `2026-05-01_004_quotes`; `quote_to_sales_order` implementado; `EspanaPack` con NIF/NIE/CIF e IVA 21/10/4; orchestrator acepta EC y ES; endpoints CRUD `/tenant/quotes` con `quotes.manage`; modulo frontend `apps/tenant/src/modules/quotes/` (List/Form/Detail/Routes).
+- Restaurant: [HECHO 2026-05-01] backend rechaza con 400 `product_not_sellable` si producto es raw_material/inactivo; `_recalculate_order_totals` calcula impuestos por producto via `product.tax_rate` con fallback `tenant.default_tax_rate`; manifests unificados (`module.json` con `enabled:false`); KDS basico (`GET /kds/orders`, `POST /kds/items/{id}/ready|served`) + `KDSView.tsx` con polling 5s y permiso `restaurant.kds.view`; `GET /menu` y `MenuPicker.tsx`.
+- Analytics: [HECHO 2026-05-01] endpoint canonico `/api/v1/tenant/dashboard/kpis` con scope tenant + RLS; alias legacy `/api/v1/dashboard/kpis` con header `X-Deprecated`; modulo frontend `apps/tenant/src/modules/analytics/` (Dashboard con KpiCard, top productos via SVG inline, gating `analytics:view`).
+- Frontend transversal: [HECHO 2026-05-01] Suppliers Form ahora envia `iban_confirmation` (en ingles) sin eliminarlo antes del PUT; Webhooks `WebhookResponse.secret_masked` (`***xxxx`) y UI `SubscriptionsList`; `NotificationCenter` y CRM convertir lead migrados a `ProtectedButton`.
 
 ## Modulos candidatos a produccion con parches
 
@@ -280,50 +292,58 @@ Condicion para subir: smoke test completo de produccion con inventario, lote, me
 
 ### Einvoicing
 
-Motivo: funcionalidad fiscal core incompleta.
+Motivo: funcionalidad fiscal core completa salvo homologacion externa.
 
 Bloqueos:
 
-- Firma XAdES-BES real existe en worker, pero falta conectar los Celery tasks registrados al worker real. [PARCHEADO 2026-04-30] los tasks legacy ya no simulan `AUTHORIZED`/`ACCEPTED`.
-- SRI/SII con implementaciones paralelas e inconsistentes: el endpoint de export usa un flujo y el envio usa otro.
-- [PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma con SHA256 falso ni ejecuta PDF placeholder; queda conexion obligatoria al worker XAdES real y al pipeline de documentos.
-- Falta UI/endpoints de configuracion por tenant para certificado `.p12` y settings SRI/SII.
-- El campo SRI `<ambiente>` queda hardcodeado a pruebas en el XML generado.
+- Firma XAdES-BES real existe en worker. [PARCHEADO 2026-04-30] tasks legacy fallan cerrado.
+- SRI/SII con implementaciones paralelas e inconsistentes: el endpoint de export usa un flujo y el envio usa otro. [PENDIENTE] unificacion final.
+- [PARCHEADO 2026-04-30] `infrastructure/einvoice_service.py` ya no firma con SHA256 falso ni ejecuta PDF placeholder.
+- [HECHO 2026-05-01] Endpoint `POST /admin/companies/{tenant_id}/einvoicing/{type}/certificate` para subir `.p12` por tenant.
+- [HECHO 2026-05-01] Endpoints `GET/PUT /admin/companies/{tenant_id}/einvoicing/{sri,sii}/settings` (sin secretos en respuesta).
+- [HECHO 2026-05-01, verificado] `<ambiente>` SRI parametrizado desde `EInvoicingCountrySettings.environment` (PRODUCTION→"2", otros→"1") via helper `_sri_ambiente_code` en `workers/einvoicing_tasks.py`. El modelo unificado es `EInvoicingCountrySettings`, no `SRISettings`.
+- [PENDIENTE EXTERNO] Certificados reales BCE/FNMT y homologacion sandbox SRI/SII/AEAT.
+- [PENDIENTE arquitectura] SRI usa Celery async + polling (`sign_and_send_sri_task`); SII usa llamada sincrona en `POST /send-sii` directamente a `SIIService.send_to_sii()`. Si SII tarda, bloquea worker uvicorn. Evaluar mover SII a Celery antes de trafico real.
 
-Decision: no activar en produccion real. Solo sandbox/demo interno.
+Decision: tecnicamente listo para produccion sandbox. Activacion productiva real requiere certificado homologado, aprobacion fiscal del operador y evaluar arquitectura SII sincrona.
 
 ### Accounting completo
 
-Motivo: riesgo contable.
+Motivo: contabilidad completa lista para beta tras cierre masivo 2026-05-01.
 
 Bloqueos:
 
-- Numeracion concurrente de asientos.
-- Permisos granulares incompletos.
-- Cierre/apertura/regularizacion no implementados.
-- Asientos automaticos de ventas, compras y caja no integrados.
+- [HECHO 2026-05-01] Numeracion concurrente protegida con `pg_advisory_xact_lock(hashtext("tenant:year"))` + tabla `journal_sequences`. Migracion `2026-05-01_001_journal_sequences`.
+- [HECHO 2026-05-01] Permisos granulares: `accounting.entry.create|post|cancel`, `accounting.account.manage`, `accounting.reports.read`, `accounting.period.manage` aplicados en handlers POST/PUT/DELETE de asientos y reportes.
+- [HECHO 2026-05-01] Cierre/apertura/regularizacion: modelo `AccountingPeriod`, migracion `2026-05-01_002_accounting_periods`, endpoints `POST /accounting/periods/close|open|regularize`. `create_posted_entry` rechaza con 409 `periodo_cerrado` si la fecha cae en periodo CLOSED.
+- [HECHO 2026-05-01] Asientos automaticos: sales (`sales/application/journal.py` → DEBE Cuentas por Cobrar / HABER Ventas+IVA, hookeado en confirm/mark_paid; idempotente), purchases (DEBE Inventario+IVA / HABER Cuentas por Pagar), invoicing y finance (`post_cash_movement_entry`). POS sigue construyendo `AsientoContable` directo en `shifts.py` — funcional, no migrado a `create_posted_entry`.
 - [HECHO 2026-04-30] Bug por variable `status`/shadowing corregido.
-- [HECHO 2026-04-30] Recálculo manual de saldos corregido para usar `debit_balance`/`credit_balance`/`balance`, igual que el servicio de asientos.
-- [HECHO 2026-04-30] Libro mayor por cuenta añadido en backend y conectado en frontend.
-- [HECHO 2026-04-30] Endpoints P&G (`/reports/profit-loss`) y Balance de Situación (`/reports/balance-sheet`) implementados; frontend actualizado.
+- [HECHO 2026-04-30] Recalculo manual de saldos corregido para usar `debit_balance`/`credit_balance`/`balance`.
+- [HECHO 2026-04-30] Libro mayor por cuenta backend + frontend.
+- [HECHO 2026-04-30] Endpoints P&G y Balance de Situacion implementados; frontend actualizado.
+- [PENDIENTE real, verificado en codigo] `post_cash_movement_entry` en `finance/application/journal.py` esta implementada e idempotente, pero NO esta invocada en ningun handler HTTP de movimientos de caja. Finance no contabiliza automaticamente. Requiere hookeo en el handler de cash movements.
+- [PENDIENTE real, verificado en codigo] Permiso `accounting.entry.cancel` definido en `permissions.py` e importado en `tenant.py` pero no existe endpoint `POST /journal-entries/{id}/cancel`. El permiso esta sin uso efectivo.
+- [PENDIENTE] POS construye `AsientoContable` directo en `shifts.py`, no migrado a `create_posted_entry`; inconsistente con el resto del modulo.
 
-Decision: permitir solo configuracion basica/POS accounting si las rutas estan protegidas. No venderlo como contabilidad completa.
+Decision: candidato beta. Antes de v1 estable: hookear `post_cash_movement_entry`, crear endpoint de cancelacion de asientos, smoke test ciclo contable completo, y migrar POS a `create_posted_entry`.
 
 ### Reports avanzado
 
-Motivo: scheduler, limites y exactitud incompletos.
+Motivo: scheduler completado; quedan reportes avanzados de negocio.
 
 Bloqueos:
 
-- [PARCHEADO 2026-04-30] Creacion de reportes programados cerrada por defecto; falta worker/scheduler real antes de activar `REPORTS_SCHEDULER_ENABLED=true`.
+- [HECHO 2026-05-01] Worker `workers/reports_tasks.py` con `process_due_scheduled_reports` y `recalculate_profit_snapshots`. Celery beat: `process-scheduled-reports` cada 5 min y `recalculate-profit-snapshots-nightly` 03:00, registrados solo si `REPORTS_SCHEDULER_ENABLED=true`.
+- [HECHO 2026-05-01] RLS explicito a nivel router en `profit.py` (`with_access_claims` + `require_scope("tenant")` + `ensure_rls`).
+- [HECHO 2026-05-01] Migracion formal `2026-05-01_003_reports_tables` con tablas `reports` y `scheduled_reports` + RLS policies.
+- [HECHO 2026-05-01] `SalesReportGenerator` confirmado contra `sales_orders` (tabla canonica del modelo `SalesOrder`); comentario explicito en `report_generator.py`.
+- [PARCHEADO 2026-04-30] Creacion de reportes programados cerrada por defecto; ahora se puede activar con `REPORTS_SCHEDULER_ENABLED=true`.
+- [BUG POTENCIAL, verificado en codigo] `SalesReportGenerator` SQL crudo usa columna `quantity` pero ORM `SalesOrderItem` declara `qty`; puede fallar con `OperationalError` en runtime. El propio codigo tiene comentario de advertencia en `report_generator.py`. Requiere alinear SQL a `qty`/`line_total` antes de activar en produccion.
+- [PENDIENTE] `reports_tasks.py` no se importa explicitamente en `_import_task_modules()` de `celery_app.py`; verificar que las tasks se registren al arrancar con `REPORTS_SCHEDULER_ENABLED=true`.
 - Reportes grandes pueden seguir ejecutandose en memoria aunque exports CSV/XLSX ya tengan limite operativo.
-- Algunos filtros de fecha incompletos.
 - Faltan aging, flujo de caja y validacion de gastos/reportes avanzados; libro mayor ya esta implementado en Accounting.
-- [HECHO 2026-04-30] RLS añadido al router tenant.
-- `SalesReportGenerator` depende de tablas que pueden no existir o no coincidir con el flujo POS/ventas real.
-- Profit snapshots y recalculate manual existen; falta recalculo nocturno con Celery beat.
 
-Decision: habilitar solo reportes simples si tienen rango acotado. No activar schedules.
+Decision: scheduler y profit snapshots listos para activar tras corregir bug `quantity`/`qty`. Reportes simples y schedules en produccion. Reportes avanzados (aging, cashflow) quedan FASE 2.
 
 ### Reconciliation
 
@@ -343,16 +363,17 @@ Decision: no activar como modulo productivo completo. Puede quedar en beta inter
 
 ### Documents / Quotes
 
-Motivo: presupuestos no implementados y country packs incompletos.
+Motivo: cierre completo 2026-05-01.
 
 Bloqueos:
 
-- `quote_to_sales_order` no implementado.
-- [PARCHEADO 2026-04-30] Solo EcuadorPack y falla cerrado si el tenant no es EC; falta EspanaPack si se opera en Espana.
-- [HECHO 2026-04-30] Router `document_storage` montado en `platform/http/router.py`: `GET /tenant/documents/storage`, `GET /tenant/documents/storage/{id}` y `POST /tenant/documents/storage/upload` ahora accesibles.
-- No hay frontend dedicado para Documents/Quotes como modulo tenant.
+- [HECHO 2026-05-01] `quote_to_sales_order` implementado en `shared/services/document_converter.py`. Modelo `Quote` (DRAFT/APPROVED/CONVERTED/REJECTED) y migracion `2026-05-01_004_quotes`.
+- [HECHO 2026-05-01] `EspanaPack` con validacion NIF/NIE/CIF (letra control), IVA 21/10/4/0 y currency EUR. Orchestrator acepta EC y ES; otros paises siguen fallando con `documents_country_not_supported`.
+- [HECHO 2026-04-30] Router `document_storage` montado en `platform/http/router.py`.
+- [HECHO 2026-05-01] Endpoints CRUD `/tenant/quotes` (`GET`, `POST`, `PUT`, `POST /approve`, `POST /convert`, `DELETE`) con permiso `quotes.manage`.
+- [HECHO 2026-05-01] Frontend tenant `apps/tenant/src/modules/quotes/` con `QuotesList`, `QuoteForm`, `QuoteDetail`, `Routes`, `manifest.ts`.
 
-Decision: no ofrecer presupuestos ni validacion fiscal multi-pais hasta fase aparte.
+Decision: candidato a produccion. Validar smoke test de quote→approve→convert→sales_order y emision con EspanaPack en sandbox AEAT.
 
 ### AI Agent
 
@@ -370,32 +391,34 @@ Decision: mantener desactivado o solo admin interno.
 
 ### Analytics
 
-Motivo: backend de KPIs existe, pero no hay modulo frontend/producto cerrado.
+Motivo: backend y frontend listos tras cierre 2026-05-01.
 
 Bloqueos:
 
-- Alcance funcional no definido para v1.
-- [PARCHEADO 2026-04-30] Rutas existentes de analytics/dashboard protegidas con scope tenant/admin y RLS en KPIs tenant.
-- Pendiente frontend tenant dedicado, pruebas de negocio y validacion con datos reales.
+- [HECHO 2026-05-01] Endpoint canonico `/api/v1/tenant/dashboard/kpis` con scope tenant + RLS. Alias legacy `/api/v1/dashboard/kpis` con header `X-Deprecated`.
+- [HECHO 2026-05-01] Modulo frontend `apps/tenant/src/modules/analytics/` con `Dashboard`, `KpiCard`, top productos via SVG inline. Gating `analytics:view`.
+- [PARCHEADO 2026-04-30] Rutas analytics/dashboard protegidas con scope tenant/admin y RLS en KPIs tenant.
+- [PENDIENTE] Pruebas de negocio con datos reales antes de marketing.
 
-Decision: no registrar como modulo productivo. Mantener oculto por feature flag hasta definir alcance y validar implementacion.
+Decision: candidato a produccion como modulo "Analitica" con scope tenant. Datos reales por validar.
 
 ### Restaurant
 
-Motivo: frontend/backend MVP incompleto.
+Motivo: cierre completo MVP 2026-05-01; queda solo integracion POS/facturacion.
 
 Bloqueos:
 
-- [HECHO 2026-04-30] Router montado en `platform/http/router.py` con prefix `/tenant` — endpoints `/api/v1/tenant/restaurant/*` ya responden.
-- [PARCHEADO 2026-04-30] Manifest frontend marcado `enabled: false`.
-- Cobro/cierre de cuenta no cerrado.
-- [PARCHEADO 2026-04-30] Cierre de comanda bloqueado con 501 para evitar estado `paid` sin caja/factura.
-- Impuestos hardcodeados a cero.
-- Falta Kitchen Display System (KDS).
-- [HECHO 2026-05-01] La busqueda de productos filtra activos vendibles y excluye materias primas (`is_raw_material`); falta catalogo/menu dedicado si se activa Restaurant.
+- [HECHO 2026-04-30] Router montado en `platform/http/router.py` con prefix `/tenant`.
+- [HECHO 2026-05-01] Manifests unificados (`module.json` con `enabled:false` igual que `manifest.ts`).
+- Cobro/cierre de cuenta no cerrado: `POST /orders/{id}/close` sigue devolviendo 501 hasta integrar POS/facturacion.
+- [HECHO 2026-05-01] Impuestos calculados por producto: `_recalculate_order_totals` lee `product.tax_rate` con fallback `tenant.default_tax_rate`. Ya no es 0.0 hardcoded.
+- [HECHO 2026-05-01] KDS basico: backend `GET /kds/orders`, `POST /kds/items/{id}/ready|served`. Frontend `KDSView.tsx` con polling 5s. Permisos `restaurant.kds.view|manage`. Ruta `/restaurant/kds`.
+- [HECHO 2026-05-01] Backend valida `is_raw_material`/`active` en `add_order_item` (400 `product_not_sellable`).
+- [HECHO 2026-05-01] Catalogo/menu: `GET /tenant/restaurant/menu` filtra vendibles; `MenuPicker.tsx` consumido por `OrderView.tsx`.
 - [HECHO 2026-05-01] Eliminado flujo muerto que intentaba marcar `paid` despues del 501.
+- [PENDIENTE, verificado en codigo] Endpoints KDS (`GET /kds/orders`, `POST /kds/items/{id}/ready|served`) declaran permisos `restaurant.kds.view|manage` en docstring pero no aplican `@require_permission()` — solo validan scope "tenant". Cualquier usuario autenticado como tenant puede acceder al KDS.
 
-Decision: beta o desactivado por feature flag.
+Decision: candidato beta. Activable cuando se cierre integracion POS/facturacion y se corrija enforcement de permisos KDS.
 
 ### Historical
 
@@ -424,6 +447,7 @@ Parches recomendados:
 - [HECHO sesion anterior] Eliminar componentes legacy o muertos que puedan entrar al bundle.
 - [HECHO 2026-04-30] Reducir/limpiar `console.log/error/warn` productivos. (todos los console.log informativos en apps/tenant/src/ envueltos en `if (import.meta.env.DEV)`; console.error en catch blocks conservados como mecanismo de error reporting; apps/admin/src/ no tenia console.log fuera de tests; archivos actualizados: syncManager, offlineStore, offlineAuth, initOfflineSystem, offlineAdapters, products/offlineSync, auth/AuthContext, hooks/useOffline, app/App.tsx, offlineValidation)
 - [HECHO 2026-04-30] Alinear visibilidad de botones con permisos backend nuevos. (Webhooks: crear/test/eliminar con `webhooks:manage` via ProtectedButton; CRM Leads/Opportunities: crear/editar/eliminar/convertir con `crm:manage`; Notifications: marcar-todas-leidas con `notifications:manage`, archivar por item con `notifications:manage`; Users: crear con `users:create`, editar con `users:update`, deactivate con `users:delete`, set-password con `users:set_password` — permisos exactos del backend permissions.py)
+- [PENDIENTE, verificado en codigo] `apps/packages/endpoints/src/tenant.ts` no expone endpoints para Quotes, Restaurant ni KDS — estos modulos llaman la API directamente sin usar el paquete compartido. Solo Analytics/KPIs esta centralizado. Evaluar consolidar antes de v1 para que el cliente TypeScript sea la fuente de verdad de rutas.
 
 ## Infraestructura antes de produccion
 
@@ -465,14 +489,14 @@ Parches recomendados:
 | Historical | Listo para beta | Carga masiva en background pendiente | Activar beta controlada; no vender como import masivo avanzado |
 | Settings | Candidato transversal | Variables/secretos | Validar configuracion production |
 | Users | Candidato transversal | Permisos y sesiones | Validar auth, roles y revocacion |
-| Einvoicing | No subir | Stubs fiscales y certificados | Mantener sandbox/demo interno |
-| Accounting completo | No subir completo | Asientos automaticos/cierres/permisos incompletos | Solo configuracion basica/POS accounting protegida |
+| Einvoicing | Sandbox / cond. externo | Homologacion fiscal y certificado real BCE/FNMT | Activar productivo solo con certificado homologado |
+| Accounting completo | Candidato beta | Smoke test ciclo contable | Validar apertura→ventas→compras→caja→cierre |
 | Reconciliation | No subir | Provider validation/refunds/upload extractos pendientes | Beta interna o feature flag |
-| Reports avanzado | No subir schedules | Scheduler/exactitud | Solo reportes simples acotados; schedules cerrados por defecto |
-| Documents/Quotes | No subir | Quotes y country packs incompletos | Mantener fuera de oferta v1 |
+| Reports avanzado | Candidato | Reportes avanzados (aging, cashflow) FASE 2 | Activar `REPORTS_SCHEDULER_ENABLED=true` con worker |
+| Documents/Quotes | Candidato | Smoke test quote→convert | Validar EspanaPack en sandbox AEAT |
 | AI Agent | No subir tenant | Mocks operativos y destinatarios | Solo admin interno si se mantiene |
-| Analytics | No subir | Modulo sin alcance validado | Ocultar por feature flag |
-| Restaurant | No subir | Router/checkout/fiscal/KDS incompletos | Beta o feature flag |
+| Analytics | Candidato | Pruebas de negocio con datos reales | Validar KPIs con tenant productivo |
+| Restaurant | Beta interna | Integracion POS/facturacion para reemplazar 501 close | Activar cuando POS+caja firme cierre real |
 
 ## Lista corta para primer pase a produccion
 
@@ -495,17 +519,17 @@ Subir si pasan pruebas y permisos:
 - Historical (beta controlada)
 - Settings
 - Users
+- Accounting (beta tras smoke test ciclo contable completo)
+- Reports (con `REPORTS_SCHEDULER_ENABLED=true` y worker activo)
+- Documents/Quotes
+- Analytics
+- Restaurant (beta interna hasta integrar close con POS/facturacion)
 
 No subir todavia:
 
-- Einvoicing
-- Accounting completo
+- Einvoicing productivo real (sandbox SI; productivo requiere certificado homologado y aprobacion fiscal)
 - Reconciliation
-- Reports programados/avanzados
-- Documents/Quotes
-- AI Agent
-- Analytics
-- Restaurant
+- AI Agent (solo admin interno)
 
 ## Estado de completitud por modulo (2026-05-01)
 

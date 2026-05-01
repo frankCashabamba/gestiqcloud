@@ -425,6 +425,11 @@ _GENERIC_EVIDENCE_FIELDS: tuple[str, ...] = (
     "subtotal",
     "issue_date",
     "line_items",
+    "employee_name",
+    "company_name",
+    "gross_pay",
+    "deductions_total",
+    "liquido_a_percibir",
 )
 
 
@@ -576,6 +581,27 @@ def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> 
         return degraded
 
     # Para RECEIPT, PAYROLL, CREDIT_NOTE, DEBIT_NOTE: mantener check de 2 campos genéricos.
+    if doc_type == "PAYROLL":
+        has_payroll_money = any(
+            fields.get(key) not in (None, "", [], {})
+            for key in ("gross_pay", "deductions_total", "liquido_a_percibir", "total_amount")
+        )
+        has_payroll_party = any(
+            fields.get(key) not in (None, "", [], {})
+            for key in ("employee_name", "company_name", "vendor")
+        )
+        has_line_items = _line_items_are_valid_evidence(fields.get("line_items"))
+        if has_payroll_money and (has_payroll_party or has_line_items):
+            logger.info(
+                "fallback_doc_type_accepted candidate=PAYROLL "
+                "payroll_money=%s payroll_party=%s line_items=%s path=%s",
+                has_payroll_money,
+                has_payroll_party,
+                has_line_items,
+                path,
+            )
+            return analysis
+
     present = sum(1 for f in _GENERIC_EVIDENCE_FIELDS if fields.get(f) not in (None, "", [], {}))
 
     if present >= 2:
@@ -661,7 +687,22 @@ def _pre_extract_route_decision(
     has_doc = bool(pre_fields.get("doc_number"))
     has_vendor = bool(pre_fields.get("vendor"))
     has_tax_id = bool(pre_fields.get("vendor_tax_id"))
-    strong_count = sum([has_total, has_date, has_doc, has_vendor, has_tax_id])
+    has_line_items = bool(
+        pre_fields.get("line_items") if isinstance(pre_fields.get("line_items"), list) else []
+    )
+    has_payroll_evidence = any(
+        pre_fields.get(key) not in (None, "", [], {})
+        for key in (
+            "employee_name",
+            "company_name",
+            "gross_pay",
+            "deductions_total",
+            "liquido_a_percibir",
+        )
+    )
+    strong_count = sum(
+        [has_total, has_date, has_doc, has_vendor, has_tax_id, has_line_items, has_payroll_evidence]
+    )
 
     min_strong_fields = max(1, int(processing_cfg.get("pre_extract_min_strong_fields") or 3))
     min_confidence = float(processing_cfg.get("pre_extract_min_confidence") or 0.62)
@@ -673,12 +714,16 @@ def _pre_extract_route_decision(
         "has_doc": has_doc,
         "has_vendor": has_vendor,
         "has_tax_id": has_tax_id,
+        "has_line_items": has_line_items,
+        "has_payroll_evidence": has_payroll_evidence,
         "strong_count": strong_count,
         "min_strong_fields": min_strong_fields,
         "min_confidence": min_confidence,
         "confidence": confidence,
         "skip_ai": bool(
-            has_total and strong_count >= min_strong_fields and confidence >= min_confidence
+            has_total
+            and (strong_count >= min_strong_fields or has_line_items)
+            and confidence >= min_confidence
         ),
     }
 
@@ -2586,6 +2631,24 @@ async def _process_run_document(
                     "invoice_keyword",
                 )
             elif (
+                _native_doc_type == "INVOICE"
+                and _native_reason_tag
+                in ("invoice_keyword", "invoice_like_fields", "invoice_like_line_items")
+                and re.search(r"(?:^|(?<=\s))(?:sales|ventas|venta)(?=\s|$)", _fn_stem_norm)
+            ):
+                _native_doc_type = "SALES"
+                _native_confidence = min(_native_confidence, 0.55)
+                _native_reasoning = (
+                    f"CorrecciÃ³n por nombre de fichero '{filename}': "
+                    f"clasificado como SALES (texto sugerÃ­a INVOICE via {_native_reason_tag})."
+                )
+                _native_reason_tag = "filename_sales_correction"
+                logger.info(
+                    "ocr_filename_correction filename=%s corrected=SALES was=INVOICE reason=%s",
+                    filename,
+                    _native_reason_tag,
+                )
+            elif (
                 _native_doc_type == "RECEIPT"
                 and _native_reason_tag
                 in ("receipt_like_fields", "receipt_keyword", "minimal_receipt_fields")
@@ -2802,6 +2865,38 @@ async def _process_run_document(
             analysis.setdefault("analysis_path", "ok_llm")
             # Guard: si el análisis terminó en fallback con tipo fuerte sin evidencia → degrada a OTHER
             analysis = _guard_fallback_doc_type(analysis, content=llm_content)
+            if (
+                _analysis_indicates_ai_failure(analysis, processing_cfg=processing_cfg)
+                and _pre_fields
+                and "_native_doc_type" in locals()
+                and _native_doc_type not in ("", "OTHER", "STRUCTURED")
+                and _has_primary_saveable_evidence
+            ):
+                analysis = {
+                    "doc_type": _native_doc_type,
+                    "confidence": max(
+                        float(_native_confidence),
+                        float(_pre_decision["confidence"]),
+                    ),
+                    "reasoning": (
+                        "Resultado IA descartado por timeout/error; se conserva la "
+                        f"clasificacion deterministica {_native_doc_type}. {_native_reasoning}"
+                    ),
+                    "is_table": False,
+                    "columns": [],
+                    "fields": _pre_fields,
+                    "raw_response": "reason=ai_failed_native_preserved",
+                    "model_used": "deterministic-after-ai-failure",
+                    "analysis_path": "ok_pre_extract",
+                    "requires_review": float(_native_confidence) < classification_threshold,
+                }
+                logger.info(
+                    "ai_failure_native_preserved filename=%s format=%s doc_type=%s fields=%s",
+                    filename,
+                    _doc_format,
+                    _native_doc_type,
+                    sorted(_pre_fields.keys()),
+                )
 
     normalize_analysis_started_at = time.perf_counter()
     normalized_analysis = _normalize_analysis_output(analysis)

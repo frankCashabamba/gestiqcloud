@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
+from app.modules.country_packs import get_country_pack, supported_countries
 from app.modules.country_packs.ecuador import EcuadorPack
 from app.modules.documents.domain.config import TenantDocConfig
 from app.modules.documents.domain.models import (
@@ -25,6 +26,7 @@ class DocumentOrchestrator:
     def __init__(self, *, template_id: str = "tpl_ticket_80mm", template_version: int = 1):
         self.template_id = template_id
         self.template_version = template_version
+        # Default pack (will be replaced per request based on cfg.country).
         self.country_pack = EcuadorPack()
 
     def draft(self, sale: SaleDraft, cfg: TenantDocConfig, seller: SellerInfo) -> DocumentModel:
@@ -61,8 +63,11 @@ class DocumentOrchestrator:
         series: str | None = None,
         sequential: str | None = None,
     ) -> DocumentModel:
-        if (cfg.country or "").upper() != "EC":
+        country_code = (cfg.country or "").upper()
+        if country_code not in supported_countries():
             raise ValueError("documents_country_not_supported")
+        # Resolve the right pack for this request (fail-closed for others).
+        self.country_pack = get_country_pack(country_code)
 
         errors = self.country_pack.validate(sale, cfg)
         if errors:

@@ -151,6 +151,45 @@ def _receipt_line_items(lines: list[str]) -> list[dict[str, Any]]:
     return items[:80]
 
 
+def _pos_invoice_line_items(lines: list[str]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    in_item_table = False
+    for line in lines:
+        norm = _norm(line)
+        if (
+            re.search(r"\bitem\b", norm)
+            and re.search(r"\b(cant|cantidad)\b", norm)
+            and "total" in norm
+        ):
+            in_item_table = True
+            continue
+        if not in_item_table:
+            continue
+        if any(token in norm for token in ("subtotal", "iva", "total", "gracias")):
+            break
+        amounts = list(re.finditer(r"(?<!\d)\d{1,6}(?:[.,]\d{2,3})?(?!\d)", line))
+        if len(amounts) < 2:
+            continue
+        quantity = safe_floatish(amounts[-2].group(0))
+        total_price = safe_floatish(amounts[-1].group(0))
+        if quantity is None or total_price is None:
+            continue
+        description = line[: amounts[-2].start()].strip(" -:|")
+        if sum(ch.isalpha() for ch in description) < 3:
+            continue
+        unit_price = round(float(total_price) / float(quantity), 6) if float(quantity) else None
+        item: dict[str, Any] = {
+            "description": description[:160],
+            "concept": description[:160],
+            "quantity": round(float(quantity), 3),
+            "total_price": round(float(total_price), 2),
+        }
+        if unit_price is not None:
+            item["unit_price"] = unit_price
+        items.append(item)
+    return items[:80]
+
+
 def parse_thermal_receipt(text: str) -> LocalParseResult:
     lines = _clean_lines(text)
     fields: dict[str, Any] = {}
@@ -191,6 +230,10 @@ def parse_printed_invoice(
     text: str, *, existing_fields: dict[str, Any] | None = None
 ) -> LocalParseResult:
     rescued = invoice_rescue_from_ocr(text, existing_fields=existing_fields or {})
+    if not rescued.get("line_items"):
+        pos_items = _pos_invoice_line_items(_clean_lines(text))
+        if pos_items:
+            rescued["line_items"] = pos_items
     reasons = tuple(sorted(rescued.keys()))
     confidence = min(0.58 + len(reasons) * 0.05, 0.84) if rescued else 0.0
     return LocalParseResult(fields=rescued, confidence=confidence, reasons=reasons)

@@ -1,0 +1,14 @@
+﻿{
+  "id": "quotes",
+  "name": "Presupuestos",
+  "icon": "📝",
+  "category": "sales",
+  "description": "Cotizaciones / presupuestos comerciales y conversión a pedidos de venta",
+  "surface": "backoffice",
+  "nav_group": "backoffice",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": ["sales"],
+  "countries": ["ES", "EC"],
+  "implemented": true
+}

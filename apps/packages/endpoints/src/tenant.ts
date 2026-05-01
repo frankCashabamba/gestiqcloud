@@ -93,6 +93,11 @@ export const TENANT_INVOICING = {
   byId: (id: number | string) => `/api/v1/tenant/invoicing/${id}`,
 }
 
+export const TENANT_ANALYTICS = {
+  kpis: '/api/v1/tenant/dashboard/kpis',
+  kpisBySector: (sector: string) => `/api/v1/tenant/dashboard/kpis/${encodeURIComponent(sector)}`,
+}
+
 export const TENANT_AI = {
   ask: '/api/v1/tenant/ai/ask',
   act: '/api/v1/tenant/ai/act',

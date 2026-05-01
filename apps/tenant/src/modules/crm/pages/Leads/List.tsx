@@ -140,7 +140,15 @@ export default function LeadsList() {
                   <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('leads.edit')}</Link>
                 )}
                 {can('crm:manage') && (c.status === LeadStatus.QUALIFIED || c.status === LeadStatus.NEW) && (
-                  <button className="text-green-700 mr-3" onClick={() => setConvertTarget(c)}>{t('leads.convert')}</button>
+                  <ProtectedButton
+                    permission="crm:manage"
+                    variant="ghost"
+                    unstyled
+                    className="text-green-700 mr-3"
+                    onClick={() => setConvertTarget(c)}
+                  >
+                    {t('leads.convert')}
+                  </ProtectedButton>
                 )}
                 {can('crm:manage') && (
                   <ProtectedButton

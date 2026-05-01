@@ -9,12 +9,24 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
+from app.db.rls import ensure_rls
 from app.models.core.profit_snapshots import ProductProfitSnapshot, ProfitSnapshotDaily
 from app.modules.reports.application.recalculation_service import RecalculationService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/reports", tags=["reports-profit"])
+# RLS explicit: tenant scope + ensure_rls sets db.info["tenant_id"] (consumed below).
+router = APIRouter(
+    prefix="/reports",
+    tags=["reports-profit"],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
+)
 
 
 @router.get("/profit")

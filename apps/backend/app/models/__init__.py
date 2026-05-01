@@ -2,6 +2,7 @@
 
 # Core models
 # Sistema IA + Incidencias + Alertas
+from app.models.accounting.period import AccountingPeriod
 from app.models.accounting.pos_settings import PaymentMethod, TenantAccountingSettings
 from app.models.ai import Incident, NotificationChannel, NotificationLog, StockAlert
 from app.models.auth.refresh_family import RefreshFamily
@@ -89,6 +90,7 @@ from app.models.printing.printer_label_configuration import PrinterLabelConfigur
 # Nuevos módulos profesionales
 from app.models.production import DailyProductionLog, ProductionOrder, ProductionOrderLine
 from app.models.purchases import Purchase, PurchaseLine
+from app.models.quotes import Quote, QuoteStatus
 from app.models.recipes import Recipe, RecipeIngredient
 from app.models.sales.delivery import Delivery
 from app.models.sales.order import SalesOrder, SalesOrderItem
@@ -163,6 +165,8 @@ __all__ = [
     "SupplierAddress",
     "Purchase",
     "PurchaseLine",
+    "Quote",
+    "QuoteStatus",
     "Expense",
     "ExpenseCategory",
     "BankMovement",
@@ -182,6 +186,7 @@ __all__ = [
     "DocSeries",
     "TenantAccountingSettings",
     "PaymentMethod",
+    "AccountingPeriod",
     # IA & Notificaciones
     "Incident",
     "StockAlert",

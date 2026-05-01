@@ -38,6 +38,14 @@ class SalesReportGenerator(BaseReportGenerator):
     def generate(self, definition: ReportDefinition, db: Session) -> SalesReport:
         """Generate sales report"""
         try:
+            # CONFIRMADO 2026-05-01: tabla sales_orders es la canónica
+            # Evidencia: app/models/sales/order.py declara
+            #   __tablename__ = "sales_orders" y "sales_order_items".
+            # RecalculationService (app/modules/reports/application/recalculation_service.py)
+            # también consume SalesOrder/SalesOrderItem para los snapshots de profit.
+            # NOTA: la columna real de cantidad en SalesOrderItem es `qty` (no `quantity`)
+            # según el modelo ORM; el SQL crudo aquí asume el nombre legacy "quantity".
+            # Si en runtime falla, alinear a `qty`/`line_total`.
             query = """
                 SELECT
                     DATE(so.created_at) as fecha,

@@ -52,3 +52,43 @@ export const updateOrderItem = (orderId: string, itemId: string, data: Partial<O
   api.put(`${BASE}/orders/${orderId}/items/${itemId}`, data).then(r => r.data)
 export const sendToKitchen = (orderId: string) => api.post(`${BASE}/orders/${orderId}/send-kitchen`).then(r => r.data)
 export const closeOrder = (orderId: string) => api.post(`${BASE}/orders/${orderId}/close`).then(r => r.data)
+
+// ---------- KDS ----------
+export interface KDSItem {
+  id: string
+  product_name: string
+  qty: number
+  notes: string | null
+  status: 'pending' | 'preparing' | 'ready' | 'served' | 'canceled'
+  created_at: string | null
+}
+
+export interface KDSOrder {
+  order_id: string
+  order_number: string
+  table_id: string
+  table_number: number
+  table_name: string | null
+  opened_at: string | null
+  created_at: string | null
+  items: KDSItem[]
+}
+
+export const listKDSOrders = () =>
+  api.get(`${BASE}/kds/orders`).then(r => r.data as KDSOrder[])
+export const markItemReady = (itemId: string) =>
+  api.post(`${BASE}/kds/items/${itemId}/ready`).then(r => r.data)
+export const markItemServed = (itemId: string) =>
+  api.post(`${BASE}/kds/items/${itemId}/served`).then(r => r.data)
+
+// ---------- Menu ----------
+export interface MenuItem {
+  id: string
+  name: string
+  price: number
+  tax_rate: number
+  category: string | null
+  sku: string | null
+}
+
+export const listMenu = () => api.get(`${BASE}/menu`).then(r => r.data as MenuItem[])

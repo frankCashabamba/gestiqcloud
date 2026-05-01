@@ -30,7 +30,7 @@ const emptyForm: ProveedorPayload = {
   divisa: null,
   metodo_pago: null,
   iban: null,
-  iban_confirmacion: null,
+  iban_confirmation: null,
   contactos: [],
   direcciones: [],
 }
@@ -61,7 +61,7 @@ export default function ProveedorForm() {
   const [form, setForm] = useState<ProveedorPayload>(emptyForm)
   const [editMode, setEditMode] = useState(false)
   const [busy, setBusy] = useState(false)
-  const ibanMismatch = !!(form.iban && form.iban_confirmacion && form.iban !== form.iban_confirmacion)
+  const ibanMismatch = !!(form.iban && form.iban_confirmation && form.iban !== form.iban_confirmation)
   const { success, error: toastError } = useToast()
   const { items: countries } = useCountries()
   const { items: taxTypes } = useTaxTypes()
@@ -92,7 +92,7 @@ export default function ProveedorForm() {
           divisa: proveedor.divisa,
           metodo_pago: proveedor.metodo_pago,
           iban: proveedor.iban,
-          iban_confirmacion: proveedor.iban,
+          iban_confirmation: proveedor.iban,
           contactos: proveedor.contactos || [],
           direcciones: proveedor.direcciones || [],
         })
@@ -118,12 +118,13 @@ export default function ProveedorForm() {
       if (!form.name?.trim()) {
         throw new Error(t('suppliers:form.errors.nameRequired'))
       }
-      if (form.iban && form.iban !== form.iban_confirmacion) {
+      if (form.iban && form.iban !== form.iban_confirmation) {
         throw new Error(t('suppliers:form.errors.ibanMismatch'))
       }
 
+      // Backend expects `iban_confirmation` (English). Send it as-is in the
+      // payload so the backend can validate the IBAN change server-side.
       const payload = { ...form }
-      delete payload.iban_confirmacion
 
       if (editMode && id) {
         await updateProveedor(id, payload)
@@ -332,8 +333,8 @@ export default function ProveedorForm() {
               <span className="font-medium text-slate-600">Confirm IBAN</span>
               <input
                 className={`gc-input font-mono${ibanMismatch ? ' border-rose-500 ring-1 ring-rose-400' : ''}`}
-                value={form.iban_confirmacion || ''}
-                onChange={(e) => setForm({ ...form, iban_confirmacion: e.target.value || null })}
+                value={form.iban_confirmation || ''}
+                onChange={(e) => setForm({ ...form, iban_confirmation: e.target.value || null })}
                 placeholder="ES00 0000 0000 0000 0000 0000"
               />
               {ibanMismatch && (

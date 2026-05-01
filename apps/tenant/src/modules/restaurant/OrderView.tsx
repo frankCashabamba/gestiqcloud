@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '../../shared/toast'
-import { getOrder, addOrderItem, updateOrderItem, sendToKitchen, closeOrder, Order, OrderItem } from './services'
-import api from '../../shared/api/client'
-import { filterRestaurantMenuProducts, type RestaurantMenuProduct } from './menuProducts'
+import { getOrder, addOrderItem, updateOrderItem, sendToKitchen, closeOrder, Order, OrderItem, MenuItem } from './services'
+import MenuPicker from './MenuPicker'
 
 export default function OrderView() {
   const { orderId } = useParams<{ orderId: string }>()
@@ -11,7 +10,6 @@ export default function OrderView() {
   const { success, error: showError } = useToast()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
-  const [products, setProducts] = useState<RestaurantMenuProduct[]>([])
   const [search, setSearch] = useState('')
   const [itemNotes, setItemNotes] = useState('')
   const [closePending, setClosePending] = useState(false)
@@ -30,16 +28,7 @@ export default function OrderView() {
 
   useEffect(() => { load() }, [orderId])
 
-  useEffect(() => {
-    api.get('/api/v1/tenant/products', { params: { limit: 200, active: true } })
-      .then(r => {
-        const payload = Array.isArray(r.data) ? r.data : r.data?.items || []
-        setProducts(filterRestaurantMenuProducts(payload))
-      })
-      .catch(() => {})
-  }, [])
-
-  const handleAddProduct = async (product: RestaurantMenuProduct) => {
+  const handleAddProduct = async (product: MenuItem) => {
     if (!orderId) return
     try {
       await addOrderItem(orderId, {
@@ -91,10 +80,6 @@ export default function OrderView() {
       showError('Error actualizando')
     }
   }
-
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  ).slice(0, 12)
 
   const STATUS_ITEM_COLORS: Record<string, string> = {
     pending: 'bg-yellow-50',
@@ -151,18 +136,7 @@ export default function OrderView() {
             onChange={e => setItemNotes(e.target.value)}
             className="w-full border rounded px-3 py-2 text-sm"
           />
-          <div className="space-y-1 max-h-96 overflow-y-auto">
-            {filteredProducts.map(p => (
-              <button
-                key={p.id}
-                onClick={() => handleAddProduct(p)}
-                className="w-full text-left p-2 rounded hover:bg-blue-50 border flex justify-between"
-              >
-                <span className="truncate">{p.name}</span>
-                <span className="text-sm font-mono">${p.price}</span>
-              </button>
-            ))}
-          </div>
+          <MenuPicker onPick={handleAddProduct} search={search} limit={12} />
         </div>
 
         {/* Order items */}
@@ -198,6 +172,7 @@ export default function OrderView() {
           {/* Totals */}
           <div className="mt-4 border-t pt-4 text-right">
             <p className="text-lg">Subtotal: <span className="font-bold">${order.subtotal}</span></p>
+            <p className="text-sm text-slate-600">Impuestos: <span className="font-mono">${(order as any).tax_total ?? 0}</span></p>
             <p className="text-2xl font-bold">Total: ${order.total}</p>
           </div>
         </div>

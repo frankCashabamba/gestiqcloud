@@ -305,6 +305,12 @@ def build_api_router() -> APIRouter:
         ("app.modules.documents.interface.http.document_storage", "router"),
         prefix="/tenant",
     )
+    # Quotes (presupuestos)
+    include_router_safe(
+        r,
+        ("app.modules.documents.interface.http.quotes", "router"),
+        prefix="/tenant",
+    )
 
     # Purchases
     include_router_safe(
@@ -367,8 +373,28 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.settings.interface.http.tenant", "admin_router"), prefix="/api/v1"
     )
 
-    # Dashboard KPIs
-    include_router_safe(r, ("app.routers.dashboard_stats", "router"))
+    # Dashboard KPIs (analytics) — canonical mount under /tenant
+    include_router_safe(
+        r, ("app.modules.analytics.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    # Legacy alias /api/v1/dashboard/kpis (kept 1 release; emits X-Deprecated header)
+    def _analytics_legacy_header(response: Response):
+        response.headers["X-Deprecated"] = "use /api/v1/tenant/dashboard/kpis"
+
+    try:
+        legacy_analytics = _import_attr("app.routers.dashboard_stats", "router")
+        if isinstance(legacy_analytics, APIRouter):
+            # NOTE: dashboard_stats.router is the SAME object as the analytics
+            # tenant router, so we MUST NOT mutate its route attributes here
+            # (that would also mark the canonical /tenant mount as deprecated).
+            # We only re-mount it with an extra dependency that emits the
+            # X-Deprecated response header.
+            legacy_wrapper = APIRouter(dependencies=[Depends(_analytics_legacy_header)])
+            legacy_wrapper.include_router(legacy_analytics)
+            r.include_router(legacy_wrapper)
+            logger.debug("Mounted legacy analytics alias at /dashboard/kpis with X-Deprecated header")
+    except Exception as e:  # pragma: no cover - optional
+        logger.debug("Skip mounting legacy analytics alias: %s", e)
 
     # Tenant roles management
     include_router_safe(r, ("app.modules.identity.interface.http.tenant_roles", "router"))
@@ -411,6 +437,9 @@ def build_api_router() -> APIRouter:
     # E-invoicing (SRI/SII)
     include_router_safe(
         r, ("app.modules.einvoicing.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    include_router_safe(
+        r, ("app.modules.einvoicing.interface.http.admin", "router"), prefix="/admin"
     )
 
     # Templates & Overlays

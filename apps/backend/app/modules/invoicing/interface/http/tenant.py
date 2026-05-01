@@ -307,6 +307,21 @@ def issue_invoice(
 
     tenant_id = get_tenant_uuid(request)
     issued = factura_crud.issue_invoice(db, tenant_id, factura_id)
+    # Asiento contable automático (no bloquea emisión si falla).
+    try:
+        from app.modules.invoicing.application.journal import post_invoice_entry
+
+        claims_state = getattr(request.state, "access_claims", None)
+        uid = claims_state.get("user_id") if isinstance(claims_state, dict) else None
+        post_invoice_entry(db, issued, UUID(str(uid)) if uid else None)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        import logging as _lg
+
+        _lg.getLogger(__name__).exception(
+            "post_invoice_entry hook failed invoice_id=%s", factura_id
+        )
+        db.rollback()
     # Reload with relations
     issued = (
         db.query(Invoice)

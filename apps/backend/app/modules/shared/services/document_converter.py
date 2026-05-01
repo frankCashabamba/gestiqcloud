@@ -187,9 +187,90 @@ class DocumentConverter:
         return invoice.id
 
     def quote_to_sales_order(
-        self, quote_id: int, tenant_id: str | UUID, order_data: dict[str, Any] | None = None
-    ) -> int:
-        raise NotImplementedError("Módulo de presupuestos (quotes) no implementado aún")
+        self,
+        quote_id: str | UUID,
+        tenant_id: str | UUID,
+        user_id: str | UUID | None = None,
+        order_data: dict[str, Any] | None = None,
+    ) -> UUID:
+        """Convert an APPROVED Quote into a SalesOrder.
+
+        Side effects (committed):
+          - Inserts a SalesOrder + SalesOrderItem rows mirroring the quote lines.
+          - Marks the quote as CONVERTED and stores ``converted_to_order_id``.
+        """
+        from datetime import UTC, date, datetime
+
+        from app.models.quotes import Quote, QuoteStatus
+        from app.models.sales.order import SalesOrder, SalesOrderItem
+        from app.modules.shared.services.numbering import generar_numero_documento
+
+        quote = (
+            self.db.query(Quote)
+            .filter(Quote.id == quote_id, Quote.tenant_id == tenant_id)
+            .first()
+        )
+        if not quote:
+            raise ValueError(f"Presupuesto {quote_id} no encontrado")
+        if quote.status != QuoteStatus.APPROVED.value:
+            raise ValueError(
+                f"El presupuesto debe estar APPROVED (estado actual: {quote.status})"
+            )
+        if quote.converted_to_order_id:
+            raise ValueError(
+                f"El presupuesto ya fue convertido (orden {quote.converted_to_order_id})"
+            )
+
+        lines = list(quote.lines or [])
+        if not lines:
+            raise ValueError(f"El presupuesto {quote_id} no tiene líneas")
+
+        numero = generar_numero_documento(self.db, tenant_id, "sales_order")
+        order = SalesOrder(
+            tenant_id=tenant_id,
+            number=numero,
+            customer_id=quote.customer_id,
+            order_date=date.today(),
+            subtotal=float(quote.subtotal or 0),
+            tax=float(quote.tax or 0),
+            total=float(quote.total or 0),
+            currency=quote.currency,
+            status="draft",
+            notes=(order_data or {}).get("notes") if order_data else quote.notes,
+        )
+        self.db.add(order)
+        self.db.flush()
+
+        for line in lines:
+            qty = Decimal(str(line.get("qty") or 0))
+            unit_price = Decimal(str(line.get("unit_price") or 0))
+            tax_rate = Decimal(str(line.get("tax_rate") or 0))
+            discount_pct = Decimal(str(line.get("discount_percent") or 0))
+            line_total_raw = line.get("line_total")
+            if line_total_raw is None:
+                line_total = qty * unit_price
+            else:
+                line_total = Decimal(str(line_total_raw))
+            self.db.add(
+                SalesOrderItem(
+                    order_id=order.id,
+                    product_id=line.get("product_id"),
+                    qty=float(qty),
+                    unit_price=float(unit_price),
+                    tax_rate=float(tax_rate),
+                    discount_percent=float(discount_pct),
+                    line_total=float(line_total),
+                )
+            )
+
+        quote.status = QuoteStatus.CONVERTED.value
+        quote.converted_to_order_id = order.id
+        quote.converted_at = datetime.now(UTC)
+        if user_id is not None and not quote.created_by:
+            quote.created_by = user_id  # type: ignore[assignment]
+
+        self.db.commit()
+        return order.id
 
     def get_document_chain(self, document_id: str | UUID, document_type: str) -> dict[str, Any]:
         from app.models.core.facturacion import Invoice

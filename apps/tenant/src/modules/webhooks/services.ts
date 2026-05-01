@@ -5,6 +5,8 @@ export interface WebhookSubscription {
   event: string
   url: string
   secret?: string
+  /** Masked secret returned by the backend (e.g. "***abcd"). */
+  secret_masked?: string | null
   active: boolean
   created_at: string
 }
@@ -38,6 +40,7 @@ export async function listSubscriptions(): Promise<WebhookSubscription[]> {
       id: String(w.id),
       event: String(w.event_type || ''),
       url: String(w.target_url || ''),
+      secret_masked: w.secret_masked ?? null,
       active: Boolean(w.is_active),
       created_at: String(w.created_at || ''),
     })) as WebhookSubscription[]

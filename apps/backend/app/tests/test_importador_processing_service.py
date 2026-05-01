@@ -26,6 +26,7 @@ from app.modules.importador.processing_service import (
     _analyze_with_context,
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
+    _guard_fallback_doc_type,
     _looks_like_noisy_scalar_text,
     _merge_text_fallback_fields,
     _pre_extract_route_decision,
@@ -1351,6 +1352,92 @@ def test_merge_text_fallback_fields_completes_missing_values_without_overwriting
     assert base["tax_amount"] == 1775.09
     assert base["total_amount"] == 16567.49
     assert base["line_items"][0]["concept"] == "Aceite"
+
+
+@pytest.mark.no_db
+def test_pre_extract_route_decision_skips_ai_with_total_and_line_items():
+    decision = _pre_extract_route_decision(
+        pre_fields={
+            "total_amount": 2.0,
+            "line_items": [
+                {
+                    "description": "PAN TAPADO",
+                    "quantity": 16.0,
+                    "total_price": 2.0,
+                }
+            ],
+        },
+        processing_cfg={
+            "pre_extract_min_strong_fields": 3,
+            "pre_extract_min_confidence": 0.62,
+        },
+    )
+
+    assert decision["has_total"] is True
+    assert decision["has_line_items"] is True
+    assert decision["skip_ai"] is True
+
+
+@pytest.mark.no_db
+def test_parse_printed_invoice_extracts_pos_item_cant_total_table():
+    result = parse_printed_invoice(
+        """
+        demo empresa
+        FACTURA POS-2026 000001
+        Fecha 2026-03-21
+        ITEM CANT TOTAL
+        PAN TAPADO 16.00 2.00
+        Subtotal 2.00
+        IVA 0.00
+        Total 2.00 USD
+        """.strip()
+    )
+
+    assert len(result.fields["line_items"]) == 1
+    item = result.fields["line_items"][0]
+    assert item["description"] == "PAN TAPADO"
+    assert item["quantity"] == 16.0
+    assert item["total_price"] == 2.0
+
+
+@pytest.mark.no_db
+def test_inline_ai_skips_after_primary_ai_timeout_metrics():
+    from app.modules.importador.tasks import _should_run_inline_ai
+
+    should_run = _should_run_inline_ai(
+        tipo_archivo="PDF",
+        estado="REVIEW",
+        doc_tipo="OTHER",
+        raw_ai_json={
+            "run": {
+                "extraction_path": "fallback",
+                "timings_ms": {"ai_primary": 90848},
+            }
+        },
+    )
+
+    assert should_run is False
+
+
+@pytest.mark.no_db
+def test_guard_fallback_doc_type_keeps_payroll_evidence_after_timeout():
+    analysis = {
+        "doc_type": "PAYROLL",
+        "confidence": 0.64,
+        "reasoning": "Ollama timeout (90s)",
+        "analysis_path": "fallback",
+        "fields": {
+            "employee_name": "FRANKLIN CASHABAMBA",
+            "gross_pay": 2243.04,
+            "deductions_total": 1486.08,
+            "liquido_a_percibir": 756.96,
+        },
+    }
+
+    guarded = _guard_fallback_doc_type(analysis)
+
+    assert guarded["doc_type"] == "PAYROLL"
+    assert guarded["confidence"] == 0.64
 
 
 @pytest.mark.no_db

@@ -86,7 +86,7 @@ export type ProveedorPayload = {
   divisa?: string | null
   metodo_pago?: string | null
   iban?: string | null
-  iban_confirmacion?: string | null
+  iban_confirmation?: string | null
   active?: boolean
   activo?: boolean
   contactos: ProveedorContacto[]

@@ -149,9 +149,10 @@ def create_celery_app() -> Celery:
     _celery_app.conf.update(base_config)
 
     # Optional: enable beat schedule when requested (pilot-safe)
+    beat_schedule: dict = {}
     if os.getenv("ENABLE_EINVOICING_BEAT", "0").lower() in ("1", "true", "yes"):
         # Default: run at 03:30 UTC daily
-        _celery_app.conf.beat_schedule = {
+        beat_schedule.update({
             "sii-build-daily": {
                 "task": "apps.backend.app.modules.einvoicing.tasks.scheduled_build_sii",
                 "schedule": crontab(minute=30, hour=3),
@@ -161,7 +162,26 @@ def create_celery_app() -> Celery:
                 "task": "apps.backend.app.modules.einvoicing.tasks.scheduled_retry",
                 "schedule": crontab(minute="*/15"),
             },
-        }
+        })
+
+    # Reports scheduler — gated por REPORTS_SCHEDULER_ENABLED.
+    # Si está deshabilitado, las tareas siguen siendo invocables manualmente
+    # (están registradas en apps.backend.app.workers.reports_tasks) pero no
+    # se programan en beat.
+    if os.getenv("REPORTS_SCHEDULER_ENABLED", "0").lower() in ("1", "true", "yes"):
+        beat_schedule.update({
+            "process-scheduled-reports": {
+                "task": "apps.backend.app.workers.reports_tasks.process_due_scheduled_reports",
+                "schedule": crontab(minute="*/5"),
+            },
+            "recalculate-profit-snapshots-nightly": {
+                "task": "apps.backend.app.workers.reports_tasks.recalculate_profit_snapshots",
+                "schedule": crontab(minute=0, hour=3),
+            },
+        })
+
+    if beat_schedule:
+        _celery_app.conf.beat_schedule = beat_schedule
 
     # Initialize telemetry
     try:

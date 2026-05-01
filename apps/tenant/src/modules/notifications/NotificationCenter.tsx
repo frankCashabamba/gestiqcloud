@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { usePermission } from '../../hooks/usePermission'
+import ProtectedButton from '../../components/ProtectedButton'
 import {
   listNotifications,
   getUnreadCount,
@@ -159,13 +160,15 @@ function NotificationCard({
             <div className="flex items-center gap-2 shrink-0 ml-2">
               <span className="text-xs text-slate-400 whitespace-nowrap">{timeAgo(n.created_at)}</span>
               {n.status !== 'archived' && canArchive && (
-                <button
+                <ProtectedButton
+                  permission="notifications:manage"
+                  unstyled
                   onClick={(e) => { e.stopPropagation(); onArchive(n.id) }}
                   className="text-xs px-2 py-1 text-slate-500 hover:bg-slate-200 rounded"
                   title="Archivar"
                 >
                   ✕
-                </button>
+                </ProtectedButton>
               )}
             </div>
           </div>
@@ -298,13 +301,15 @@ export default function NotificationCenter() {
           </button>
           {/* Marcar leídas: accion de escritura sobre notificaciones propias del usuario */}
           {can('notifications:manage') && (
-            <button
+            <ProtectedButton
+              permission="notifications:manage"
+              unstyled
               onClick={handleMarkAllRead}
               disabled={unreadCount === 0}
               className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
             >
               Marcar todas leídas
-            </button>
+            </ProtectedButton>
           )}
         </div>
       </div>

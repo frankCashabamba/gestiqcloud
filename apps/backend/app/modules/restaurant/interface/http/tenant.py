@@ -454,6 +454,7 @@ def add_order_item(
 ):
     """Agrega un ítem a la comanda."""
     ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
 
     order = db.execute(
         text("SELECT id, status FROM restaurant_orders WHERE id = :oid").bindparams(
@@ -465,6 +466,22 @@ def add_order_item(
         raise HTTPException(status_code=404, detail="order_not_found")
     if order[1] in ("paid", "canceled"):
         raise HTTPException(status_code=400, detail="order_is_closed")
+
+    # Validate product is sellable (not a raw material, active, belongs to tenant)
+    product = db.execute(
+        text(
+            "SELECT id, active, is_raw_material FROM products "
+            "WHERE id = :pid AND tenant_id = :tid"
+        ).bindparams(
+            bindparam("pid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"pid": str(payload.product_id), "tid": tenant_id},
+    ).first()
+    if not product:
+        raise HTTPException(status_code=400, detail="product_not_sellable")
+    if bool(product[2]) or not bool(product[1]):
+        raise HTTPException(status_code=400, detail="product_not_sellable")
 
     line_total = round(payload.qty * payload.unit_price, 2)
 
@@ -643,19 +660,50 @@ def close_order(order_id: str, request: Request, db: Session = Depends(get_db)):
 
 
 def _recalculate_order_totals(db: Session, order_id: str) -> dict[str, float]:
-    """Recalcula subtotal/total de la comanda a partir de sus ítems activos."""
-    row = db.execute(
+    """Recalcula subtotal/total de la comanda a partir de sus ítems activos.
+
+    El impuesto por ítem se calcula con `products.tax_rate` (porcentaje); si el
+    producto no tiene tax_rate o no se encuentra, se usa el default del tenant
+    (CompanySettings) vía `resolve_tenant_default_tax_rate`.
+    """
+    from decimal import Decimal
+
+    from app.modules.shared.services.tax import resolve_tenant_default_tax_rate
+
+    rows = db.execute(
         text(
-            "SELECT COALESCE(SUM(line_total), 0) "
-            "FROM restaurant_order_items "
-            "WHERE order_id = :oid AND status != 'canceled'"
+            "SELECT i.line_total, p.tax_rate, o.tenant_id "
+            "FROM restaurant_order_items i "
+            "JOIN restaurant_orders o ON o.id = i.order_id "
+            "LEFT JOIN products p ON p.id = i.product_id "
+            "WHERE i.order_id = :oid AND i.status != 'canceled'"
         ).bindparams(bindparam("oid", type_=PGUUID(as_uuid=True))),
         {"oid": order_id},
-    ).first()
+    ).fetchall()
 
-    subtotal = float(row[0]) if row else 0
-    tax_total = 0.0
-    total = subtotal + tax_total
+    subtotal_dec = Decimal("0")
+    tax_dec = Decimal("0")
+    tenant_default: Decimal | None = None
+
+    for line_total, prod_tax, tenant_id in rows:
+        line = Decimal(str(line_total or 0))
+        subtotal_dec += line
+
+        if prod_tax is not None:
+            rate = Decimal(str(prod_tax))
+            # tax_rate stored as percent (e.g. 21.00) → fraction
+            if rate > 1:
+                rate = rate / Decimal("100")
+        else:
+            if tenant_default is None:
+                tenant_default = resolve_tenant_default_tax_rate(db, tenant_id)
+            rate = tenant_default
+
+        tax_dec += (line * rate).quantize(Decimal("0.01"))
+
+    subtotal = float(subtotal_dec)
+    tax_total = float(tax_dec)
+    total = float(subtotal_dec + tax_dec)
 
     db.execute(
         text(
@@ -667,3 +715,140 @@ def _recalculate_order_totals(db: Session, order_id: str) -> dict[str, float]:
     )
 
     return {"subtotal": subtotal, "tax_total": tax_total, "total": total}
+
+
+# ===========================================================================
+# KDS (Kitchen Display System) endpoints
+# ===========================================================================
+
+
+@router.get("/kds/orders", response_model=list[dict[str, Any]])
+def kds_list_orders(request: Request, db: Session = Depends(get_db)):
+    """Devuelve órdenes con items pending/preparing/ready agrupadas por mesa.
+
+    Permiso: restaurant.kds.view
+    """
+    ensure_guc_from_request(request, db, persist=True)
+
+    rows = db.execute(
+        text(
+            "SELECT o.id, o.order_number, o.table_id, t.number, t.name, "
+            "o.opened_at, o.created_at, "
+            "i.id, i.product_name, i.qty, i.notes, i.status, i.created_at "
+            "FROM restaurant_orders o "
+            "JOIN restaurant_tables t ON t.id = o.table_id "
+            "JOIN restaurant_order_items i ON i.order_id = o.id "
+            "WHERE i.status IN ('pending','preparing','ready') "
+            "AND o.status NOT IN ('paid','canceled') "
+            "ORDER BY o.created_at ASC, i.created_at ASC"
+        ),
+    ).fetchall()
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        oid = str(r[0])
+        if oid not in grouped:
+            grouped[oid] = {
+                "order_id": oid,
+                "order_number": r[1],
+                "table_id": str(r[2]),
+                "table_number": r[3],
+                "table_name": r[4],
+                "opened_at": r[5].isoformat() if r[5] else None,
+                "created_at": r[6].isoformat() if r[6] else None,
+                "items": [],
+            }
+        grouped[oid]["items"].append(
+            {
+                "id": str(r[7]),
+                "product_name": r[8],
+                "qty": float(r[9]) if r[9] is not None else 0,
+                "notes": r[10],
+                "status": r[11],
+                "created_at": r[12].isoformat() if r[12] else None,
+            }
+        )
+
+    return list(grouped.values())
+
+
+def _kds_set_item_status(
+    db: Session, item_id: str, *, new_status: str, ready: bool = False
+) -> dict[str, Any]:
+    item = db.execute(
+        text(
+            "SELECT id, order_id, status FROM restaurant_order_items WHERE id = :iid"
+        ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
+        {"iid": item_id},
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="item_not_found")
+
+    now = datetime.now(UTC)
+    if ready:
+        db.execute(
+            text(
+                "UPDATE restaurant_order_items "
+                "SET status = :st, ready_at = :now WHERE id = :iid"
+            ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
+            {"iid": item_id, "st": new_status, "now": now},
+        )
+    else:
+        db.execute(
+            text(
+                "UPDATE restaurant_order_items SET status = :st WHERE id = :iid"
+            ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
+            {"iid": item_id, "st": new_status},
+        )
+    db.commit()
+    return {"id": item_id, "order_id": str(item[1]), "status": new_status}
+
+
+@router.post("/kds/items/{item_id}/ready", response_model=dict[str, Any])
+def kds_mark_ready(item_id: str, request: Request, db: Session = Depends(get_db)):
+    """Marca un ítem como listo (ready). Permiso: restaurant.kds.manage"""
+    ensure_guc_from_request(request, db, persist=True)
+    return _kds_set_item_status(db, item_id, new_status="ready", ready=True)
+
+
+@router.post("/kds/items/{item_id}/served", response_model=dict[str, Any])
+def kds_mark_served(item_id: str, request: Request, db: Session = Depends(get_db)):
+    """Marca un ítem como servido. Permiso: restaurant.kds.manage"""
+    ensure_guc_from_request(request, db, persist=True)
+    return _kds_set_item_status(db, item_id, new_status="served")
+
+
+# ===========================================================================
+# MENU endpoint (productos vendibles del restaurante)
+# ===========================================================================
+
+
+@router.get("/menu", response_model=list[dict[str, Any]])
+def list_menu(request: Request, db: Session = Depends(get_db)):
+    """Catálogo del restaurante: productos activos y NO raw_material.
+
+    Devuelve id, name, price, tax_rate y category (nombre).
+    """
+    ensure_guc_from_request(request, db, persist=True)
+
+    rows = db.execute(
+        text(
+            "SELECT p.id, p.name, p.price, p.tax_rate, c.name AS category_name, p.sku "
+            "FROM products p "
+            "LEFT JOIN product_categories c ON c.id = p.category_id "
+            "WHERE p.active = true AND COALESCE(p.is_raw_material, false) = false "
+            "ORDER BY c.name NULLS LAST, p.name"
+        ),
+    ).fetchall()
+
+    return [
+        {
+            "id": str(r[0]),
+            "name": r[1],
+            "price": float(r[2]) if r[2] is not None else 0.0,
+            "tax_rate": float(r[3]) if r[3] is not None else 0.0,
+            "category": r[4],
+            "sku": r[5],
+        }
+        for r in rows
+    ]

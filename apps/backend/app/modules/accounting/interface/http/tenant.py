@@ -28,8 +28,21 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
+from app.core.permissions import (
+    PERM_ACCOUNTING_ACCOUNT_MANAGE,
+    PERM_ACCOUNTING_ENTRY_CANCEL,
+    PERM_ACCOUNTING_ENTRY_CREATE,
+    PERM_ACCOUNTING_ENTRY_POST,
+    PERM_ACCOUNTING_PERIOD_MANAGE,
+    PERM_ACCOUNTING_REPORTS_READ,
+)
 from app.db.rls import ensure_rls
+from app.models.accounting.period import AccountingPeriod
+from app.modules.accounting.application.journal_service import (
+    generate_entry_number,
+    assert_period_open,
+)
 from app.models.accounting.chart_of_accounts import ChartOfAccounts as PlanCuentas
 from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable
 from app.models.accounting.chart_of_accounts import JournalEntryLine as AsientoLinea
@@ -67,25 +80,15 @@ logger = logging.getLogger(__name__)
 
 # HELPERS
 def _generate_numero_asiento(db: Session, tenant_id: UUID, ano: int) -> str:
-    """Genera número único de asiento: ASI-YYYY-NNNN"""
-    prefix = f"ASI-{ano}-"
-    stmt = (
-        select(AsientoContable)
-        .where(AsientoContable.tenant_id == tenant_id, AsientoContable.number.like(f"{prefix}%"))
-        .order_by(AsientoContable.number.desc())
-        .limit(1)
-    )
-    result = db.execute(stmt)
-    last_asiento = result.scalar_one_or_none()
-    if last_asiento and last_asiento.number:
-        try:
-            last_num = int(last_asiento.number.split("-")[-1])
-            next_num = last_num + 1
-        except (ValueError, IndexError):
-            next_num = 1
-    else:
-        next_num = 1
-    return f"{prefix}{next_num:04d}"
+    """Genera número único de asiento: ASI-YYYY-NNNN.
+
+    Delegado a `journal_service.generate_entry_number`, que protege la
+    secuencia con `pg_advisory_xact_lock(hashtext('journal_seq:<tenant>:<year>'))`
+    y un upsert atómico sobre `journal_sequences` (tenant_id, year).
+    """
+    if not isinstance(tenant_id, UUID):
+        tenant_id = UUID(str(tenant_id))
+    return generate_entry_number(db, tenant_id, ano)
 
 
 def _recalcular_saldos_cuenta(db: Session, cuenta_id: UUID):
@@ -283,7 +286,10 @@ async def list_cuentas(
 
 
 @router.post(
-    "/chart-of-accounts", response_model=PlanCuentasResponse, status_code=status.HTTP_201_CREATED
+    "/chart-of-accounts",
+    response_model=PlanCuentasResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_ACCOUNT_MANAGE))],
 )
 async def create_cuenta(
     data: PlanCuentasCreate,
@@ -607,7 +613,11 @@ async def get_cuenta(
     return _serialize_cuenta(cuenta)
 
 
-@router.put("/chart-of-accounts/{cuenta_id}", response_model=PlanCuentasResponse)
+@router.put(
+    "/chart-of-accounts/{cuenta_id}",
+    response_model=PlanCuentasResponse,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_ACCOUNT_MANAGE))],
+)
 async def update_cuenta(
     cuenta_id: UUID,
     data: PlanCuentasUpdate,
@@ -954,7 +964,10 @@ async def list_asientos(
 
 
 @router.post(
-    "/journal-entries", response_model=AsientoContableResponse, status_code=status.HTTP_201_CREATED
+    "/journal-entries",
+    response_model=AsientoContableResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_ENTRY_CREATE))],
 )
 async def create_asiento(
     data: AsientoContableCreate,
@@ -1030,7 +1043,11 @@ async def get_asiento(
     return _asiento_to_response(asiento)
 
 
-@router.put("/journal-entries/{asiento_id}", response_model=AsientoContableResponse)
+@router.put(
+    "/journal-entries/{asiento_id}",
+    response_model=AsientoContableResponse,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_ENTRY_CREATE))],
+)
 async def update_asiento(
     asiento_id: UUID,
     data: AsientoContableUpdate,
@@ -1064,7 +1081,11 @@ async def update_asiento(
     return _asiento_to_response(asiento)
 
 
-@router.post("/journal-entries/{asiento_id}/post", response_model=AsientoContableResponse)
+@router.post(
+    "/journal-entries/{asiento_id}/post",
+    response_model=AsientoContableResponse,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_ENTRY_POST))],
+)
 async def contabilizar_asiento(
     asiento_id: UUID,
     db: Session = Depends(get_db),
@@ -1136,7 +1157,11 @@ async def list_movimientos(
 _MAX_REPORT_DAYS = 366
 
 
-@router.get("/reports/profit-loss", response_model=ProfitLossReportResponse)
+@router.get(
+    "/reports/profit-loss",
+    response_model=ProfitLossReportResponse,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_REPORTS_READ))],
+)
 async def get_profit_loss(
     date_from: date = Query(..., description="Fecha inicio del período"),
     date_to: date = Query(..., description="Fecha fin del período"),
@@ -1233,7 +1258,11 @@ async def get_profit_loss(
     )
 
 
-@router.get("/reports/balance-sheet", response_model=BalanceSheetReportResponse)
+@router.get(
+    "/reports/balance-sheet",
+    response_model=BalanceSheetReportResponse,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_REPORTS_READ))],
+)
 async def get_balance_sheet(
     as_of_date: date = Query(default=None, description="Fecha de corte (default: hoy)"),
     db: Session = Depends(get_db),
@@ -1338,3 +1367,262 @@ async def get_balance_sheet(
         balanced=balanced,
         currency="USD",
     )
+
+
+# ============================================================================
+# PERÍODOS CONTABLES (cierre / apertura / regularización)
+# ============================================================================
+
+
+class PeriodActionPayload(BaseModel):
+    year: int
+    month: int
+
+
+class PeriodOut(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    year: int
+    month: int
+    status: str
+    closed_at: datetime | None = None
+    closed_by: UUID | None = None
+
+
+def _get_or_create_period(
+    db: Session, tenant_id: UUID, year: int, month: int
+) -> AccountingPeriod:
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="mes_invalido")
+    stmt = select(AccountingPeriod).where(
+        AccountingPeriod.tenant_id == tenant_id,
+        AccountingPeriod.year == year,
+        AccountingPeriod.month == month,
+    )
+    period = db.execute(stmt).scalar_one_or_none()
+    if period is None:
+        period = AccountingPeriod(
+            tenant_id=tenant_id, year=year, month=month, status="OPEN"
+        )
+        db.add(period)
+        db.flush()
+    return period
+
+
+def _serialize_period(p: AccountingPeriod) -> PeriodOut:
+    return PeriodOut(
+        id=p.id,
+        tenant_id=p.tenant_id,
+        year=p.year,
+        month=p.month,
+        status=p.status,
+        closed_at=p.closed_at,
+        closed_by=p.closed_by,
+    )
+
+
+@router.post(
+    "/periods/close",
+    response_model=PeriodOut,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_PERIOD_MANAGE))],
+)
+async def close_period(
+    payload: PeriodActionPayload,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Cierra un período contable: bloquea creación/modificación de asientos en él."""
+    tenant_id = UUID(str(claims["tenant_id"]))
+    user_id = claims.get("user_id")
+    period = _get_or_create_period(db, tenant_id, payload.year, payload.month)
+    if period.status == "CLOSED":
+        raise HTTPException(status_code=409, detail="periodo_ya_cerrado")
+    period.status = "CLOSED"
+    period.closed_at = datetime.now()
+    period.closed_by = UUID(str(user_id)) if user_id else None
+    db.commit()
+    db.refresh(period)
+    return _serialize_period(period)
+
+
+@router.post(
+    "/periods/open",
+    response_model=PeriodOut,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_PERIOD_MANAGE))],
+)
+async def open_period(
+    payload: PeriodActionPayload,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Reabre un período cerrado."""
+    tenant_id = UUID(str(claims["tenant_id"]))
+    period = _get_or_create_period(db, tenant_id, payload.year, payload.month)
+    if period.status == "OPEN":
+        raise HTTPException(status_code=409, detail="periodo_ya_abierto")
+    period.status = "OPEN"
+    period.closed_at = None
+    period.closed_by = None
+    db.commit()
+    db.refresh(period)
+    return _serialize_period(period)
+
+
+class RegularizePayload(BaseModel):
+    year: int
+    month: int
+    income_summary_account_id: UUID
+    retained_earnings_account_id: UUID
+
+
+@router.post(
+    "/periods/regularize",
+    response_model=AsientoContableResponse,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_PERIOD_MANAGE))],
+)
+async def regularize_period(
+    payload: RegularizePayload,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Genera el asiento de regularización: salda INGRESOS/GASTOS contra resultado del ejercicio.
+
+    Crea un asiento POSTED tipo REGULARIZATION que:
+    - Debe los saldos acreedores netos de cuentas INCOME → cuenta resumen
+    - Acredita los saldos deudores netos de cuentas EXPENSE ← cuenta resumen
+    - Cuadra contra `income_summary_account_id` y traslada el resultado a
+      `retained_earnings_account_id`.
+    """
+    from app.modules.accounting.application.journal_service import (
+        JournalLineIn,
+        create_posted_entry,
+    )
+
+    tenant_id = UUID(str(claims["tenant_id"]))
+    user_id = claims.get("user_id")
+
+    # Asegurar que el período exista (no exigimos que esté cerrado para regularizar).
+    _get_or_create_period(db, tenant_id, payload.year, payload.month)
+
+    # Acumular saldos de cuentas INCOME y EXPENSE del mes.
+    from calendar import monthrange
+
+    last_day = monthrange(payload.year, payload.month)[1]
+    date_from = date(payload.year, payload.month, 1)
+    date_to = date(payload.year, payload.month, last_day)
+
+    stmt = (
+        select(
+            PlanCuentas.id,
+            PlanCuentas.type,
+            func.coalesce(func.sum(AsientoLinea.debit), Decimal("0")).label("d"),
+            func.coalesce(func.sum(AsientoLinea.credit), Decimal("0")).label("c"),
+        )
+        .join(AsientoLinea, AsientoLinea.account_id == PlanCuentas.id)
+        .join(AsientoContable, AsientoContable.id == AsientoLinea.entry_id)
+        .where(
+            PlanCuentas.tenant_id == tenant_id,
+            PlanCuentas.type.in_(["INCOME", "EXPENSE"]),
+            AsientoContable.tenant_id == tenant_id,
+            AsientoContable.status == "POSTED",
+            AsientoContable.date >= date_from,
+            AsientoContable.date <= date_to,
+        )
+        .group_by(PlanCuentas.id, PlanCuentas.type)
+    )
+    rows = db.execute(stmt).all()
+
+    lines: list[JournalLineIn] = []
+    total_income = Decimal("0")
+    total_expense = Decimal("0")
+    for row in rows:
+        debit = row.d or Decimal("0")
+        credit = row.c or Decimal("0")
+        if row.type == "INCOME":
+            balance = credit - debit  # saldo natural del ingreso
+            if balance > 0:
+                # Cancelamos el ingreso debitándolo
+                lines.append(
+                    JournalLineIn(account_id=row.id, debit=balance, credit=Decimal("0"))
+                )
+                total_income += balance
+        else:  # EXPENSE
+            balance = debit - credit
+            if balance > 0:
+                # Cancelamos el gasto acreditándolo
+                lines.append(
+                    JournalLineIn(account_id=row.id, debit=Decimal("0"), credit=balance)
+                )
+                total_expense += balance
+
+    net_result = total_income - total_expense  # >0 utilidad / <0 pérdida
+    if not lines:
+        raise HTTPException(status_code=400, detail="sin_movimientos_a_regularizar")
+
+    # Contrapartida — resumen del ejercicio.
+    if net_result >= 0:
+        # Utilidad: HABER resumen, DEBE retained
+        lines.append(
+            JournalLineIn(
+                account_id=payload.income_summary_account_id,
+                debit=Decimal("0"),
+                credit=net_result if net_result > 0 else Decimal("0"),
+            )
+        )
+        if net_result > 0:
+            # Trasladar a resultados acumulados (DEBE resumen / HABER retained)
+            lines.append(
+                JournalLineIn(
+                    account_id=payload.income_summary_account_id,
+                    debit=net_result,
+                    credit=Decimal("0"),
+                )
+            )
+            lines.append(
+                JournalLineIn(
+                    account_id=payload.retained_earnings_account_id,
+                    debit=Decimal("0"),
+                    credit=net_result,
+                )
+            )
+    else:
+        loss = -net_result
+        lines.append(
+            JournalLineIn(
+                account_id=payload.income_summary_account_id,
+                debit=loss,
+                credit=Decimal("0"),
+            )
+        )
+        lines.append(
+            JournalLineIn(
+                account_id=payload.income_summary_account_id,
+                debit=Decimal("0"),
+                credit=loss,
+            )
+        )
+        lines.append(
+            JournalLineIn(
+                account_id=payload.retained_earnings_account_id,
+                debit=loss,
+                credit=Decimal("0"),
+            )
+        )
+
+    entry = create_posted_entry(
+        db,
+        tenant_id=tenant_id,
+        entry_date=date_to,
+        description=f"Regularización {payload.year}-{payload.month:02d}",
+        ref_doc_type="period_regularization",
+        ref_doc_id=tenant_id,
+        created_by=UUID(str(user_id)) if user_id else None,
+        lines=lines,
+    )
+    # Forzar tipo REGULARIZATION.
+    entry.type = "REGULARIZATION"
+    db.flush()
+    db.commit()
+    db.refresh(entry)
+    return _asiento_to_response(entry)
+

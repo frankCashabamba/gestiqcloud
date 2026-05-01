@@ -1,0 +1,4 @@
+-- Rollback for 2026-05-01_004_quotes
+BEGIN;
+DROP TABLE IF EXISTS quotes CASCADE;
+COMMIT;

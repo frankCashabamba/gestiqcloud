@@ -110,7 +110,14 @@ export default function SubscriptionsList() {
               subscriptions.map(sub => (
                 <tr key={sub.id} className="border-b hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-medium">{sub.event}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 truncate">{sub.url}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600 truncate">
+                    <div>{sub.url}</div>
+                    {sub.secret_masked && (
+                      <div className="text-xs text-gray-400 font-mono mt-0.5">
+                        Secret: {sub.secret_masked}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                       sub.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'

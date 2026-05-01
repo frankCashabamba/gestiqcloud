@@ -44,10 +44,26 @@ class EInvoicingTask(Task):
 # ============================================================================
 
 
-def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
+def _sri_ambiente_code(env: str | None) -> str:
+    """Map SRISettings.environment → ambiente code for SRI Ecuador.
+
+    "PRODUCTION" (case-insensitive) → "2" (Producción).
+    Cualquier otro valor (incluido "STAGING", None, vacío) → "1" (Pruebas).
+    """
+    if not env:
+        return "1"
+    return "2" if str(env).strip().upper() == "PRODUCTION" else "1"
+
+
+def generate_sri_xml(invoice_data: dict[str, Any], ambiente: str = "1") -> str:
     """
     Generar XML RIDE conforme a XSD SRI Ecuador.
     Versión simplificada para MVP - expandir según especificación completa.
+
+    Args:
+        invoice_data: datos de la factura.
+        ambiente: "1"=Pruebas, "2"=Producción. Debe coincidir con la clave
+            de acceso generada por ``generate_clave_acceso``.
     """
     from lxml import etree
 
@@ -98,12 +114,14 @@ def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
 
     # Info tributaria
     info_trib = etree.SubElement(root, "infoTributaria")
-    etree.SubElement(info_trib, "ambiente").text = "1"  # 1=Pruebas, 2=Producción
+    etree.SubElement(info_trib, "ambiente").text = ambiente  # 1=Pruebas, 2=Producción
     etree.SubElement(info_trib, "tipoEmision").text = "1"  # Normal
     etree.SubElement(info_trib, "razonSocial").text = invoice_data["empresa"]["nombre"]
     etree.SubElement(info_trib, "nombreComercial").text = invoice_data["empresa"]["nombre"]
     etree.SubElement(info_trib, "ruc").text = invoice_data["empresa"]["ruc"]
-    etree.SubElement(info_trib, "claveAcceso").text = generate_clave_acceso(invoice_data)
+    etree.SubElement(info_trib, "claveAcceso").text = generate_clave_acceso(
+        invoice_data, ambiente=ambiente
+    )
     etree.SubElement(info_trib, "codDoc").text = "01"  # 01=invoice
     etree.SubElement(info_trib, "estab").text = "001"  # Establecimiento
     etree.SubElement(info_trib, "ptoEmi").text = "001"  # Punto emisión
@@ -534,9 +552,10 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
             if not validate_ruc_ec(ruc):
                 raise ValueError(f"RUC de empresa inválido: {ruc!r}")
 
-            # 4. Generar XML RIDE
-            xml_content = generate_sri_xml(invoice_data)
-            clave_acceso = generate_clave_acceso(invoice_data)
+            # 4. Generar XML RIDE — ambiente derivado de SRISettings.environment
+            ambiente_code = _sri_ambiente_code(getattr(sri_settings, "environment", None))
+            xml_content = generate_sri_xml(invoice_data, ambiente=ambiente_code)
+            clave_acceso = generate_clave_acceso(invoice_data, ambiente=ambiente_code)
 
             # 5. Cargar certificado digital
             cert_data = _load_cert_sync(tenant_id, "EC")

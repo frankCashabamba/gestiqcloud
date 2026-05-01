@@ -118,7 +118,13 @@ def store_payload(doc_id: str | UUID, file_bytes: bytes) -> None:
     tmp_path.replace(payload_path)
 
 
-def _should_run_inline_ai(*, tipo_archivo: str, estado: str, doc_tipo: str) -> bool:
+def _should_run_inline_ai(
+    *,
+    tipo_archivo: str,
+    estado: str,
+    doc_tipo: str,
+    raw_ai_json: dict | None = None,
+) -> bool:
     """Decide if the inline AI follow-up should run after deterministic import.
 
     Visual uploads already have a dedicated manual deep-reprocess path.
@@ -126,6 +132,17 @@ def _should_run_inline_ai(*, tipo_archivo: str, estado: str, doc_tipo: str) -> b
     without materially improving the stable import result in the common case.
     """
     if str(tipo_archivo or "").upper() in _INITIAL_VISUAL_FORMATS:
+        return False
+    run = raw_ai_json.get("run") if isinstance(raw_ai_json, dict) else {}
+    run = run if isinstance(run, dict) else {}
+    extraction_path = str(run.get("extraction_path") or "").strip().lower()
+    if extraction_path in {"fallback", "fallback_error", "partial_timeout_fallback"}:
+        return False
+    timings = run.get("timings_ms")
+    if isinstance(timings, dict) and (
+        int(timings.get("ai_primary") or 0) > 0
+        or int(timings.get("ai_escalation") or 0) > 0
+    ):
         return False
     return str(estado or "") == "REVIEW" and str(doc_tipo or "").upper() in ("OTHER", "")
 
@@ -271,6 +288,7 @@ async def _run_processing(
                 tipo_archivo=tipo_archivo,
                 estado=_doc_estado,
                 doc_tipo=_doc_tipo,
+                raw_ai_json=getattr(doc, "raw_ai_json", None),
             ):
                 try:
                     from app.modules.importador.services.ai_analysis_agent import (

@@ -1,0 +1,12 @@
+{
+  "id": "analytics",
+  "name": "Analítica",
+  "icon": "📊",
+  "category": "insights",
+  "description": "KPIs operativos por sector: ventas, clientes, tickets y top productos",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "implemented": true
+}

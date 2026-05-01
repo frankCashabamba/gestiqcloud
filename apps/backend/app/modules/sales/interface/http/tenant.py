@@ -529,6 +529,20 @@ def confirm_order(
     db.commit()
     db.refresh(so)
 
+    # Asiento contable automático (no bloquea la venta si falla).
+    try:
+        from app.modules.sales.application.journal import post_sale_entry
+
+        post_sale_entry(db, so, None, paid=False)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        import logging as _lg
+
+        _lg.getLogger(__name__).exception(
+            "post_sale_entry hook failed (confirm) order_id=%s", so.id
+        )
+        db.rollback()
+
     # Trigger sales_order.confirmed webhook
     try:
         from app.modules.sales.webhooks import SalesOrderWebhookService
@@ -775,6 +789,20 @@ def mark_order_paid(
     db.add(so)
     db.commit()
     db.refresh(so)
+
+    # Asiento contable automático: caja/banco vs Ventas+IVA. Idempotente.
+    try:
+        from app.modules.sales.application.journal import post_sale_entry
+
+        post_sale_entry(db, so, None, paid=True)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        import logging as _lg
+
+        _lg.getLogger(__name__).exception(
+            "post_sale_entry hook failed (mark_paid) order_id=%s", so.id
+        )
+        db.rollback()
 
     customer_name = (
         db.query(Client.name).filter(Client.id == so.customer_id).scalar()

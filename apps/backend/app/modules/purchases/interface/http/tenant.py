@@ -312,4 +312,19 @@ def receive_purchase(
     purchase.status = "received"
     db.add(purchase)
     db.commit()
+
+    # Asiento contable automático (no bloquea recepción si falla).
+    try:
+        from app.modules.purchases.application.journal import post_purchase_entry
+
+        post_purchase_entry(db, purchase, None)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        import logging as _lg
+
+        _lg.getLogger(__name__).exception(
+            "post_purchase_entry hook failed purchase_id=%s", purchase.id
+        )
+        db.rollback()
+
     return {"ok": True, "purchase_id": str(purchase.id), "status": "received"}

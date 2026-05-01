@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from app.modules.webhooks.domain.models import EventType
 
@@ -50,9 +50,24 @@ class WebhookResponse(BaseModel):
     last_delivery_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    # Masked representation of the signing secret. Only the last 4 chars are
+    # exposed so the UI can show e.g. "***abcd" without leaking the full key.
+    secret_masked: str | None = None
+    # The full secret is intentionally excluded from the serialized response.
+    # It is loaded from the ORM object only to compute `secret_masked`.
+    secret: str | None = Field(default=None, exclude=True, repr=False)
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode="after")
+    def _mask_secret(self) -> "WebhookResponse":
+        if self.secret:
+            self.secret_masked = "***" + self.secret[-4:]
+        # Wipe full secret so it never leaks even if downstream code dumps the
+        # model with `exclude` overrides.
+        self.secret = None
+        return self
 
 
 class WebhookListResponse(BaseModel):
