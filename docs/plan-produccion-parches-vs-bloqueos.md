@@ -392,7 +392,7 @@ Bloqueos:
 - [PARCHEADO 2026-04-30] Cierre de comanda bloqueado con 501 para evitar estado `paid` sin caja/factura.
 - Impuestos hardcodeados a cero.
 - Falta Kitchen Display System (KDS).
-- La busqueda de productos no filtra menu/productos vendibles; puede mostrar materias primas.
+- [HECHO 2026-05-01] La busqueda de productos filtra activos vendibles y excluye materias primas (`is_raw_material`); falta catalogo/menu dedicado si se activa Restaurant.
 - [HECHO 2026-05-01] Eliminado flujo muerto que intentaba marcar `paid` despues del 501.
 
 Decision: beta o desactivado por feature flag.
@@ -410,7 +410,7 @@ Bloqueos:
 - [HECHO 2026-04-30] Fechas faltantes ya no se sustituyen por `date.today()`; la fila falla con `missing_fecha`.
 
 Pendiente (no bloqueante para activacion):
-- Feedback de progreso en frontend para archivos grandes (UX, no seguridad).
+- [HECHO 2026-05-01] Feedback de progreso en frontend: `UploadPage.tsx` muestra porcentaje de carga y avisa cuando el backend sigue procesando. Queda background job/Celery como mejora para cargas grandes.
 
 Decision: listo para activacion en beta.
 
@@ -462,7 +462,7 @@ Parches recomendados:
 | CRM | Candidato | Pruebas de conversion | Smoke CRUD leads/oportunidades/dashboard/conversion |
 | Importador | Candidato parcial | Aprendizaje ML global desactivado | Probar OCR/revision/guardado con ML_LEARNING_ENABLED=false |
 | Production | Candidato beta | Falta prueba integrada stock/lote/merma/coste | Smoke receta/orden/start/complete/stock/output/lote/merma |
-| Historical | Listo para beta | UX progreso y carga masiva pendientes | Activar beta controlada; no vender como import masivo avanzado |
+| Historical | Listo para beta | Carga masiva en background pendiente | Activar beta controlada; no vender como import masivo avanzado |
 | Settings | Candidato transversal | Variables/secretos | Validar configuracion production |
 | Users | Candidato transversal | Permisos y sesiones | Validar auth, roles y revocacion |
 | Einvoicing | No subir | Stubs fiscales y certificados | Mantener sandbox/demo interno |
@@ -529,6 +529,6 @@ Notas sobre la columna "Decision pendiente":
 | CRM          | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI                 |
 | Importador   | COMPLETO        | COMPLETO         | COMPLETO          | SI                 |
 | Production   | COMPLETO core   | COMPLETO core    | COMPLETO          | SI (beta; falta test integrado stock/lote/merma/coste) |
-| Historical   | COMPLETO core   | PENDIENTE UX progreso | COMPLETO     | SI (beta controlada) |
+| Historical   | COMPLETO core   | COMPLETO core    | COMPLETO          | SI (beta controlada) |
 | Settings     | COMPLETO        | COMPLETO         | COMPLETO          | SI (smoke config)  |
 | Users        | COMPLETO        | COMPLETO (2026-04-30) | COMPLETO     | SI (smoke auth/roles) |

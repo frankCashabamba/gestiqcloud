@@ -18,6 +18,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null)
   const [importType, setImportType] = useState('sales')
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [result, setResult] = useState<HistImport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -27,6 +28,7 @@ export default function UploadPage() {
       setFile(f)
       setResult(null)
       setError(null)
+      setUploadProgress(0)
     }
   }
 
@@ -40,10 +42,11 @@ export default function UploadPage() {
   const handleUpload = async () => {
     if (!file) return
     setUploading(true)
+    setUploadProgress(0)
     setError(null)
     setResult(null)
     try {
-      const res = await uploadFile(file, importType)
+      const res = await uploadFile(file, importType, setUploadProgress)
       setResult(res)
       setFile(null)
       if (fileRef.current) fileRef.current.value = ''
@@ -53,6 +56,8 @@ export default function UploadPage() {
       setUploading(false)
     }
   }
+
+  const processingAfterUpload = uploading && uploadProgress >= 100
 
   return (
     <PageContainer>
@@ -163,6 +168,42 @@ export default function UploadPage() {
       >
         {uploading ? 'Subiendo...' : 'Subir archivo'}
       </button>
+
+      {uploading && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: 'grid',
+            gap: '0.45rem',
+            padding: '0.85rem 1rem',
+            borderRadius: 14,
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: 13, color: '#475569', fontWeight: 700 }}>
+            <span>{processingAfterUpload ? 'Procesando archivo en el servidor' : 'Cargando archivo'}</span>
+            <span>{uploadProgress}%</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${Math.max(uploadProgress, 4)}%`,
+                height: '100%',
+                borderRadius: 999,
+                background: processingAfterUpload ? '#7c3aed' : '#2563eb',
+                transition: 'width 0.2s ease',
+              }}
+            />
+          </div>
+          {processingAfterUpload && (
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              El archivo ya se transfirio. La importacion sigue validando filas; no vuelvas a subirlo.
+            </div>
+          )}
+        </div>
+      )}
 
       {result && (
         <div style={{ padding: '1rem', borderRadius: 14, background: '#dcfce7', border: '1px solid #bbf7d0', color: '#166534' }}>

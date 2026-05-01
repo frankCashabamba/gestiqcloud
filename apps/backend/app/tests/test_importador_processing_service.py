@@ -1354,6 +1354,113 @@ def test_merge_text_fallback_fields_completes_missing_values_without_overwriting
 
 
 @pytest.mark.no_db
+def test_merge_text_fallback_fields_replaces_degraded_invoice_line_items():
+    base = {
+        "line_items": [
+            {
+                "supplier_ref": "|",
+                "description": "PRO-0040",
+                "unit": "|",
+                "quantity": "Cocoa",
+                "unit_price": "Amarga",
+                "total_price": "|",
+            }
+        ],
+        "line_item_page_groups": [
+            {
+                "source_page": 2,
+                "headers": [
+                    "item",
+                    "codigo",
+                    "descripcion",
+                    "unidad",
+                    "cantidad",
+                    "p. unitario",
+                    "importe",
+                ],
+                "headers_norm": [
+                    "",
+                    "supplier_ref",
+                    "description",
+                    "unit",
+                    "quantity",
+                    "unit_price",
+                    "total_price",
+                ],
+                "line_items": [
+                    {
+                        "supplier_ref": "|",
+                        "description": "PRO-0040",
+                        "unit": "|",
+                        "quantity": "Cocoa",
+                        "unit_price": "Amarga",
+                        "total_price": "|",
+                    }
+                ],
+            }
+        ],
+    }
+    fallback = {
+        "line_items": [
+            {
+                "supplier_ref": "PRO-0040",
+                "description": "Cocoa Amarga",
+                "unit": "g",
+                "quantity": "45,000 g",
+                "unit_price": "$ 0.0059",
+                "total_price": "$ 265.50",
+            }
+        ],
+        "line_item_page_groups": [
+            {
+                "source_page": 2,
+                "headers": [
+                    "item",
+                    "codigo",
+                    "descripcion",
+                    "unidad",
+                    "cantidad",
+                    "p. unitario",
+                    "importe",
+                ],
+                "headers_norm": [
+                    "",
+                    "supplier_ref",
+                    "description",
+                    "unit",
+                    "quantity",
+                    "unit_price",
+                    "total_price",
+                ],
+                "line_items": [
+                    {
+                        "extra_columns": {"item": "14"},
+                        "supplier_ref": "PRO-0040",
+                        "description": "Cocoa Amarga",
+                        "unit": "g",
+                        "quantity": "45,000 g",
+                        "unit_price": "$ 0.0059",
+                        "total_price": "$ 265.50",
+                    }
+                ],
+            }
+        ],
+    }
+
+    changed = _merge_text_fallback_fields(base, fallback)
+
+    assert changed is True
+    assert base["line_items"][0]["supplier_ref"] == "PRO-0040"
+    assert base["line_items"][0]["description"] == "Cocoa Amarga"
+    assert base["line_items"][0]["quantity"] == "45,000 g"
+    assert base["line_items"][0]["unit_price"] == "$ 0.0059"
+    assert base["line_items"][0]["total_price"] == "$ 265.50"
+    grouped_item = base["line_item_page_groups"][0]["line_items"][0]
+    assert grouped_item["description"] == "Cocoa Amarga"
+    assert grouped_item["unit"] == "g"
+
+
+@pytest.mark.no_db
 def test_sanitize_text_fallback_fields_drops_noisy_tax_ids_and_keeps_clean_values():
     fallback = {
         "vendor_tax_id": ":: NORM e T n_n-'buyeme Especial Resolución 04519 . AL 0g _SGs.",

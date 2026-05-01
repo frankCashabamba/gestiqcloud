@@ -3,12 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '../../shared/toast'
 import { getOrder, addOrderItem, updateOrderItem, sendToKitchen, closeOrder, Order, OrderItem } from './services'
 import api from '../../shared/api/client'
-
-interface Product {
-  id: string
-  name: string
-  price: number
-}
+import { filterRestaurantMenuProducts, type RestaurantMenuProduct } from './menuProducts'
 
 export default function OrderView() {
   const { orderId } = useParams<{ orderId: string }>()
@@ -16,7 +11,7 @@ export default function OrderView() {
   const { success, error: showError } = useToast()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<RestaurantMenuProduct[]>([])
   const [search, setSearch] = useState('')
   const [itemNotes, setItemNotes] = useState('')
   const [closePending, setClosePending] = useState(false)
@@ -36,12 +31,15 @@ export default function OrderView() {
   useEffect(() => { load() }, [orderId])
 
   useEffect(() => {
-    api.get('/api/v1/tenant/products', { params: { limit: 200 } })
-      .then(r => setProducts(Array.isArray(r.data) ? r.data : r.data?.items || []))
+    api.get('/api/v1/tenant/products', { params: { limit: 200, active: true } })
+      .then(r => {
+        const payload = Array.isArray(r.data) ? r.data : r.data?.items || []
+        setProducts(filterRestaurantMenuProducts(payload))
+      })
       .catch(() => {})
   }, [])
 
-  const handleAddProduct = async (product: Product) => {
+  const handleAddProduct = async (product: RestaurantMenuProduct) => {
     if (!orderId) return
     try {
       await addOrderItem(orderId, {

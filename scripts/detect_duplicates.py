@@ -354,6 +354,7 @@ class DuplicateDetector:
             report.append(f"{index}. {recommendation}")
 
         report.append("")
+        return "\n".join(report)
 
 
 def main():

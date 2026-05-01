@@ -26,7 +26,7 @@ jobs:
 
     - name: Run duplication detection
       run: |
-        python scripts/detect_duplicates.py > docs/duplication-report.md
+        python scripts/detect_duplicates.py
 
     - name: Upload duplication report
       uses: actions/upload-artifact@v4

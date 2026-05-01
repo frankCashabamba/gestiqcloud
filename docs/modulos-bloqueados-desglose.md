@@ -184,7 +184,7 @@ Mantener desactivado para tenants. Como maximo, uso admin interno con credencial
 1. Cierre/cobro real no existe; debe integrarse con POS, caja y facturacion.
 2. `tax_total = 0.0` sigue hardcodeado.
 3. Sin KDS real.
-4. La busqueda de productos no filtra menu/venta; puede mostrar materias primas.
+4. [HECHO 2026-05-01] La busqueda de productos en `OrderView.tsx` filtra activos vendibles y excluye `is_raw_material`; queda pendiente un catalogo/menu dedicado si Restaurant se activa como modulo real.
 5. [HECHO 2026-05-01] Eliminado el codigo muerto posterior al `raise HTTPException(501)` en `close_order`; el cierre queda explicitamente bloqueado hasta integrar POS/facturacion.
 
 ### Decision
@@ -207,12 +207,12 @@ No activar para produccion. Mantener como beta oculta hasta integrar POS/factura
 
 ### Falta o esta roto
 
-1. Sin feedback de progreso en frontend para uploads largos.
+1. [HECHO 2026-05-01] `UploadPage.tsx` muestra progreso de carga y estado de procesamiento posterior al upload para evitar re-subidas por falta de feedback.
 2. El procesamiento pandas sigue en thread pool de Uvicorn; para volumen alto conviene Celery/background job.
 
 ### Decision
 
-Listo para beta. No esta bloqueado por seguridad core, pero no debe venderse como importador masivo avanzado hasta mejorar progreso y carga en background.
+Listo para beta. No esta bloqueado por seguridad core, pero no debe venderse como importador masivo avanzado hasta mover cargas pesadas a background/Celery.
 
 ---
 
@@ -280,7 +280,7 @@ Candidato beta, no bloqueado por implementacion core. Antes de v1 requiere prueb
 | 6 | Reconciliation | Implementar upload CSV/OFX y validar payloads reales de proveedores |
 | 7 | Reports | Implementar Celery beat para schedules y recalculo nocturno |
 | 8 | Documents | Implementar SpainPack y flujo Quotes/Proformas |
-| 9 | Historical | Progreso frontend y background job para cargas grandes |
+| 9 | Historical | Background job para cargas grandes |
 | 10 | Analytics | Definir alcance de producto o dejarlo oculto |
 
 ### Baja / externa
@@ -289,7 +289,7 @@ Candidato beta, no bloqueado por implementacion core. Antes de v1 requiere prueb
 |---|--------|--------|
 | 11 | Einvoicing | Gestion de certificados BCE/FNMT por tenant |
 | 12 | AI Agent | Sandbox aislada para auto-resolve |
-| 13 | Restaurant | KDS y filtro de menu/productos vendibles |
+| 13 | Restaurant | KDS y catalogo/menu dedicado si se activa como modulo real |
 
 ### Bloqueantes externos
 

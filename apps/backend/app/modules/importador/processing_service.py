@@ -1012,6 +1012,71 @@ def _line_item_has_positive_amount(item: dict[str, Any]) -> bool:
     )
 
 
+def _line_items_quality_score(line_items_value: Any) -> float:
+    items = line_items_value if isinstance(line_items_value, list) else []
+    if not items:
+        return 0.0
+
+    score = 0.0
+    for raw_item in items[:60]:
+        if not isinstance(raw_item, dict):
+            continue
+        item = raw_item
+        description = str(item.get("description") or item.get("concept") or "").strip()
+        supplier_ref = str(item.get("supplier_ref") or item.get("product_code") or "").strip()
+        quantity = safe_floatish(item.get("quantity"))
+        unit_price = safe_floatish(item.get("unit_price"))
+        total_price = safe_floatish(item.get("total_price"))
+        amount = safe_floatish(item.get("amount"))
+        unit = str(item.get("unit") or "").strip()
+
+        if description and description != "|":
+            score += 2.0
+        if supplier_ref and supplier_ref != "|":
+            score += 1.0
+        if unit and unit != "|":
+            score += 0.5
+        if quantity is not None:
+            score += 2.0
+        if unit_price is not None:
+            score += 2.0
+        if total_price is not None or amount is not None:
+            score += 3.0
+        if any(str(value or "").strip() == "|" for value in item.values()):
+            score -= 1.0
+    return score
+
+
+def _line_item_groups_quality_score(groups_value: Any) -> float:
+    groups = groups_value if isinstance(groups_value, list) else []
+    if not groups:
+        return 0.0
+    score = 0.0
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        score += _line_items_quality_score(group.get("line_items"))
+        headers = group.get("headers")
+        headers_norm = group.get("headers_norm")
+        if (
+            isinstance(headers, list)
+            and isinstance(headers_norm, list)
+            and len(headers) == len(headers_norm)
+        ):
+            score += 1.0
+    return score
+
+
+def _should_replace_line_items(current: Any, candidate: Any) -> bool:
+    if not candidate:
+        return False
+    if not current:
+        return True
+    current_score = _line_items_quality_score(current)
+    candidate_score = _line_items_quality_score(candidate)
+    return candidate_score >= max(current_score + 4.0, current_score * 1.35)
+
+
 def _line_item_is_degraded_duplicate(candidate: dict[str, Any], existing: dict[str, Any]) -> bool:
     return not _line_item_has_positive_amount(candidate) and _line_item_has_positive_amount(
         existing
@@ -1067,7 +1132,14 @@ def _merge_text_fallback_fields(
     changed = False
     for key, value in fallback_fields.items():
         if key == "line_items":
-            if value and not datos_extraidos.get(key):
+            if _should_replace_line_items(datos_extraidos.get(key), value):
+                datos_extraidos[key] = value
+                changed = True
+            continue
+        if key == "line_item_page_groups":
+            current_score = _line_item_groups_quality_score(datos_extraidos.get(key))
+            candidate_score = _line_item_groups_quality_score(value)
+            if value and (not datos_extraidos.get(key) or candidate_score > current_score + 4.0):
                 datos_extraidos[key] = value
                 changed = True
             continue

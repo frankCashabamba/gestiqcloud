@@ -104,6 +104,73 @@ function formatLineCellValue(value: unknown): string {
 // Slots numéricos que se alinean a la derecha
 const _NUMERIC_SLOTS = new Set(['quantity', 'unit_price', 'total_price'])
 const _MONO_SLOTS = new Set(['supplier_ref'])
+const FALLBACK_LINE_ITEM_SLOT_ORDER = [
+  'description',
+  'concept',
+  'supplier_ref',
+  'product_code',
+  'barcode',
+  'unit',
+  'quantity',
+  'unit_price',
+  'total_price',
+  'amount',
+]
+
+function fallbackLineItemLabel(slot: string): string {
+  const labels: Record<string, string> = {
+    description: 'Descripcion',
+    concept: 'Concepto',
+    supplier_ref: 'Codigo',
+    product_code: 'Codigo',
+    barcode: 'Barcode',
+    unit: 'Unidad',
+    quantity: 'Cantidad',
+    unit_price: 'Precio unitario',
+    total_price: 'Importe',
+    amount: 'Importe',
+  }
+  return labels[slot] || formatFieldLabel(slot)
+}
+
+export function deriveLineItemPreviewSlots(
+  items: Record<string, unknown>[],
+  configuredSlots: LineItemSlot[],
+): LineItemSlot[] {
+  const slotsWithValues = configuredSlots.filter(s => items.some(i => i[s.slot] != null && String(i[s.slot]).trim() !== ''))
+  if (slotsWithValues.length > 0) return slotsWithValues
+
+  const discovered = new Set<string>()
+  for (const item of items) {
+    for (const [key, value] of Object.entries(item)) {
+      if (key === 'extra_columns') continue
+      if (value == null || String(value).trim() === '') continue
+      discovered.add(key)
+    }
+    const extraColumns = item.extra_columns
+    if (extraColumns && typeof extraColumns === 'object' && !Array.isArray(extraColumns)) {
+      for (const [key, value] of Object.entries(extraColumns as Record<string, unknown>)) {
+        if (value == null || String(value).trim() === '') continue
+        discovered.add(key)
+      }
+    }
+  }
+
+  return Array.from(discovered)
+    .sort((left, right) => {
+      const leftOrder = FALLBACK_LINE_ITEM_SLOT_ORDER.indexOf(left)
+      const rightOrder = FALLBACK_LINE_ITEM_SLOT_ORDER.indexOf(right)
+      const normalizedLeft = leftOrder >= 0 ? leftOrder : FALLBACK_LINE_ITEM_SLOT_ORDER.length
+      const normalizedRight = rightOrder >= 0 ? rightOrder : FALLBACK_LINE_ITEM_SLOT_ORDER.length
+      if (normalizedLeft !== normalizedRight) return normalizedLeft - normalizedRight
+      return left.localeCompare(right)
+    })
+    .map(slot => ({
+      slot,
+      label: fallbackLineItemLabel(slot),
+      field_type: _NUMERIC_SLOTS.has(slot) || slot === 'amount' ? 'numeric' : 'text',
+    }))
+}
 
 function LineItemsPreview({ items, slots, title, subtitle }: {
   items: Record<string, unknown>[]
@@ -111,9 +178,9 @@ function LineItemsPreview({ items, slots, title, subtitle }: {
   title: string
   subtitle?: string
 }) {
-  if (!items.length || !slots.length) return null
-  // Solo mostrar columnas que tengan al menos un valor en los datos
-  const visibleSlots = slots.filter(s => items.some(i => i[s.slot] != null && String(i[s.slot]).trim() !== ''))
+  if (!items.length) return null
+  const visibleSlots = deriveLineItemPreviewSlots(items, slots)
+  if (!visibleSlots.length) return null
   return (
     <div style={{ marginTop: '0.75rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>

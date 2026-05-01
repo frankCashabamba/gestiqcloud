@@ -109,12 +109,20 @@ export async function deleteImport(id: string): Promise<void> {
   await tenantApi.delete(`${BASE}/imports/${id}`)
 }
 
-export async function uploadFile(file: File, importType: string): Promise<HistImport> {
+export async function uploadFile(
+  file: File,
+  importType: string,
+  onUploadProgress?: (percent: number) => void,
+): Promise<HistImport> {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('import_type', importType)
   const { data } = await tenantApi.post<HistImport>(`${BASE}/upload`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event) => {
+      if (!event.total || !onUploadProgress) return
+      onUploadProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+    },
   })
   return data
 }
