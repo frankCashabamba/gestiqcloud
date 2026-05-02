@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Any, Literal
+from decimal import Decimal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, confloat, constr
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from serial.tools import list_ports
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,30 @@ from ...tspl import (
     send_to_printer,
 )
 
+router = APIRouter()
+logger = logging.getLogger("app.printing")
+
+
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+ShortStr60 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+ShortStr32 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=32)]
+
+MmWidth = Annotated[float, Field(ge=10, le=150)]
+MmHeight = Annotated[float, Field(ge=15, le=120)]
+GapMm = Annotated[float, Field(ge=0.5, le=10)]
+ColumnGapMm = Annotated[float, Field(ge=0, le=20)]
+OffsetMm = Annotated[float, Field(ge=-30, le=30)]
+BarcodeWidth = Annotated[float, Field(ge=1, le=5)]
+Baudrate = Annotated[int, Field(ge=1200, le=115200)]
+Copies = Annotated[int, Field(ge=1, le=20)]
+Columns = Annotated[int, Field(ge=1, le=6)]
+
+PriceAlignment = Literal["left", "center", "right"]
+
+
+def _get_company_settings(tenant_id: str, db: Session) -> CompanySettings | None:
+    return db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+
 
 def build_label_config(
     width_mm: float | None,
@@ -33,6 +58,7 @@ def build_label_config(
     column_gap_mm: float | None = None,
 ) -> LabelConfig:
     config = LabelConfig()
+
     if width_mm is not None:
         config.width_mm = width_mm
     if height_mm is not None:
@@ -43,31 +69,8 @@ def build_label_config(
         config.columns = columns
     if column_gap_mm is not None:
         config.column_gap_mm = column_gap_mm
+
     return config
-
-
-router = APIRouter()
-logger = logging.getLogger("app.printing")
-
-
-class PrintLabelRequest(BaseModel):
-    name: constr(strip_whitespace=True, min_length=1, max_length=60)
-    barcode: constr(strip_whitespace=True, min_length=1, max_length=60)
-    price: constr(strip_whitespace=True, min_length=1, max_length=32) | None = None
-    copies: int = Field(1, ge=1, le=20)
-    width_mm: confloat(gt=0, ge=10, le=150) = Field(50)
-    height_mm: confloat(gt=0, ge=15, le=120) = Field(40)
-    gap_mm: confloat(gt=0, ge=0.5, le=10) = Field(3)
-    columns: int = Field(1, ge=1, le=6)
-    column_gap_mm: confloat(ge=0, le=20) = Field(2)
-    header_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
-    footer_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
-    offset_xmm: confloat(ge=-30, le=30) | None = None
-    offset_ymm: confloat(ge=-30, le=30) | None = None
-    barcode_width: confloat(gt=0, ge=1, le=5) | None = None
-    price_alignment: Literal["left", "center", "right"] | None = None
-    port: str | None = None
-    baudrate: int = Field(9600, ge=1200, le=115200)
 
 
 class PrinterInfo(BaseModel):
@@ -78,25 +81,25 @@ class PrinterInfo(BaseModel):
 
 
 class LabelConfigPayload(BaseModel):
-    width_mm: confloat(gt=0, ge=10, le=150) | None = None
-    height_mm: confloat(gt=0, ge=15, le=120) | None = None
-    gap_mm: confloat(gt=0, ge=0.5, le=10) | None = None
-    columns: int | None = Field(None, ge=1, le=6)
-    column_gap_mm: confloat(ge=0, le=20) | None = None
+    width_mm: MmWidth | None = None
+    height_mm: MmHeight | None = None
+    gap_mm: GapMm | None = None
+    columns: Columns | None = None
+    column_gap_mm: ColumnGapMm | None = None
     show_price: bool | None = None
     show_category: bool | None = None
-    copies: int | None = Field(None, ge=1, le=20)
-    header_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
-    footer_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
-    offset_xmm: confloat(ge=-30, le=30) | None = None
-    offset_ymm: confloat(ge=-30, le=30) | None = None
-    barcode_width: confloat(gt=0, ge=1, le=5) | None = None
-    price_alignment: Literal["left", "center", "right"] | None = None
+    copies: Copies | None = None
+    header_text: ShortStr60 | None = None
+    footer_text: ShortStr60 | None = None
+    offset_xmm: OffsetMm | None = None
+    offset_ymm: OffsetMm | None = None
+    barcode_width: BarcodeWidth | None = None
+    price_alignment: PriceAlignment | None = None
 
 
 class PrintingSettingsRequest(BaseModel):
-    port: constr(strip_whitespace=True, min_length=1)
-    name: constr(strip_whitespace=True, min_length=1) | None = None
+    port: NonEmptyStr
+    name: NonEmptyStr | None = None
     label_config: LabelConfigPayload | None = None
 
 
@@ -117,7 +120,7 @@ class PrinterLabelConfigResponse(BaseModel):
     offset_xmm: float | None = None
     offset_ymm: float | None = None
     barcode_width: float | None = None
-    price_alignment: Literal["left", "center", "right"] | None = None
+    price_alignment: PriceAlignment | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -125,42 +128,75 @@ class PrinterLabelConfigResponse(BaseModel):
 
 
 class SavePrinterLabelConfigRequest(BaseModel):
-    printer_port: constr(strip_whitespace=True, min_length=1)
-    name: constr(strip_whitespace=True, min_length=1, max_length=60)
+    printer_port: NonEmptyStr
+    name: ShortStr60
     label_config: LabelConfigPayload
 
 
 class BatchLabelItem(BaseModel):
-    name: constr(strip_whitespace=True, min_length=1, max_length=60)
-    barcode: constr(strip_whitespace=True, min_length=1, max_length=60)
-    price: constr(strip_whitespace=True, min_length=1, max_length=32) | None = None
-    copies: int = Field(1, ge=1, le=20)
+    name: ShortStr60
+    barcode: ShortStr60
+    price: ShortStr32 | None = None
+    copies: Copies = 1
+
+
+class PrintLabelRequest(BaseModel):
+    name: ShortStr60
+    barcode: ShortStr60
+    price: ShortStr32 | None = None
+    copies: Copies = 1
+
+    width_mm: MmWidth = 50
+    height_mm: MmHeight = 40
+    gap_mm: GapMm = 3
+    columns: Columns = 1
+    column_gap_mm: ColumnGapMm = 2
+
+    header_text: ShortStr60 | None = None
+    footer_text: ShortStr60 | None = None
+    offset_xmm: OffsetMm | None = None
+    offset_ymm: OffsetMm | None = None
+    barcode_width: BarcodeWidth | None = None
+    price_alignment: PriceAlignment | None = None
+
+    port: str | None = None
+    baudrate: Baudrate = 9600
 
 
 class PrintLabelsRequest(BaseModel):
     labels: list[BatchLabelItem]
-    width_mm: confloat(gt=0, ge=10, le=150) = Field(50)
-    height_mm: confloat(gt=0, ge=15, le=120) = Field(40)
-    gap_mm: confloat(gt=0, ge=0.5, le=10) = Field(3)
-    columns: int = Field(1, ge=1, le=6)
-    column_gap_mm: confloat(ge=0, le=20) = Field(2)
-    header_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
-    footer_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
-    offset_xmm: confloat(ge=-30, le=30) | None = None
-    offset_ymm: confloat(ge=-30, le=30) | None = None
-    barcode_width: confloat(gt=0, ge=1, le=5) | None = None
-    price_alignment: Literal["left", "center", "right"] | None = None
+
+    width_mm: MmWidth = 50
+    height_mm: MmHeight = 40
+    gap_mm: GapMm = 3
+    columns: Columns = 1
+    column_gap_mm: ColumnGapMm = 2
+
+    header_text: ShortStr60 | None = None
+    footer_text: ShortStr60 | None = None
+    offset_xmm: OffsetMm | None = None
+    offset_ymm: OffsetMm | None = None
+    barcode_width: BarcodeWidth | None = None
+    price_alignment: PriceAlignment | None = None
+
     port: str | None = None
-    baudrate: int = Field(9600, ge=1200, le=115200)
+    baudrate: Baudrate = 9600
+
+
+class ReceiptSettingsRequest(BaseModel):
+    footer_message: str = "¡Gracias por su compra!"
+    show_tax_breakdown: bool = True
+    show_cashier: bool = True
+    show_customer: bool = True
+    custom_header: str | None = None
+    custom_footer: str | None = None
 
 
 def _resolve_port(tenant_id: str, db: Session, explicit: str | None = None) -> str | None:
     if explicit:
         return explicit
 
-    company_settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    company_settings = _get_company_settings(tenant_id, db)
     if company_settings:
         settings = company_settings.settings or {}
         printing_cfg = settings.get("printing", {})
@@ -178,26 +214,27 @@ def _store_printing_settings(
     name: str | None,
     label_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    company_settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    company_settings = _get_company_settings(tenant_id, db)
     if not company_settings:
         raise HTTPException(status_code=404, detail="Tenant settings not configured yet")
 
-    settings = company_settings.settings or {}
+    settings = dict(company_settings.settings or {})
     printing_cfg = {**settings.get("printing", {}), "port": port, "name": name}
+
     if label_config:
         printing_cfg["label_config"] = label_config
+
     settings["printing"] = printing_cfg
     company_settings.settings = settings
+
     db.add(company_settings)
     db.commit()
+
     return printing_cfg
 
 
 @router.get("/printing/printers", summary="List available serial printers")
 async def list_printers() -> list[PrinterInfo]:
-    ports = list_ports.comports()
     return [
         PrinterInfo(
             port=port.device,
@@ -205,19 +242,19 @@ async def list_printers() -> list[PrinterInfo]:
             description=port.description,
             hwid=port.hwid,
         )
-        for port in ports
+        for port in list_ports.comports()
     ]
 
 
 @router.get("/printing/settings", summary="Get selected printer for tenant")
 def get_printing_settings(
-    tenant_id: str = Depends(ensure_tenant), db: Session = Depends(get_db)
+    tenant_id: str = Depends(ensure_tenant),
+    db: Session = Depends(get_db),
 ) -> dict[str, Any] | None:
-    company_settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    company_settings = _get_company_settings(tenant_id, db)
     if not company_settings:
         return None
+
     settings = company_settings.settings or {}
     return settings.get("printing")
 
@@ -228,7 +265,7 @@ def set_printing_settings(
     tenant_id: str = Depends(ensure_tenant),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    label_cfg = payload.label_config.dict(exclude_none=True) if payload.label_config else None
+    label_cfg = payload.label_config.model_dump(exclude_none=True) if payload.label_config else None
     return _store_printing_settings(tenant_id, db, payload.port, payload.name, label_cfg)
 
 
@@ -247,8 +284,10 @@ def list_printer_label_configurations(
         .filter(PrinterLabelConfiguration.tenant_id == tenant_id)
         .order_by(PrinterLabelConfiguration.created_at.desc())
     )
+
     if port:
         query = query.filter(PrinterLabelConfiguration.printer_port == port)
+
     return query.all()
 
 
@@ -263,6 +302,7 @@ def create_printer_label_configuration(
     db: Session = Depends(get_db),
 ) -> PrinterLabelConfigResponse:
     cfg = payload.label_config
+
     record = PrinterLabelConfiguration(
         tenant_id=tenant_id,
         printer_port=payload.printer_port,
@@ -282,9 +322,11 @@ def create_printer_label_configuration(
         barcode_width=cfg.barcode_width,
         price_alignment=cfg.price_alignment,
     )
+
     db.add(record)
     db.commit()
     db.refresh(record)
+
     return record
 
 
@@ -326,6 +368,7 @@ async def print_label(
         barcode_width=payload.barcode_width,
         price_alignment=payload.price_alignment,
     )
+
     config = build_label_config(
         payload.width_mm,
         payload.height_mm,
@@ -333,13 +376,14 @@ async def print_label(
         payload.columns,
         payload.column_gap_mm,
     )
+
     tspl = build_tspl_payload(label, config)
 
     try:
         send_to_printer(port, tspl, baudrate=payload.baudrate)
     except Exception as exc:  # pragma: no cover - depends on hardware
         logger.exception("Failed sending TSPL label to %s", port)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return {
         "printed": payload.copies,
@@ -347,25 +391,17 @@ async def print_label(
     }
 
 
-class ReceiptSettingsRequest(BaseModel):
-    footer_message: str = "¡Gracias por su compra!"
-    show_tax_breakdown: bool = True
-    show_cashier: bool = True
-    show_customer: bool = True
-    custom_header: str | None = None
-    custom_footer: str | None = None
-
-
 @router.get("/printing/receipt-settings", summary="Get receipt template settings")
 def get_receipt_settings(
-    tenant_id: str = Depends(ensure_tenant), db: Session = Depends(get_db)
+    tenant_id: str = Depends(ensure_tenant),
+    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    company_settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    company_settings = _get_company_settings(tenant_id, db)
     if not company_settings:
         return {}
+
     settings = company_settings.settings or {}
+
     return settings.get(
         "receipt_template",
         {
@@ -383,26 +419,27 @@ def save_receipt_settings(
     tenant_id: str = Depends(ensure_tenant),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    company_settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    company_settings = _get_company_settings(tenant_id, db)
     if not company_settings:
         raise HTTPException(status_code=404, detail="Tenant settings not configured yet")
-    settings = company_settings.settings or {}
-    settings["receipt_template"] = payload.dict()
+
+    settings = dict(company_settings.settings or {})
+    receipt_template = payload.model_dump()
+
+    settings["receipt_template"] = receipt_template
     company_settings.settings = settings
+
     db.add(company_settings)
     db.commit()
-    return payload.dict()
+
+    return receipt_template
 
 
 @router.get("/printing/receipt-preview", summary="Get a sample receipt text preview")
 def get_receipt_preview(
-    tenant_id: str = Depends(ensure_tenant), db: Session = Depends(get_db)
+    tenant_id: str = Depends(ensure_tenant),
+    db: Session = Depends(get_db),
 ) -> dict[str, str]:
-    from datetime import datetime
-    from decimal import Decimal
-
     from app.modules.printing.templates.receipt_80mm import (
         PaymentInfo,
         ReceiptData,
@@ -410,20 +447,21 @@ def get_receipt_preview(
         render_receipt_text,
     )
 
-    company_settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
-    cfg = {}
+    company_settings = _get_company_settings(tenant_id, db)
+
+    cfg: dict[str, Any] = {}
     company_name = "Mi Empresa S.A."
     company_address = "Av. Principal 123, Ciudad"
     company_ruc = "1234567890001"
+
     if company_settings:
-        s = company_settings.settings or {}
-        general = s.get("general", {})
+        settings = company_settings.settings or {}
+        general = settings.get("general", {})
+
         company_name = general.get("company_name", company_name)
         company_address = general.get("address", company_address)
         company_ruc = general.get("ruc", company_ruc)
-        cfg = s.get("receipt_template", {})
+        cfg = settings.get("receipt_template", {})
 
     data = ReceiptData(
         receipt_number="R-000123",
@@ -467,23 +505,22 @@ async def print_labels_batch(
             detail="No printer port configured; specify `port` or set PRINTING_PORT.",
         )
 
-    expanded_labels: list[ProductLabel] = []
-    for item in payload.labels:
-        for _ in range(item.copies):
-            expanded_labels.append(
-                ProductLabel(
-                    name=item.name,
-                    barcode=item.barcode,
-                    price=item.price,
-                    copies=1,
-                    header_text=payload.header_text,
-                    footer_text=payload.footer_text,
-                    offset_xmm=payload.offset_xmm,
-                    offset_ymm=payload.offset_ymm,
-                    barcode_width=payload.barcode_width,
-                    price_alignment=payload.price_alignment,
-                )
-            )
+    expanded_labels = [
+        ProductLabel(
+            name=item.name,
+            barcode=item.barcode,
+            price=item.price,
+            copies=1,
+            header_text=payload.header_text,
+            footer_text=payload.footer_text,
+            offset_xmm=payload.offset_xmm,
+            offset_ymm=payload.offset_ymm,
+            barcode_width=payload.barcode_width,
+            price_alignment=payload.price_alignment,
+        )
+        for item in payload.labels
+        for _ in range(item.copies)
+    ]
 
     if not expanded_labels:
         raise HTTPException(status_code=400, detail="No labels to print.")
@@ -495,13 +532,14 @@ async def print_labels_batch(
         payload.columns,
         payload.column_gap_mm,
     )
+
     tspl = build_tspl_payload_for_labels(expanded_labels, config)
 
     try:
         send_to_printer(port, tspl, baudrate=payload.baudrate)
     except Exception as exc:  # pragma: no cover - depends on hardware
         logger.exception("Failed sending TSPL labels to %s", port)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return {
         "printed": len(expanded_labels),

@@ -274,10 +274,22 @@ function isGroupedNumericColumn(rawHeader: string, canonicalHeader: string): boo
 }
 
 function GroupedLineItemsPreview({ group, t }: { group: LineItemPageGroup; t: TFunction }) {
-  const columns = group.headers.map((header, index) => ({
+  const allColumns = group.headers.map((header, index) => ({
     label: header,
     canonical: group.headers_norm[index] || '',
   }))
+
+  // Drop columns whose header is empty AND whose cells are empty across all
+  // rows. These ghost columns appear when the source PDF used pipe/border
+  // characters as separators, leaving blank tokens between the real headers.
+  const columns = allColumns.filter((column) => {
+    if (column.label.trim() || column.canonical.trim()) return true
+    return group.line_items.some((item) => {
+      const value = resolveGroupCellValue(item, column.label, column.canonical)
+      if (value == null) return false
+      return String(value).trim() !== ''
+    })
+  })
 
   if (group.line_items.length === 0 || columns.length === 0) return null
 
@@ -287,7 +299,7 @@ function GroupedLineItemsPreview({ group, t }: { group: LineItemPageGroup; t: TF
         {t('docDetail.groupedPageTitle', { page: group.source_page, count: group.line_items.length })}
       </div>
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
-        {t('docDetail.groupedPageHeaders', { headers: group.headers.join(', ') })}
+        {t('docDetail.groupedPageHeaders', { headers: columns.map((column) => column.label).filter(Boolean).join(', ') })}
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>

@@ -85,6 +85,78 @@ _SECTION_END_PATTERNS: tuple[re.Pattern, ...] = tuple(
     )
 )
 
+# Patrones de filas que NO son ítems de producto sino totales, métodos de pago,
+# referencias o pies de recibo. Se filtran para no contaminar la tabla.
+_NON_PRODUCT_ROW_PATTERNS: tuple[re.Pattern, ...] = tuple(
+    re.compile(p, re.I)
+    for p in (
+        r"^\s*subtotal\b",
+        r"^\s*total\b",
+        r"^\s*totales?\b",
+        r"^\s*iva\b",
+        r"^\s*tax\b",
+        r"^\s*impuesto\b",
+        r"^\s*payment\b",
+        r"^\s*pago\b",
+        r"^\s*metodo\b",
+        r"^\s*method\b",
+        r"^\s*mastercard\b",
+        r"^\s*visa\b",
+        r"^\s*amex\b",
+        r"^\s*american\s+express\b",
+        r"^\s*discover\b",
+        r"^\s*tarjeta\b",
+        r"^\s*card\s+ending\b",
+        r"^\s*ending\s+in\b",
+        r"^\s*see\s+https?://",
+        r"^\s*ver\s+https?://",
+        r"https?://\S+\s*$",
+        r"^\s*page\s+\d",
+        r"^\s*pagina\s+\d",
+        r"^\s*pag\.?\s+\d",
+    )
+)
+
+
+def _is_non_product_row(line: str) -> bool:
+    """True si la línea es un total, método de pago, URL o pie de página."""
+    return any(pattern.search(line) for pattern in _NON_PRODUCT_ROW_PATTERNS)
+
+
+def _item_looks_non_product(item: dict[str, Any]) -> bool:
+    """Detecta items parseados que en realidad son footers / referencias / totales.
+
+    Los parsers verticales arman cada celda desde una línea distinta, por lo que
+    los patrones de ``_is_non_product_row`` no aplican. Aquí concatenamos los
+    valores del item ya armado y revisamos los mismos patrones, además de
+    detectar URLs en cualquier celda.
+    """
+    if not isinstance(item, dict):
+        return False
+    parts: list[str] = []
+    for key, value in item.items():
+        if key == "extra_columns" and isinstance(value, dict):
+            for sub_value in value.values():
+                if sub_value is None:
+                    continue
+                parts.append(str(sub_value))
+            continue
+        if value is None:
+            continue
+        parts.append(str(value))
+    if not parts:
+        return False
+    joined = " ".join(parts).strip()
+    if not joined:
+        return False
+    if _is_non_product_row(joined):
+        return True
+    # Cualquier celda con URL marca el item como no-producto.
+    if any("http://" in p.lower() or "https://" in p.lower() for p in parts):
+        return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -2448,6 +2520,13 @@ def _extract_line_items_by_page_from_text(
         if not page_line_items:
             continue
 
+        # Drop items that, once assembled from vertical cells, look like
+        # references, totals, payment methods or page footers (URLs in any
+        # cell, "See https://...", "Page 1 of 1", etc.).
+        page_line_items = [item for item in page_line_items if not _item_looks_non_product(item)]
+        if not page_line_items:
+            continue
+
         page_groups.append(
             {
                 "source_page": page_number,
@@ -2493,14 +2572,14 @@ def _find_table_header(
                 reverse_prio[norm] = prio
 
     for i, line_norm in enumerate(lines_norm):
-        tokens = re.split(r"\s{2,}|\t+", line_norm)
+        tokens = re.split(r"\s*\|\s*|\s{2,}|\t+", line_norm)
         if len(tokens) < 3:
-            tokens = re.split(r"\s+", line_norm)
+            tokens = re.split(r"\s*\|\s*|\s+", line_norm)
 
         matched_fields: list[str] = []
         raw_names: list[str] = []
         for token in tokens:
-            token_clean = token.strip()
+            token_clean = token.strip().strip("|").strip()
             if not token_clean:
                 continue
             canonical = reverse.get(token_clean)
@@ -2766,6 +2845,9 @@ def _parse_vertical_table(
         if _is_header_repetition(lines, i, column_norms):
             i += len(column_norms)
             continue
+        if _is_non_product_row(line):
+            i += 1
+            continue
         clean.append(line)
         i += 1
 
@@ -2856,15 +2938,25 @@ def _parse_tabular_table(
         if _is_label_line(line_norm, header_set):
             continue
 
-        tokens = re.split(r"\s{2,}|\t+", line)
+        # Skip totals, payment methods, URLs and page footers — they are not
+        # product rows even when the header table parser would otherwise
+        # accept them as such.
+        if _is_non_product_row(line):
+            continue
+
+        tokens = re.split(r"\s*\|\s*|\s{2,}|\t+", line)
         if len(tokens) < 2:
-            tokens = re.split(r"\s{3,}", line)
+            tokens = re.split(r"\s*\|\s*|\s{3,}", line)
         if len(tokens) < 2:
             continue
 
         item: dict[str, Any] = {}
+        # Drop empty tokens produced by adjacent pipe separators so column
+        # alignment matches the header positions instead of inheriting the
+        # blank slots produced by the splitter.
+        tokens = [token for token in tokens if token.strip().strip("|").strip()]
         for j, token in enumerate(tokens):
-            token_val = token.strip().strip("|")
+            token_val = token.strip().strip("|").strip()
             if not token_val:
                 continue
             canonical = matched_fields[j] if j < len(matched_fields) else ""

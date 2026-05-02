@@ -63,17 +63,18 @@ jobs:
         pip install pytest pytest-cov
 
     - name: Run tests for new utilities
+      working-directory: apps/backend
       env:
         TEST_MINIMAL: "1"
       run: |
         # Run tests for BaseCatalogModel
-        pytest apps/backend/tests/test_base_catalog_model.py -v --cov=app.models.base
+        pytest tests/test_base_catalog_model.py -v --cov=app.models.base
 
         # Run tests for validation decorators
-        pytest apps/backend/tests/test_validation_decorators.py -v --cov=app.decorators.validation
+        pytest tests/test_validation_decorators.py -v --cov=app.decorators.validation
 
         # Run tests for schema generator
-        pytest apps/backend/tests/test_schema_generator.py -v --cov=app.utils.schema_generator
+        pytest tests/test_schema_generator.py -v --cov=app.utils.schema_generator
 
     - name: Upload coverage reports
       uses: actions/upload-artifact@v4
@@ -109,25 +110,20 @@ jobs:
     - name: Check for changes
       id: changes
       run: |
-        if git diff --quiet HEAD~1 HEAD; then
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        else
+        if git diff --quiet; then
           echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
 
-    - name: Commit changes
+    - name: Commit and push changes
       if: steps.changes.outputs.has_changes == 'true'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add .
         git commit -m "auto: Apply refactors for code duplication reduction"
-
-    - name: Push changes
-      if: steps.changes.outputs.has_changes == 'true'
-      uses: actions/push@v3
-      with:
-        branch: ${{ github.ref }}
-        token: ${{ secrets.GITHUB_TOKEN }}
+        git push origin HEAD:${GITHUB_REF#refs/heads/}
 
   quality-gate:
     runs-on: ubuntu-latest

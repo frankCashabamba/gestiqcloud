@@ -1296,6 +1296,10 @@ def _extract_contextual_max_amount(content: str) -> float | None:
         re.compile(r"\btarjeta\b"),
         re.compile(r"\befectivo\b"),
         re.compile(r"\bcambio\b"),
+        re.compile(r"\bamount\s+paid\b"),
+        re.compile(r"\bamount\s+due\b"),
+        re.compile(r"\btotal\s+due\b"),
+        re.compile(r"\bgrand\s+total\b"),
     )
     reject_total_patterns = (
         re.compile(r"\bsubtotal\b"),
@@ -1314,8 +1318,23 @@ def _extract_contextual_max_amount(content: str) -> float | None:
         re.compile(r"\breferencia\b"),
         re.compile(r"\baid\b"),
         re.compile(r"\bverificacion\s+usuario\b"),
+        # Identifier / metadata lines that should never be parsed as amounts.
+        re.compile(r"\binvoice\s+number\b"),
+        re.compile(r"\breceipt\s+number\b"),
+        re.compile(r"\bdoc(?:ument)?\s+number\b"),
+        re.compile(r"\bteam\s+name\b"),
+        re.compile(r"\bbilling\s+period\b"),
+        re.compile(r"\bperiod\b"),
+        re.compile(r"\bhttps?://"),
+        re.compile(r"\.com/"),
     )
-    candidates: list[float] = []
+    currency_amount_re = re.compile(
+        r"(?:[$€£]|\bUSD\b|\bEUR\b|\bGBP\b|\bPEN\b|\bS/\.?)\s*\d[\d.,]*",
+        re.IGNORECASE,
+    )
+
+    currency_candidates: list[float] = []
+    plain_candidates: list[float] = []
     for raw_line in str(content or "").splitlines():
         line = " ".join(raw_line.split()).strip()
         if not line:
@@ -1325,13 +1344,20 @@ def _extract_contextual_max_amount(content: str) -> float | None:
             continue
         if any(pattern.search(line_lower) for pattern in reject_total_patterns):
             continue
+        has_currency = bool(currency_amount_re.search(line))
         for amount in _extract_money_like_amounts_from_line(line):
-            if amount > 0:
-                candidates.append(round(amount, 2))
+            if amount <= 0:
+                continue
+            value = round(amount, 2)
+            (currency_candidates if has_currency else plain_candidates).append(value)
 
-    if not candidates:
-        return None
-    return max(candidates)
+    # Prefer values that appear next to a currency symbol; only fall back to
+    # bare numbers when nothing currency-tagged is found.
+    if currency_candidates:
+        return max(currency_candidates)
+    if plain_candidates:
+        return max(plain_candidates)
+    return None
 
 
 def _extract_issue_date_from_ocr(content: str) -> str | None:
@@ -1358,20 +1384,50 @@ def _extract_issue_date_from_ocr(content: str) -> str | None:
         return f"{ymd_match.group(1)}-{ymd_match.group(2)}-{ymd_match.group(3)}"
 
     normalized = _normalize_evidence_text(text)
+    ai_runtime = load_ai_runtime_config(None)
+
     written_match = re.search(
         r"\b(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(20\d{2})\b",
         normalized,
     )
-    if not written_match:
-        return None
-    ai_runtime = load_ai_runtime_config(None)
-    month_map = ai_runtime.get("ocr_written_months") or {}
-    month = month_map.get(written_match.group(2))
-    if month is None:
-        return None
-    day = int(written_match.group(1))
-    year = int(written_match.group(3))
-    return f"{year:04d}-{month:02d}-{day:02d}"
+    if written_match:
+        month_map = ai_runtime.get("ocr_written_months") or {}
+        month = month_map.get(written_match.group(2))
+        if month is not None:
+            day = int(written_match.group(1))
+            year = int(written_match.group(3))
+            return f"{year:04d}-{month:02d}-{day:02d}"
+
+    # English written-out dates: "August 3, 2025", "Aug 3 2025", "3 August 2025",
+    # "Date paid August 3, 2025", "Date of issue: 03 Aug 2025".
+    en_month_map = ai_runtime.get("ocr_written_months_en") or {}
+    if en_month_map:
+        month_alt = "|".join(sorted((re.escape(m) for m in en_month_map), key=len, reverse=True))
+        en_mdy = re.search(
+            rf"\b({month_alt})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(20\d{{2}})\b",
+            normalized,
+        )
+        if en_mdy:
+            month = en_month_map.get(en_mdy.group(1))
+            if month is not None:
+                day = int(en_mdy.group(2))
+                year = int(en_mdy.group(3))
+                if 1 <= day <= 31:
+                    return f"{year:04d}-{month:02d}-{day:02d}"
+
+        en_dmy = re.search(
+            rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({month_alt})\.?,?\s+(20\d{{2}})\b",
+            normalized,
+        )
+        if en_dmy:
+            month = en_month_map.get(en_dmy.group(2))
+            if month is not None:
+                day = int(en_dmy.group(1))
+                year = int(en_dmy.group(3))
+                if 1 <= day <= 31:
+                    return f"{year:04d}-{month:02d}-{day:02d}"
+
+    return None
 
 
 def _extract_tax_id_from_ocr(content: str) -> str | None:
@@ -1659,6 +1715,26 @@ def _extract_vendor_name_from_ocr(
         None,
     )
 
+    # English receipts often place vendor and "Bill to" side by side on the
+    # same line (two-column layout collapsed into text), e.g.
+    # "Render Bill to" / "525 Brannan St ffcashabambac@gmail.com".
+    # Detect that layout and use the prefix before "Bill to" / "Ship to" as a
+    # high-confidence vendor candidate.
+    bill_to_split_re = re.compile(r"^\s*(.+?)\s+(?:bill|ship)\s*to\b", re.IGNORECASE)
+    forced_vendor: str | None = None
+    for line in lines[: min(len(lines), 12)]:
+        m = bill_to_split_re.match(line)
+        if not m:
+            continue
+        prefix = m.group(1).strip(" ,;:-")
+        if not prefix:
+            continue
+        prefix_alpha = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}", prefix)
+        # Accept 1+ alpha word prefix without digits (likely a brand name).
+        if prefix_alpha and not any(ch.isdigit() for ch in prefix):
+            forced_vendor = prefix
+            break
+
     search_limit = min(len(lines), (ruc_index if ruc_index is not None else 10) + 2)
     candidates: list[tuple[float, str]] = []
     for idx, line in enumerate(lines[:search_limit]):
@@ -1683,6 +1759,18 @@ def _extract_vendor_name_from_ocr(
         if normalized.startswith("establecimiento") or normalized.startswith("localidad"):
             continue
 
+        # Reject obvious email / address lines (e.g. bill-to lines that the
+        # column-collapse pulled into the header).
+        if "@" in working:
+            continue
+        if re.search(
+            r"\b\d{2,5}\s+[A-Za-z][A-Za-z\.]*\s+"
+            r"(?:st|street|ave|avenue|blvd|boulevard|rd|road|way|drive|dr|ln|lane|ste|suite)\b",
+            working,
+            re.IGNORECASE,
+        ):
+            continue
+
         alpha_words = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}", working)
         if len(alpha_words) < 2:
             continue
@@ -1704,6 +1792,8 @@ def _extract_vendor_name_from_ocr(
             score -= 4.0
         candidates.append((score, working))
 
+    if forced_vendor:
+        return forced_vendor
     if not candidates:
         return None
     candidates.sort(key=lambda item: item[0], reverse=True)
