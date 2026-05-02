@@ -96,9 +96,13 @@ function createEmptyEditableLineItem(slots: LineItemSlot[]): EditableLineItem {
 
 function formatLineCellValue(value: unknown): string {
   if (value == null) return '-'
-  const text = String(value).trim()
+  const text = String(value).trim().replace(/^\|+$/, '').trim()
   if (!text || text.toLowerCase() === 'nan') return '-'
   return text
+}
+
+function normalizeHeaderLabel(value: unknown): string {
+  return String(value ?? '').trim().replace(/\|/g, '')
 }
 
 // Slots numéricos que se alinean a la derecha
@@ -230,21 +234,34 @@ function resolveGroupCellValue(
       : null
   )
 
-  const canonicalKey = String(canonicalHeader || '').trim()
+  const canonicalKey = normalizeHeaderLabel(canonicalHeader)
   if (canonicalKey) {
     const canonicalValue = item[canonicalKey]
     if (canonicalValue != null && String(canonicalValue).trim() !== '') return canonicalValue
   }
 
-  const rawKey = String(rawHeader || '').trim()
-  if (rawKey && rawKey in item) {
-    const rawValue = item[rawKey]
-    if (rawValue != null && String(rawValue).trim() !== '') return rawValue
-  }
+  const rawKey = normalizeHeaderLabel(rawHeader)
+  if (rawKey) {
+    if (rawKey in item) {
+      const rawValue = item[rawKey]
+      if (rawValue != null && String(rawValue).trim() !== '') return rawValue
+    }
+    if (extraColumns && rawKey in extraColumns) {
+      const extraValue = extraColumns[rawKey]
+      if (extraValue != null && String(extraValue).trim() !== '') return extraValue
+    }
 
-  if (extraColumns && rawKey && rawKey in extraColumns) {
-    const extraValue = extraColumns[rawKey]
-    if (extraValue != null && String(extraValue).trim() !== '') return extraValue
+    const rawKeyParts = rawKey.split(/\s+/).map((part) => part.trim()).filter(Boolean)
+    for (const part of rawKeyParts) {
+      if (part && part in item) {
+        const partValue = item[part]
+        if (partValue != null && String(partValue).trim() !== '') return partValue
+      }
+      if (extraColumns && part && part in extraColumns) {
+        const partValue = extraColumns[part]
+        if (partValue != null && String(partValue).trim() !== '') return partValue
+      }
+    }
   }
 
   return canonicalKey ? item[canonicalKey] : undefined
@@ -270,7 +287,7 @@ function GroupedLineItemsPreview({ group, t }: { group: LineItemPageGroup; t: TF
         {t('docDetail.groupedPageTitle', { page: group.source_page, count: group.line_items.length })}
       </div>
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
-        {t('docDetail.groupedPageHeaders', { headers: group.headers.join(' | ') })}
+        {t('docDetail.groupedPageHeaders', { headers: group.headers.join(', ') })}
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
@@ -353,10 +370,10 @@ export function normalizeLineItemPageGroups(data: Record<string, unknown>): Line
         const rawPage = Number(payload.source_page ?? index + 1)
         const sourcePage = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : index + 1
         const headers = Array.isArray(payload.headers)
-          ? payload.headers.map((value) => String(value ?? '').trim())
+          ? payload.headers.map((value) => normalizeHeaderLabel(value))
           : []
         const headers_norm = Array.isArray(payload.headers_norm)
-          ? payload.headers_norm.map((value) => String(value ?? '').trim())
+          ? payload.headers_norm.map((value) => normalizeHeaderLabel(value))
           : []
         const repaired = repairSplitHeaderRow(headers, headers_norm)
         return {

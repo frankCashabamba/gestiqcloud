@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+from app.modules.importador import text_fallback_extractor
 from app.modules.importador.ai_classifier import (
     _amount_has_monetary_context,
     _extract_labeled_amount,
@@ -1545,6 +1546,20 @@ def test_merge_text_fallback_fields_replaces_degraded_invoice_line_items():
     grouped_item = base["line_item_page_groups"][0]["line_items"][0]
     assert grouped_item["description"] == "Cocoa Amarga"
     assert grouped_item["unit"] == "g"
+
+
+@pytest.mark.no_db
+def test_find_table_header_merges_split_p_unitario_header():
+    field_aliases = {"unit_price": ["p. unitario", "precio unitario", "unitario"]}
+    lines_norm = ["item codigo descripcion unidad cantidad p. unitario importe"]
+
+    result = text_fallback_extractor._find_table_header(lines_norm, field_aliases)
+
+    assert result is not None
+    _, matched_fields, raw_names = result
+    assert "p. unitario" in raw_names
+    assert "unit_price" in matched_fields
+    assert matched_fields[raw_names.index("p. unitario")] == "unit_price"
 
 
 @pytest.mark.no_db

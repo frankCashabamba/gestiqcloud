@@ -97,6 +97,41 @@ def _normalize_label(text: str) -> str:
     return " ".join(normalized.lower().split())
 
 
+def _repair_split_header_tokens(
+    tokens: list[str],
+    matched_fields: list[str],
+    reverse_map: dict[str, str],
+) -> tuple[list[str], list[str]]:
+    """Merge adjacent OCR header tokens when they form a recognized header label."""
+    if len(tokens) < 2 or len(tokens) != len(matched_fields):
+        return tokens, matched_fields
+
+    index = 0
+    while index < len(tokens) - 1:
+        combined = f"{tokens[index]} {tokens[index + 1]}".strip()
+        canonical = reverse_map.get(combined)
+        if canonical:
+            first_known = bool(matched_fields[index])
+            second_known = bool(matched_fields[index + 1])
+            if (
+                not first_known
+                or not second_known
+                or matched_fields[index] == matched_fields[index + 1]
+            ):
+                tokens[index : index + 2] = [combined]
+                matched_fields[index : index + 2] = [canonical]
+                continue
+        elif not matched_fields[index] and not matched_fields[index + 1]:
+            canonical = _generic_header_to_canonical(combined)
+            if canonical:
+                tokens[index : index + 2] = [combined]
+                matched_fields[index : index + 2] = [canonical]
+                continue
+        index += 1
+
+    return tokens, matched_fields
+
+
 def _prepare_lines(ocr_text: str) -> list[str]:
     """Split OCR text into clean lines, preserving originals for value extraction."""
     return [line for line in ocr_text.splitlines() if line.strip()]
@@ -179,6 +214,8 @@ _GENERIC_HEADER_TO_CANONICAL: tuple[tuple[str, str], ...] = (
     ("unit price", "unit_price"),
     ("precio unit", "unit_price"),
     ("p.unit", "unit_price"),
+    ("p. unitario", "unit_price"),
+    ("unitario", "unit_price"),
     ("v.unit", "unit_price"),
     ("unit", "unit_price"),
     ("v.total", "total_price"),
@@ -379,23 +416,26 @@ def _extract_inline_pipe_table(ocr_text: str) -> list[dict[str, Any]]:
         chunk = remaining[offset : offset + row_size]
         row: dict[str, Any] = {}
         for header, value in zip(headers, chunk):
+            clean_value = str(value or "").strip().strip("|")
+            if not clean_value:
+                continue
             canonical = _generic_header_to_canonical(header)
             if canonical == "issue_date":
-                parsed_date = _parse_date(value)
+                parsed_date = _parse_date(clean_value)
                 if parsed_date is not None:
                     row[canonical] = parsed_date
                 else:
-                    row[canonical] = value
+                    row[canonical] = clean_value
             elif canonical in {"quantity", "unit_price", "total_price", "subtotal", "tax_amount"}:
-                parsed_num = _parse_numeric(value)
+                parsed_num = _parse_numeric(clean_value)
                 if parsed_num is not None:
                     row[canonical] = parsed_num
                 else:
-                    row[canonical] = value
+                    row[canonical] = clean_value
             elif canonical:
-                row[canonical] = value
+                row[canonical] = clean_value
             else:
-                row.setdefault("extra_columns", {})[header] = value
+                row.setdefault("extra_columns", {})[header] = clean_value
         if row:
             items.append(row)
 
@@ -2453,7 +2493,7 @@ def _find_table_header(
     for i, line_norm in enumerate(lines_norm):
         tokens = re.split(r"\s{2,}|\t+", line_norm)
         if len(tokens) < 3:
-            continue
+            tokens = re.split(r"\s+", line_norm)
 
         matched_fields: list[str] = []
         raw_names: list[str] = []
@@ -2465,6 +2505,7 @@ def _find_table_header(
             matched_fields.append(canonical or "")
             raw_names.append(token_clean)
 
+        raw_names, matched_fields = _repair_split_header_tokens(raw_names, matched_fields, reverse)
         known_count = sum(1 for f in matched_fields if f)
         if known_count >= 2 and len(raw_names) >= 3:
             matched_fields = _dedupe_header_fields(
@@ -2487,6 +2528,7 @@ def _find_table_header(
             raw_names.append(token_clean)
             matched_fields.append(_generic_header_to_canonical(token_clean) or "")
 
+        raw_names, matched_fields = _repair_split_header_tokens(raw_names, matched_fields, reverse)
         known_count = sum(1 for f in matched_fields if f)
         if known_count >= 2 and len(raw_names) >= 3:
             return i, matched_fields, raw_names
@@ -2751,10 +2793,10 @@ def _parse_vertical_table(
         for j in range(num_cols):
             if j == desc_col_idx and extra_desc:
                 # Fusionar línea actual y siguiente como descripción
-                cell = (clean[src_idx].strip() + " " + clean[src_idx + 1].strip()).strip()
+                cell = (clean[src_idx].strip() + " " + clean[src_idx + 1].strip()).strip().strip("|")
                 src_idx += 2
             else:
-                cell = clean[src_idx].strip()
+                cell = clean[src_idx].strip().strip("|")
                 src_idx += 1
 
             if not cell:
@@ -2818,7 +2860,7 @@ def _parse_tabular_table(
 
         item: dict[str, Any] = {}
         for j, token in enumerate(tokens):
-            token_val = token.strip()
+            token_val = token.strip().strip("|")
             if not token_val:
                 continue
             canonical = matched_fields[j] if j < len(matched_fields) else ""

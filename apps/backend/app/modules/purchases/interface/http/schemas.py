@@ -22,7 +22,16 @@ class PurchaseBase(BaseModel):
     notes: str | None = None
     delivery_date: dt_date | None = None
 
-    @field_validator("supplier_id", "supplier_name", "status", "subtotal", "taxes", "notes", "delivery_date", mode="before")
+    @field_validator(
+        "supplier_id",
+        "supplier_name",
+        "status",
+        "subtotal",
+        "taxes",
+        "notes",
+        "delivery_date",
+        mode="before",
+    )
     @classmethod
     def _blank_to_none(cls, value):
         if isinstance(value, str) and not value.strip():
