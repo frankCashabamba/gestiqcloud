@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -73,8 +73,7 @@ class EInvoiceStatusResponse(BaseModel):
     retry_count: int
     next_retry_at: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SendInvoiceResponse(BaseModel):
@@ -273,8 +272,7 @@ class SRIStatusResponse(BaseModel):
     error_message: str | None = None
     created_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SendSRIRequest(BaseModel):
@@ -308,7 +306,7 @@ async def send_invoice_to_sri(
 
         SRIService.get_settings(db, _UUID(str(tenant_id)), "EC")
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
 
     try:
         from app.workers.einvoicing_tasks import sign_and_send_sri_task

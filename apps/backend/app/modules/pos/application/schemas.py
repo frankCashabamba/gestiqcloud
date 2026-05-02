@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PaymentMethodModel(BaseModel):
@@ -118,8 +118,7 @@ class ShiftResponse(BaseModel):
     opened_at: datetime
     closed_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReceiptResponse(BaseModel):
@@ -140,8 +139,7 @@ class ReceiptResponse(BaseModel):
     paid_at: datetime | None = None
     notes: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReceiptSummaryResponse(BaseModel):
@@ -179,8 +177,7 @@ class NumberingCounterResponse(BaseModel):
     current_no: int
     updated_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HealthResponse(BaseModel):

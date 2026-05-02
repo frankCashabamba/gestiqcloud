@@ -143,7 +143,7 @@ def _validate_role_permissions(
         }
     )
     raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail={
             "code": "invalid_role_permissions",
             "message": "Role contains permissions for modules not contracted by the tenant",

@@ -54,8 +54,7 @@ class PayrollDetailResponse(BaseModel):
     total_deductions: Decimal
     net_salary: Decimal
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EmployeeBaseRequest(BaseModel):
@@ -231,8 +230,7 @@ class PayrollResponse(BaseModel):
     total_net: Decimal
     details: list[PayrollDetailResponse] | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PayrollListResponse(BaseModel):
@@ -262,8 +260,7 @@ class PaymentSlipResponse(BaseModel):
     valid_until: date
     download_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 STATUS_TO_MODEL = {

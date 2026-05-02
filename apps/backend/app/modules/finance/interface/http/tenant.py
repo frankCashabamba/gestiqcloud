@@ -6,7 +6,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -49,8 +49,7 @@ class CashPositionResponse(BaseModel):
     closing_balance: Decimal
     currency: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CashProjectionResponse(BaseModel):
@@ -65,8 +64,7 @@ class CashProjectionResponse(BaseModel):
     projected_balance: Decimal
     scenario: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MultiDayPositionResponse(BaseModel):

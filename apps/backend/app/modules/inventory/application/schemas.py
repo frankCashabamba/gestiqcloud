@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WarehouseModel(BaseModel):
@@ -20,8 +20,7 @@ class WarehouseModel(BaseModel):
     is_active: bool = True
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StockItemModel(BaseModel):
@@ -36,8 +35,7 @@ class StockItemModel(BaseModel):
     min_qty: Decimal = Field(default=Decimal("0"), decimal_places=3)
     last_movement: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StockMoveModel(BaseModel):
@@ -53,8 +51,7 @@ class StockMoveModel(BaseModel):
     notes: str | None = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -119,8 +116,7 @@ class WarehouseResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StockReceiptResponse(BaseModel):

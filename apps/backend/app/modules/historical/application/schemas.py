@@ -6,7 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class HistImportOut(BaseModel):
@@ -24,8 +24,7 @@ class HistImportOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HistSaleOut(BaseModel):
@@ -45,8 +44,7 @@ class HistSaleOut(BaseModel):
     currency: str = "USD"
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HistPurchaseOut(BaseModel):
@@ -66,8 +64,7 @@ class HistPurchaseOut(BaseModel):
     currency: str = "USD"
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HistStockOut(BaseModel):
@@ -82,8 +79,7 @@ class HistStockOut(BaseModel):
     warehouse: str | None = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HistDailySalesOut(BaseModel):
@@ -95,8 +91,7 @@ class HistDailySalesOut(BaseModel):
     avg_ticket: Decimal = Decimal("0")
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HistDashboardOut(BaseModel):

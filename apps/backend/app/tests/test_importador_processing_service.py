@@ -1556,7 +1556,7 @@ def test_find_table_header_merges_split_p_unitario_header():
     result = text_fallback_extractor._find_table_header(lines_norm, field_aliases)
 
     assert result is not None
-    _, matched_fields, raw_names = result
+    _, matched_fields, raw_names, _header_lines = result
     assert "p. unitario" in raw_names
     assert "unit_price" in matched_fields
     assert matched_fields[raw_names.index("p. unitario")] == "unit_price"

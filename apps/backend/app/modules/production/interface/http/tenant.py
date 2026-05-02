@@ -1065,7 +1065,7 @@ async def create_production_order(
         for line_in in order_in.lines:
             if line_in.qty_required <= 0:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="line_qty_required_must_be_positive",
                 )
             line = ProductionOrderLine(

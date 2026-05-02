@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SalesOrderLineModel(BaseModel):
@@ -39,8 +39,7 @@ class CustomerModel(BaseModel):
     email: str | None = None
     tax_id: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -98,8 +97,7 @@ class SalesOrderResponse(BaseModel):
     shipped_at: datetime | None = None
     paid_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SalesOrderSummaryResponse(BaseModel):

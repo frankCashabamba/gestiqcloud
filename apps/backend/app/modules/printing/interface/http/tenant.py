@@ -7,7 +7,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, confloat, constr
+from pydantic import BaseModel, ConfigDict, Field, confloat, constr
 from serial.tools import list_ports
 from sqlalchemy.orm import Session
 
@@ -121,8 +121,7 @@ class PrinterLabelConfigResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SavePrinterLabelConfigRequest(BaseModel):

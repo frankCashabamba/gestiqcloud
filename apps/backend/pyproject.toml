@@ -115,11 +115,14 @@ addopts = [
     "--strict-config",
     "--showlocals",
 ]
+markers = [
+    "no_db: tests que no requieren base de datos",
+]
 filterwarnings = [
     "ignore:.*SwigPyPacked has no __module__ attribute:DeprecationWarning",
     "ignore:.*SwigPyObject has no __module__ attribute:DeprecationWarning",
     "ignore:.*swigvarlink has no __module__ attribute:DeprecationWarning",
-    "ignore:.*PydanticDeprecatedSince20.*class-based `config` is deprecated.*:DeprecationWarning",
+    "ignore:.*pkgutil.find_loader.*deprecated.*:DeprecationWarning:pytesseract.*",
 ]
 
 [tool.coverage.run]

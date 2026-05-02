@@ -2438,7 +2438,7 @@ def _extract_line_items_by_page_from_text(
         if not header_info:
             continue
 
-        header_idx, matched_fields, column_names = header_info
+        header_idx, matched_fields, column_names, _header_lines = header_info
         page_line_items = _extract_line_items_from_text(
             lines,
             lines_norm,
@@ -2470,10 +2470,12 @@ def _extract_line_items_by_page_from_text(
 def _find_table_header(
     lines_norm: list[str],
     field_aliases: dict[str, list[str]],
-) -> tuple[int, list[str], list[str]] | None:
+) -> tuple[int, list[str], list[str], int] | None:
     """Find a table header row by detecting lines with multiple known column aliases.
 
-    Returns (line_index, matched_canonical_fields, raw_column_names) or None.
+    Returns (line_index, matched_canonical_fields, raw_column_names, header_line_count)
+    or None.  ``header_line_count`` is 1 when the header is a single tabular row and
+    equals ``len(raw_column_names)`` when the header is vertical (one word per line).
     """
     # Build reverse map: alias_norm → (canonical_field, priority)
     # Higher priority aliases win when multiple map to the same norm
@@ -2513,7 +2515,7 @@ def _find_table_header(
                 raw_names,
                 reverse_prio,
             )
-            return i, matched_fields, raw_names
+            return i, matched_fields, raw_names, 1
 
     # Fallback genérico para tablas sin alias de BD: preserva encabezados crudos
     # y asigna claves canónicas solo para columnas obvias como fecha/total/cantidad.
@@ -2531,7 +2533,7 @@ def _find_table_header(
         raw_names, matched_fields = _repair_split_header_tokens(raw_names, matched_fields, reverse)
         known_count = sum(1 for f in matched_fields if f)
         if known_count >= 2 and len(raw_names) >= 3:
-            return i, matched_fields, raw_names
+            return i, matched_fields, raw_names, 1
 
     # Fallback: try single-word-per-line header blocks
     # Some OCR outputs put each column header on a separate line
@@ -2570,7 +2572,7 @@ def _find_table_header(
                 header_names,
                 reverse_prio,
             )
-            return start_idx, header_fields, header_names
+            return start_idx, header_fields, header_names, len(header_names)
 
     # Generic fallback: same idea, but with common OCR header tokens even when
     # there is no DB alias coverage for the document.
@@ -2592,7 +2594,7 @@ def _find_table_header(
             else:
                 break
         if sum(1 for f in header_fields if f) >= 2 and len(header_fields) >= 3:
-            return start_idx, header_fields, header_names
+            return start_idx, header_fields, header_names, len(header_names)
 
     return None
 
@@ -2656,9 +2658,9 @@ def _extract_line_items_from_text(
     if not header_info:
         return []
 
-    header_idx, matched_fields, column_names = header_info
+    header_idx, matched_fields, column_names, header_line_count = header_info
     num_cols = len(column_names)
-    data_start = header_idx + num_cols  # skip header lines
+    data_start = header_idx + header_line_count  # skip only the actual header lines
 
     # Detect layout: check if the first data lines look like single values per line
     # (vertical layout) or multi-column rows (tabular layout)
@@ -2676,7 +2678,7 @@ def _extract_line_items_from_text(
             footer_patterns=footer_patterns,
         )
     return _parse_tabular_table(
-        lines, lines_norm, header_idx + 1, num_cols, matched_fields, column_names, field_aliases
+        lines, lines_norm, data_start, num_cols, matched_fields, column_names, field_aliases
     )
 
 
@@ -2793,7 +2795,9 @@ def _parse_vertical_table(
         for j in range(num_cols):
             if j == desc_col_idx and extra_desc:
                 # Fusionar línea actual y siguiente como descripción
-                cell = (clean[src_idx].strip() + " " + clean[src_idx + 1].strip()).strip().strip("|")
+                cell = (
+                    (clean[src_idx].strip() + " " + clean[src_idx + 1].strip()).strip().strip("|")
+                )
                 src_idx += 2
             else:
                 cell = clean[src_idx].strip().strip("|")

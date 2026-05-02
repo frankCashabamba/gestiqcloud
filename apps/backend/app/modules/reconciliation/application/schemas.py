@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TransactionItem(BaseModel):
@@ -25,8 +25,8 @@ class ImportStatementRequest(BaseModel):
     statement_date: date
     transactions: list[TransactionItem]
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "bank_name": "Banco Pichincha",
                 "account_number": "2200123456",
@@ -42,6 +42,7 @@ class ImportStatementRequest(BaseModel):
                 ],
             }
         }
+    )
 
 
 class StatementResponse(BaseModel):
@@ -57,8 +58,7 @@ class StatementResponse(BaseModel):
     unmatched_count: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StatementListResponse(BaseModel):
@@ -84,8 +84,7 @@ class StatementLineResponse(BaseModel):
     matched_invoice_id: UUID | None = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ManualMatchRequest(BaseModel):

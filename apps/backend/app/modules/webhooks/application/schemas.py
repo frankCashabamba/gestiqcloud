@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from app.modules.webhooks.domain.models import EventType
 
@@ -15,14 +15,15 @@ class CreateWebhookRequest(BaseModel):
     target_url: HttpUrl = Field(..., description="HTTP endpoint URL")
     secret: str = Field(..., min_length=8, description="HMAC secret (min 8 chars)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "event_type": "invoice.created",
                 "target_url": "https://example.com/webhooks/invoice",
                 "secret": "my-secret-key-12345",
             }
         }
+    )
 
 
 class UpdateWebhookRequest(BaseModel):
@@ -34,8 +35,7 @@ class UpdateWebhookRequest(BaseModel):
     retry_count: int | None = Field(None, ge=1, le=10)
     timeout_seconds: int | None = Field(None, ge=5, le=300)
 
-    class Config:
-        json_schema_extra = {"example": {"is_active": True, "retry_count": 5}}
+    model_config = ConfigDict(json_schema_extra={"example": {"is_active": True, "retry_count": 5}})
 
 
 class WebhookResponse(BaseModel):
@@ -57,8 +57,7 @@ class WebhookResponse(BaseModel):
     # It is loaded from the ORM object only to compute `secret_masked`.
     secret: str | None = Field(default=None, exclude=True, repr=False)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="after")
     def _mask_secret(self) -> "WebhookResponse":
@@ -92,8 +91,7 @@ class DeliveryResponse(BaseModel):
     created_at: datetime
     completed_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeliveryListResponse(BaseModel):
