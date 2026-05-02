@@ -66,8 +66,12 @@ def _create_paid_receipt(db, tenant_id: uuid.UUID, number: str) -> uuid.UUID:
 
 
 def test_tenant_backfill_rejects_cross_tenant_receipt(db):
-    tenant_a = Tenant(id=uuid.uuid4(), name="A", slug=f"a-{uuid.uuid4().hex[:6]}", base_currency="USD")
-    tenant_b = Tenant(id=uuid.uuid4(), name="B", slug=f"b-{uuid.uuid4().hex[:6]}", base_currency="USD")
+    tenant_a = Tenant(
+        id=uuid.uuid4(), name="A", slug=f"a-{uuid.uuid4().hex[:6]}", base_currency="USD"
+    )
+    tenant_b = Tenant(
+        id=uuid.uuid4(), name="B", slug=f"b-{uuid.uuid4().hex[:6]}", base_currency="USD"
+    )
     db.add_all([tenant_a, tenant_b])
     db.commit()
 
@@ -85,8 +89,12 @@ def test_tenant_backfill_rejects_cross_tenant_receipt(db):
 
 
 def test_admin_backfill_rejects_cross_tenant_receipt(db):
-    tenant_a = Tenant(id=uuid.uuid4(), name="A2", slug=f"a2-{uuid.uuid4().hex[:6]}", base_currency="USD")
-    tenant_b = Tenant(id=uuid.uuid4(), name="B2", slug=f"b2-{uuid.uuid4().hex[:6]}", base_currency="USD")
+    tenant_a = Tenant(
+        id=uuid.uuid4(), name="A2", slug=f"a2-{uuid.uuid4().hex[:6]}", base_currency="USD"
+    )
+    tenant_b = Tenant(
+        id=uuid.uuid4(), name="B2", slug=f"b2-{uuid.uuid4().hex[:6]}", base_currency="USD"
+    )
     db.add_all([tenant_a, tenant_b])
     db.commit()
 
@@ -115,8 +123,12 @@ def test_admin_backfill_candidates_are_tenant_scoped(db):
     )
     db.commit()
 
-    tenant_a = Tenant(id=uuid.uuid4(), name="A3", slug=f"a3-{uuid.uuid4().hex[:6]}", base_currency="USD")
-    tenant_b = Tenant(id=uuid.uuid4(), name="B3", slug=f"b3-{uuid.uuid4().hex[:6]}", base_currency="USD")
+    tenant_a = Tenant(
+        id=uuid.uuid4(), name="A3", slug=f"a3-{uuid.uuid4().hex[:6]}", base_currency="USD"
+    )
+    tenant_b = Tenant(
+        id=uuid.uuid4(), name="B3", slug=f"b3-{uuid.uuid4().hex[:6]}", base_currency="USD"
+    )
     db.add_all([tenant_a, tenant_b])
     db.commit()
 
@@ -136,7 +148,9 @@ def test_admin_backfill_candidates_are_tenant_scoped(db):
 
 
 def test_invoice_customer_fallback_failure_does_not_leave_session_aborted(db, monkeypatch):
-    tenant = Tenant(id=uuid.uuid4(), name="A4", slug=f"a4-{uuid.uuid4().hex[:6]}", base_currency="USD")
+    tenant = Tenant(
+        id=uuid.uuid4(), name="A4", slug=f"a4-{uuid.uuid4().hex[:6]}", base_currency="USD"
+    )
     db.add(tenant)
     db.commit()
 

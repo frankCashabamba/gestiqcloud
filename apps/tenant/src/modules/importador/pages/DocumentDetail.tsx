@@ -312,6 +312,31 @@ function GroupedLineItemsPreview({ group, t }: { group: LineItemPageGroup; t: TF
   )
 }
 
+function repairSplitHeaderRow(headers: string[], headersNorm: string[]) {
+  if (headers.length === headersNorm.length + 1) {
+    const mergeCandidates = [
+      { left: 'p.', right: 'unitario', merged: 'p. unitario' },
+    ]
+    for (const candidate of mergeCandidates) {
+      const index = headers.findIndex((value, idx) =>
+        String(value).trim().toLowerCase() === candidate.left
+        && String(headers[idx + 1] ?? '').trim().toLowerCase() === candidate.right
+      )
+      if (index >= 0) {
+        return {
+          headers: [
+            ...headers.slice(0, index),
+            candidate.merged,
+            ...headers.slice(index + 2),
+          ],
+          headers_norm: headersNorm,
+        }
+      }
+    }
+  }
+  return { headers, headers_norm: headersNorm }
+}
+
 export function normalizeLineItemPageGroups(data: Record<string, unknown>): LineItemPageGroup[] {
   const rawGroups = data.line_item_page_groups
   if (Array.isArray(rawGroups)) {
@@ -327,17 +352,20 @@ export function normalizeLineItemPageGroups(data: Record<string, unknown>): Line
         if (items.length === 0) return null
         const rawPage = Number(payload.source_page ?? index + 1)
         const sourcePage = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : index + 1
+        const headers = Array.isArray(payload.headers)
+          ? payload.headers.map((value) => String(value ?? '').trim())
+          : []
+        const headers_norm = Array.isArray(payload.headers_norm)
+          ? payload.headers_norm.map((value) => String(value ?? '').trim())
+          : []
+        const repaired = repairSplitHeaderRow(headers, headers_norm)
         return {
           source_page: sourcePage,
           header_index: Number.isFinite(Number(payload.header_index))
             ? Math.max(0, Math.floor(Number(payload.header_index)))
             : undefined,
-          headers: Array.isArray(payload.headers)
-            ? payload.headers.map((value) => String(value ?? '').trim())
-            : [],
-          headers_norm: Array.isArray(payload.headers_norm)
-            ? payload.headers_norm.map((value) => String(value ?? '').trim())
-            : [],
+          headers: repaired.headers,
+          headers_norm: repaired.headers_norm,
           line_items: items,
         }
       })

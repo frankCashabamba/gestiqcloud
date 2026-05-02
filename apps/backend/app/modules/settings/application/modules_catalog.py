@@ -159,9 +159,9 @@ def _discover_modules_from_fs() -> list[dict[str, Any]]:
         if not manifest.is_file():
             continue
         try:
-            data = json.loads(manifest.read_text(encoding="utf-8"))
-        except Exception:
-            logger.warning("Failed to read %s, skipping", manifest)
+            data = json.loads(manifest.read_text(encoding="utf-8-sig"))
+        except Exception as exc:
+            logger.warning("Failed to read %s, skipping: %s", manifest, exc)
             continue
 
         module_id = str(data.get("id") or child.name).strip()

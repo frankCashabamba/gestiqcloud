@@ -61,7 +61,7 @@ def _seed_plan(db, *, plan_id: str) -> None:
         features_expr = "'{}'::jsonb"
         active_expr = "true"
     else:
-        modules_expr = "'[\"customers\", \"users\", \"einvoicing\"]'"
+        modules_expr = '\'["customers", "users", "einvoicing"]\''
         features_expr = "'{}'"
         active_expr = "1"
 

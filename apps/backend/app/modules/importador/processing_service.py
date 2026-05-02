@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import re
 import time
 import unicodedata
-import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from hashlib import sha1
@@ -742,7 +742,7 @@ def _set_stage_timing(stage_timings: dict[str, int], stage_name: str, started_at
 
 def _build_timing_summary(*, stage_timings: dict[str, int], started_at: float) -> dict[str, Any]:
     merged = {"pre_classify": 0, **stage_timings}
-    merged.setdefault("document_update", 0) # asegurar que document_update siempre esté presente
+    merged.setdefault("document_update", 0)  # asegurar que document_update siempre esté presente
     ordered = {key: merged[key] for key in sorted(merged)}
     return {
         "timings_ms": ordered,
@@ -2269,7 +2269,6 @@ async def _process_run_document(
     recipe_snapshot = _load_snapshot(db, local_snapshot_id)
     cached_analysis = None
     text_cached_analysis_run = None
-    analysis_recipe_config = dict(local_recipe_config or {})
     analysis: dict[str, Any] = {}
 
     if recipe_snapshot:
@@ -2325,6 +2324,8 @@ async def _process_run_document(
         ):
             _rc_for_run["doc_type_hint"] = _cached_type
             _rc_for_run["doc_type_hint_confidence"] = _cached_conf
+
+    analysis_recipe_config = dict(_rc_for_run or {})
 
     # Skip LLM only when we already have a real semantic type from a previous run.
     # "STRUCTURED" and "OTHER" are placeholders, not semantic types: they mean the LLM
@@ -3279,7 +3280,9 @@ async def _process_run_document(
                     )
                     datos_extraidos = rerun_fields
                     local_recipe_config = auto_rc2
-                    analysis["model_used"] = rerun_analysis.get("model_used") or analysis.get("model_used")
+                    analysis["model_used"] = rerun_analysis.get("model_used") or analysis.get(
+                        "model_used"
+                    )
                     analysis["fields"] = rerun_fields
 
     current_snapshot = _load_snapshot(db, local_snapshot_id)
@@ -3415,14 +3418,6 @@ async def _process_run_document(
     if "rerun_analysis" in locals() and isinstance(rerun_analysis, dict):
         model_used = rerun_analysis.get("model_used") or model_used
 
-    print("FINAL DEBUG", {
-    "mode": mode,
-    "model_used_before": model_used,
-    "analysis_model": analysis.get("model_used") if isinstance(analysis, dict) else None,
-    "has_rerun_analysis": "rerun_analysis" in locals(),
-    "rerun_model": rerun_analysis.get("model_used") if "rerun_analysis" in locals() and isinstance(rerun_analysis, dict) else None,
-    "datos_keys": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else None,
-    })    
     crud.update_documento(
         db,
         doc,
@@ -3447,6 +3442,9 @@ async def _process_run_document(
         },
     )
     _set_stage_timing(stage_timings, "document_update", document_update_started_at)
+    raw_ai_json["run"].update(
+        _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
+    )
 
     crud.update_documento(db, doc, {"raw_ai_json": raw_ai_json})
 
@@ -3499,6 +3497,7 @@ async def _process_run_document(
         auto_recipe_name=auto_recipe_name,
         raw_ai_json=raw_ai_json,
     )
+
 
 async def _call_analyze_document_fn(
     analyze_document_fn: AnalyzeDocumentFn,

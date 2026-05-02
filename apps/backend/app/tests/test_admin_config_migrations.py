@@ -94,7 +94,11 @@ def test_schema_migrations_sync_preserves_ignored_rows_until_applied(db, monkeyp
             """
         )
     )
-    schema_id_type = "SERIAL PRIMARY KEY" if db.get_bind().dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    schema_id_type = (
+        "SERIAL PRIMARY KEY"
+        if db.get_bind().dialect.name == "postgresql"
+        else "INTEGER PRIMARY KEY"
+    )
     db.execute(
         text(
             f"""

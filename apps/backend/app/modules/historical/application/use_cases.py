@@ -711,7 +711,8 @@ class UploadHistoricalFileUseCase:
                         "st": _safe_decimal(row.get(sub_col) if sub_col else None),
                         "im": _safe_decimal(row.get(tax_col) if tax_col else None),
                         "tt": _safe_decimal(row.get(total_col) if total_col else None),
-                        "mo": _safe_str(row.get(currency_col) if currency_col else None, 10) or "USD",
+                        "mo": _safe_str(row.get(currency_col) if currency_col else None, 10)
+                        or "USD",
                     },
                 )
                 imported += 1
@@ -771,7 +772,8 @@ class UploadHistoricalFileUseCase:
                         "st": _safe_decimal(row.get(sub_col) if sub_col else None),
                         "im": _safe_decimal(row.get(tax_col) if tax_col else None),
                         "tt": _safe_decimal(row.get(total_col) if total_col else None),
-                        "mo": _safe_str(row.get(currency_col) if currency_col else None, 10) or "USD",
+                        "mo": _safe_str(row.get(currency_col) if currency_col else None, 10)
+                        or "USD",
                     },
                 )
                 imported += 1

@@ -184,18 +184,26 @@ def _load_profiles_from_db(db: Session | None) -> dict[str, RoutingProfileConfig
                 .all()
             )
             for row in rows:
-                profile = RoutingProfileConfig.model_validate(
-                    {
-                        "code": row.code,
-                        "document_type": row.document_type,
-                        "suggested_destination": row.suggested_destination,
-                        "required_groups": row.required_groups or [],
-                        "support_fields": row.support_fields or [],
-                        "explanation_fields": row.explanation_fields or [],
-                        "blocked": bool(row.blocked),
-                        "confidence_threshold": row.confidence_threshold,
-                    }
-                )
+                try:
+                    profile = RoutingProfileConfig.model_validate(
+                        {
+                            "code": row.code,
+                            "document_type": row.document_type,
+                            "suggested_destination": row.suggested_destination,
+                            "required_groups": row.required_groups or [],
+                            "support_fields": row.support_fields or [],
+                            "explanation_fields": row.explanation_fields or [],
+                            "blocked": bool(row.blocked),
+                            "confidence_threshold": row.confidence_threshold,
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Perfil de routing invalido omitido code=%s: %s",
+                        getattr(row, "code", None),
+                        exc,
+                    )
+                    continue
                 profiles[profile.code.upper()] = profile
         except Exception as exc:
             logger.warning("No se pudieron cargar routing profiles desde BD: %s", exc)
@@ -250,7 +258,12 @@ def _load_rules_from_db(
             )
             for row in db_rows:
                 specificity = 0
-                row_tenant_id = str(row.tenant_id) if row.tenant_id else None
+                raw_row_tenant_id = str(row.tenant_id) if row.tenant_id else ""
+                row_tenant_id = (
+                    None
+                    if raw_row_tenant_id in {"", "00000000-0000-0000-0000-000000000000"}
+                    else raw_row_tenant_id
+                )
                 wanted_tenant_id = str(tenant_id) if tenant_id else None
                 row_sector = str(row.sector or "").strip().lower()
 
@@ -263,15 +276,24 @@ def _load_rules_from_db(
                 else:
                     continue
 
-                rules.append(
-                    _build_rule(
+                try:
+                    built = _build_rule(
                         source_kind=row.source_kind,
                         source_key=row.source_key,
                         profile_code=row.profile_code,
                         priority=int(row.priority or 100),
                         specificity=specificity,
                     )
-                )
+                    rules.append(built)
+                except Exception as exc:
+                    logger.warning(
+                        "Regla de routing invalida omitida id=%s source_kind=%s source_key=%s: %s",
+                        getattr(row, "id", None),
+                        getattr(row, "source_kind", None),
+                        getattr(row, "source_key", None),
+                        exc,
+                    )
+                    continue
         except Exception as exc:
             logger.warning("No se pudieron cargar routing rules desde BD: %s", exc)
 
@@ -312,7 +334,6 @@ def resolve_routing_profile_match(
         tenant_id=tenant_id,
         sector_override=sector_override,
     )
-
     if destination_override is not None:
         profile = config.profiles.get(str(destination_override).strip().upper())
         if profile is not None:
@@ -342,7 +363,7 @@ def resolve_routing_profile_match(
                 config.profiles.get(rule.profile_code)
                 or config.profiles.get(rule.profile_code.lower())
                 or config.profiles.get(rule.profile_code.upper())
-                    )
+            )
             if profile is not None:
                 matched_scope: RoutingMatchScope
                 if rule.specificity >= 3:

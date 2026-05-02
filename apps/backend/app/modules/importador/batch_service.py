@@ -626,15 +626,15 @@ async def enqueue_async_batch(
                 has_recipe_context=bool(_rerun_snap_id),
             )
             task_kwargs = {
-                    "doc_id": str(existing.id),
-                    "tenant_id": str(tenant_id),
-                    "user_id": user_id,
-                    "filename": filename,
-                    "tipo_archivo": tipo_archivo,
-                    "recipe_snapshot_id": _rerun_snap_id,
-                    "force": force,
-                    "reprocess_mode": normalized_reprocess_mode,
-                    "reprocess_context": reprocess_context,
+                "doc_id": str(existing.id),
+                "tenant_id": str(tenant_id),
+                "user_id": user_id,
+                "filename": filename,
+                "tipo_archivo": tipo_archivo,
+                "recipe_snapshot_id": _rerun_snap_id,
+                "force": force,
+                "reprocess_mode": normalized_reprocess_mode,
+                "reprocess_context": reprocess_context,
             }
             if hasattr(process_document_task, "apply_async"):
                 process_document_task.apply_async(
@@ -732,15 +732,15 @@ async def enqueue_async_batch(
                 has_recipe_context=bool(_upload_snap_id),
             )
             task_kwargs = {
-                    "doc_id": str(doc.id),
-                    "tenant_id": str(tenant_id),
-                    "user_id": user_id,
-                    "filename": filename,
-                    "tipo_archivo": tipo_archivo,
-                    "recipe_snapshot_id": _upload_snap_id,
-                    "force": force,
-                    "reprocess_mode": normalized_reprocess_mode,
-                    "reprocess_context": {},
+                "doc_id": str(doc.id),
+                "tenant_id": str(tenant_id),
+                "user_id": user_id,
+                "filename": filename,
+                "tipo_archivo": tipo_archivo,
+                "recipe_snapshot_id": _upload_snap_id,
+                "force": force,
+                "reprocess_mode": normalized_reprocess_mode,
+                "reprocess_context": {},
             }
             if hasattr(process_document_task, "apply_async"):
                 process_document_task.apply_async(

@@ -269,22 +269,29 @@ def _truncate_pg_test_db_once(engine) -> None:
         return
 
     with engine.begin() as conn:
+        conn.execute(text("SET LOCAL statement_timeout = 0"))
+        conn.execute(text("SET LOCAL lock_timeout = '10s'"))
         conn.execute(text("SET session_replication_role = replica"))
 
-        tables = conn.execute(
-            text(
-                """
+        tables = (
+            conn.execute(
+                text(
+                    """
                 SELECT tablename
                 FROM pg_tables
                 WHERE schemaname = 'public'
                   AND tablename NOT IN ('schema_migrations')
                 """
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         if tables:
-            quoted = ", ".join(f'"{t}"' for t in tables)
-            conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
+            for i in range(0, len(tables), 40):
+                quoted = ", ".join(f'"{t}"' for t in tables[i : i + 40])
+                conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
 
         conn.execute(text("SET session_replication_role = DEFAULT"))
 
@@ -404,6 +411,8 @@ def db():
         session.close()
         # Keep SQLite schema alive across tests because session-scoped fixtures
         # (e.g. `client`) may execute after other tests and still need tables.
+
+
 @pytest.fixture(autouse=True)
 def clean_db_between_tests(db):
     engine = db.get_bind()

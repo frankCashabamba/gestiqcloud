@@ -31,6 +31,7 @@ export type Purchase = {
 const toApiPayload = (payload: Partial<Purchase>) => ({
   ...payload,
   supplier_id: payload.supplier_id?.toString().trim() ? payload.supplier_id : null,
+  delivery_date: payload.delivery_date?.toString().trim() ? payload.delivery_date : null,
 })
 
 const normalizePurchase = (raw: any): Purchase => ({

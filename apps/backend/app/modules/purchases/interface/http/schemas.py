@@ -1,7 +1,7 @@
 from datetime import date as dt_date
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PurchaseLineCreate(BaseModel):
@@ -22,6 +22,13 @@ class PurchaseBase(BaseModel):
     notes: str | None = None
     delivery_date: dt_date | None = None
 
+    @field_validator("supplier_id", "supplier_name", "status", "subtotal", "taxes", "notes", "delivery_date", mode="before")
+    @classmethod
+    def _blank_to_none(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
 
 class PurchaseCreate(PurchaseBase):
     lines: list[PurchaseLineCreate] = Field(default_factory=list)
@@ -32,6 +39,13 @@ class PurchaseUpdate(BaseModel):
     total: float | None = None
     supplier_id: str | None = None
     status: str | None = None
+
+    @field_validator("date", "supplier_id", "status", mode="before")
+    @classmethod
+    def _blank_to_none(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 class PurchaseOut(BaseModel):

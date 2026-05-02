@@ -1,4 +1,6 @@
+import builtins
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session, joinedload
@@ -96,7 +98,7 @@ class PurchaseRepo:
         supplier_id: str | None,
         total: float,
         status: str | None,
-        lines: list | None = None,
+        lines: builtins.list[Any] | None = None,
         subtotal: float | None = None,
         taxes: float | None = None,
         notes: str | None = None,
