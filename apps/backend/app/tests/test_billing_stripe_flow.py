@@ -287,8 +287,8 @@ def test_stripe_webhook_checkout_completed_upserts_subscription(client, db, monk
         )
     ).first()
     assert row is not None
-    assert row[0] == tenant_id
-    assert row[1] == plan_id
+    assert str(row[0]) == tenant_id
+    assert str(row[1]) == plan_id
     assert row[2] == "active"
     assert row[3] == "monthly"
     assert row[4] == "sub_test_123"

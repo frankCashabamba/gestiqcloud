@@ -1212,6 +1212,41 @@ def _ensure_pg_defaults(engine):
         "ALTER TABLE IF EXISTS products ALTER COLUMN tax_rate SET DEFAULT 0",
         "UPDATE products SET tax_rate = 0 WHERE tax_rate IS NULL",
         "ALTER TABLE IF EXISTS products ALTER COLUMN tax_rate SET NOT NULL",
+        """
+        INSERT INTO imp_routing_profile (
+            code, document_type, description, suggested_destination,
+            required_groups, support_fields, explanation_fields,
+            blocked, confidence_threshold, active
+        ) VALUES
+            ('supplier_invoice', 'supplier_invoice', 'Supplier invoices and purchase bills ready to post into purchases.', 'supplier_invoice',
+             '[["issue_date"], ["total_amount"]]'::jsonb,
+             '["vendor", "vendor_tax_id", "subtotal", "tax_amount", "doc_number", "currency", "line_items"]'::jsonb,
+             '["vendor", "issue_date", "subtotal", "tax_amount", "total_amount"]'::jsonb,
+             false, 0.80, true),
+            ('expense', 'expense', 'Operational expenses and receipts saved into expenses.', 'expense',
+             '[["issue_date"], ["total_amount"], ["concept", "vendor", "doc_number"]]'::jsonb,
+             '["tax_amount", "currency", "payment_method"]'::jsonb,
+             '["concept", "vendor", "issue_date", "tax_amount", "total_amount"]'::jsonb,
+             false, 0.80, true),
+            ('recipe', 'recipe', 'Recipe or costing sheets that can become production recipes.', 'recipe',
+             '[["rows", "line_items"]]'::jsonb, '["doc_number"]'::jsonb, '["rows", "line_items"]'::jsonb,
+             false, 0.80, true),
+            ('other', 'expense', 'Fallback route when a document is not clearly classified.', 'expense',
+             '[["issue_date"], ["total_amount"]]'::jsonb,
+             '["concept", "vendor", "tax_amount"]'::jsonb,
+             '["concept", "vendor", "issue_date", "total_amount"]'::jsonb,
+             false, 0.80, true)
+        ON CONFLICT (code) DO UPDATE SET
+            document_type = EXCLUDED.document_type,
+            description = EXCLUDED.description,
+            suggested_destination = EXCLUDED.suggested_destination,
+            required_groups = EXCLUDED.required_groups,
+            support_fields = EXCLUDED.support_fields,
+            explanation_fields = EXCLUDED.explanation_fields,
+            blocked = EXCLUDED.blocked,
+            confidence_threshold = EXCLUDED.confidence_threshold,
+            active = EXCLUDED.active
+        """,
     ]
 
     with engine.connect() as conn:

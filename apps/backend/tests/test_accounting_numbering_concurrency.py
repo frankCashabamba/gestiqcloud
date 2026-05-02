@@ -68,6 +68,7 @@ def test_generate_entry_number_concurrent_no_duplicates(db, tenant_minimal):
 
     tenant_id = tenant_minimal["tenant_id"]
     bind = db.get_bind()
+    engine = getattr(bind, "engine", bind)
     threads_count = 8
     iters = 5
     numbers: list[str] = []
@@ -75,7 +76,7 @@ def test_generate_entry_number_concurrent_no_duplicates(db, tenant_minimal):
 
     def worker():
         # Cada thread abre su propia conexión/transacción.
-        with bind.connect() as conn:
+        with engine.connect() as conn:
             for _ in range(iters):
                 with conn.begin():
                     # Reusar la lógica vía SQL inline equivalente al servicio.

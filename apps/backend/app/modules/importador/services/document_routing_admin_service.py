@@ -409,7 +409,7 @@ def preview_routing_decision(db: Session, payload: RoutingPreviewRequest) -> Rou
         destination_override=payload.destination_override,
         db=db,
         tenant_id=tenant_id,
-        sector_override=sector_override,
+        sector_override = (payload.sector or "").strip() or None
     )
     resolution = resolve_routing_profile_match(
         db=db,

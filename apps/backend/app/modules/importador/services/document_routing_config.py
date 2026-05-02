@@ -334,11 +334,15 @@ def resolve_routing_profile_match(
         if not source_key:
             continue
         for rule in config.rules:
-            if rule.source_kind != source_kind:
+            if str(rule.source_kind or "").strip().lower() != source_kind:
                 continue
-            if rule.source_key != source_key:
+            if str(rule.source_key or "").strip().upper() != source_key:
                 continue
-            profile = config.profiles.get(rule.profile_code.upper())
+            profile = (
+                config.profiles.get(rule.profile_code)
+                or config.profiles.get(rule.profile_code.lower())
+                or config.profiles.get(rule.profile_code.upper())
+                    )
             if profile is not None:
                 matched_scope: RoutingMatchScope
                 if rule.specificity >= 3:

@@ -625,8 +625,7 @@ async def enqueue_async_batch(
                 reprocess_mode=normalized_reprocess_mode,
                 has_recipe_context=bool(_rerun_snap_id),
             )
-            process_document_task.apply_async(
-                kwargs={
+            task_kwargs = {
                     "doc_id": str(existing.id),
                     "tenant_id": str(tenant_id),
                     "user_id": user_id,
@@ -636,9 +635,14 @@ async def enqueue_async_batch(
                     "force": force,
                     "reprocess_mode": normalized_reprocess_mode,
                     "reprocess_context": reprocess_context,
-                },
-                queue=f"importador_{_rerun_lane}",
-            )
+            }
+            if hasattr(process_document_task, "apply_async"):
+                process_document_task.apply_async(
+                    kwargs=task_kwargs,
+                    queue=f"importador_{_rerun_lane}",
+                )
+            else:
+                process_document_task.delay(**task_kwargs)
             logger.info(
                 "importador.enqueue rerun doc_id=%s lane=%s queue=importador_%s",
                 existing.id,
@@ -727,8 +731,7 @@ async def enqueue_async_batch(
                 reprocess_mode=normalized_reprocess_mode,
                 has_recipe_context=bool(_upload_snap_id),
             )
-            process_document_task.apply_async(
-                kwargs={
+            task_kwargs = {
                     "doc_id": str(doc.id),
                     "tenant_id": str(tenant_id),
                     "user_id": user_id,
@@ -738,9 +741,14 @@ async def enqueue_async_batch(
                     "force": force,
                     "reprocess_mode": normalized_reprocess_mode,
                     "reprocess_context": {},
-                },
-                queue=f"importador_{_upload_lane}",
-            )
+            }
+            if hasattr(process_document_task, "apply_async"):
+                process_document_task.apply_async(
+                    kwargs=task_kwargs,
+                    queue=f"importador_{_upload_lane}",
+                )
+            else:
+                process_document_task.delay(**task_kwargs)
             logger.info(
                 "importador.enqueue upload doc_id=%s lane=%s queue=importador_%s",
                 doc.id,

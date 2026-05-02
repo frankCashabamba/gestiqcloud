@@ -17,12 +17,37 @@ Lo que NO hace:
 from __future__ import annotations
 
 import datetime
+import inspect
 import logging
 import time
 from typing import Any
 from uuid import UUID
 
 logger = logging.getLogger("importador.ai_agent")
+
+
+async def _call_ai_analyze(_ai_analyze, content: str, filename: str, format_hint: str, **kwargs):
+    try:
+        signature = inspect.signature(_ai_analyze)
+    except (TypeError, ValueError):
+        return await _ai_analyze(
+            content=content,
+            filename=filename,
+            format_hint=format_hint,
+            **kwargs,
+        )
+    if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in signature.parameters.values()):
+        filtered_kwargs = kwargs
+    else:
+        filtered_kwargs = {
+            key: value for key, value in kwargs.items() if key in signature.parameters
+        }
+    return await _ai_analyze(
+        content=content,
+        filename=filename,
+        format_hint=format_hint,
+        **filtered_kwargs,
+    )
 
 # Confianza mínima para que la IA sobrescriba un tipo OTHER
 _MIN_AI_CONFIDENCE_FOR_TYPE_OVERRIDE = 0.50
@@ -320,7 +345,8 @@ async def analyze_document_with_ai(
 
     t0 = time.perf_counter()
     try:
-        ai_result = await _ai_analyze(
+        ai_result = await _call_ai_analyze(
+            _ai_analyze,
             content=ocr_text,
             filename=filename,
             format_hint=tipo_archivo,

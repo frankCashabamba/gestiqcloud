@@ -19,7 +19,8 @@ class TestBaseCatalogModel:
     def setup_method(self):
         """Setup test database."""
         self.engine = create_engine("sqlite:///:memory:")
-        BaseCatalogModel.metadata.create_all(self.engine)
+        BusinessType.__table__.create(self.engine, checkfirst=True)
+        BusinessCategory.__table__.create(self.engine, checkfirst=True)
         self.session = Session(self.engine)
 
     def test_business_type_inherits_catalog_fields(self):
@@ -98,7 +99,8 @@ class TestBaseCatalogModelWithoutTenant:
     def setup_method(self):
         """Setup test database."""
         self.engine = create_engine("sqlite:///:memory:")
-        BaseCatalogModelWithoutTenant.metadata.create_all(self.engine)
+        Language.__table__.create(self.engine, checkfirst=True)
+        Currency.__table__.create(self.engine, checkfirst=True)
         self.session = Session(self.engine)
 
     def test_language_without_tenant(self):

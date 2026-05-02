@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, event, select, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -326,6 +326,71 @@ class ImpRoutingRule(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+_DEFAULT_ROUTING_PROFILES = {
+    "supplier_invoice": {
+        "document_type": "supplier_invoice",
+        "description": "Supplier invoices and purchase bills ready to post into purchases.",
+        "suggested_destination": "supplier_invoice",
+        "required_groups": [["issue_date"], ["total_amount"]],
+        "support_fields": [
+            "vendor",
+            "vendor_tax_id",
+            "subtotal",
+            "tax_amount",
+            "doc_number",
+            "currency",
+            "line_items",
+        ],
+        "explanation_fields": [
+            "vendor",
+            "issue_date",
+            "subtotal",
+            "tax_amount",
+            "total_amount",
+        ],
+    },
+    "expense": {
+        "document_type": "expense",
+        "description": "Operational expenses and receipts saved into expenses.",
+        "suggested_destination": "expense",
+        "required_groups": [["issue_date"], ["total_amount"], ["concept", "vendor", "doc_number"]],
+        "support_fields": ["tax_amount", "currency", "payment_method"],
+        "explanation_fields": ["concept", "vendor", "issue_date", "tax_amount", "total_amount"],
+    },
+    "other": {
+        "document_type": "expense",
+        "description": "Fallback route when a document is not clearly classified.",
+        "suggested_destination": "expense",
+        "required_groups": [["issue_date"], ["total_amount"]],
+        "support_fields": ["concept", "vendor", "tax_amount"],
+        "explanation_fields": ["concept", "vendor", "issue_date", "total_amount"],
+    },
+}
+
+
+@event.listens_for(ImpRoutingRule, "before_insert")
+def _ensure_default_routing_profile_for_rule(mapper, connection, target) -> None:
+    del mapper
+    code = str(getattr(target, "profile_code", "") or "").strip()
+    profile = _DEFAULT_ROUTING_PROFILES.get(code)
+    if not profile:
+        return
+    exists = connection.execute(
+        select(ImpRoutingProfile.code).where(ImpRoutingProfile.code == code)
+    ).first()
+    if exists:
+        return
+    connection.execute(
+        ImpRoutingProfile.__table__.insert().values(
+            code=code,
+            blocked=False,
+            confidence_threshold=0.8,
+            active=True,
+            **profile,
+        )
     )
 
 

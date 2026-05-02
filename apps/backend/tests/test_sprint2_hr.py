@@ -1,6 +1,6 @@
 """Tests - HR Module (Sprint 2)"""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -407,7 +407,7 @@ def test_payroll_uses_latest_salary_when_effective_date_is_the_same(
         currency="EUR",
         effective_date=date(2026, 1, 1),
         notes=build_salary_notes("diario"),
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(UTC),
     )
     db.add(latest_salary)
     db.flush()
