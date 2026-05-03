@@ -24,11 +24,40 @@ functions in this file are the new public API that callers should use.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # Local imports are deferred to avoid the circular import between
 # ``ai_classifier`` and ``text_fallback_extractor``: both modules import this
 # one to delegate to the unified extractors.
+
+
+# Column-separator artifact left by the OCR layout reconstruction (see
+# ``ocr_service._reconstruct_page_text_by_words``). Free-form text fields
+# such as vendor or customer names never carry that separator
+# semantically, so we collapse it back into a single space wherever a
+# field-level value is produced.
+_COLUMN_SEP_RE = re.compile(r"\s*\|\s*")
+_MULTI_WS_RE = re.compile(r"\s{2,}")
+
+
+def _strip_column_separators(value: str | None) -> str | None:
+    """Collapse ``"  |  "`` artifacts into a single space.
+
+    Used as a defence-in-depth sanitiser for free-text canonical fields
+    (vendor, customer, address, concept, payment method, …) so the OCR
+    layout markers never reach the UI or downstream consumers.
+    """
+    if value is None:
+        return None
+    text = str(value)
+    if "|" not in text:
+        # Still normalise excessive whitespace from layout reconstruction.
+        cleaned = _MULTI_WS_RE.sub(" ", text).strip()
+        return cleaned or None
+    cleaned = _COLUMN_SEP_RE.sub(" ", text)
+    cleaned = _MULTI_WS_RE.sub(" ", cleaned).strip(" |").strip()
+    return cleaned or None
 
 
 def _ensure_lines(text: str | None, lines: list[str] | None) -> list[str]:
@@ -118,11 +147,12 @@ def extract_vendor_name(
         return None
 
     candidate = _extract_vendor_name_from_ocr(content, ocr_runtime=ocr_runtime)
-    if candidate:
-        return candidate
+    cleaned = _strip_column_separators(candidate)
+    if cleaned:
+        return cleaned
 
     fallback = _infer_concept_from_lines(_ensure_lines(text, lines))
-    return fallback or None
+    return _strip_column_separators(fallback) or None
 
 
 def extract_issue_date(

@@ -2260,6 +2260,16 @@ def extract_fields_from_text(
 
         best = _best_candidate(candidates, spec["type"])
         if best is not None:
+            # Strip residual column-separator artifacts ("  |  ") that the OCR
+            # row-reconstruction may leave for fields whose value spans across
+            # what the PDF rendered as adjacent columns. This keeps text-typed
+            # values (vendor/customer/...) clean even if the text contains
+            # narrow column gaps that were preserved as "|" markers.
+            if spec["type"] == "text" and isinstance(best, str):
+                cleaned = re.sub(r"\s*\|\s*", " ", best)
+                cleaned = re.sub(r"\s+", " ", cleaned).strip(" -:;,|")
+                if cleaned:
+                    best = cleaned
             result[field_name] = best
 
     # Extract line_items from tabular OCR text

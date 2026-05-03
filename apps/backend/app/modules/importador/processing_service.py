@@ -55,8 +55,57 @@ from .schemas import DocumentReviewHintOut, DocumentRoutingDecision
 from .services.document_model_learning_service import should_run_learning_rerun
 from .services.document_routing_agent import build_document_routing_decision
 from .snapshot_learning import build_snapshot_review_hints
+from .field_extractors import _strip_column_separators as _strip_column_separators
 from .text_fallback_extractor import extract_fields_from_text
 from .utils import json_safe as _json_safe
+
+
+# Top-level canonical fields whose values are free-text and never carry
+# the OCR column separator semantically. Sanitised at the persistence
+# boundary so the UI/downstream consumers see clean strings even if some
+# extractor (AI or fallback) propagates layout artifacts like
+# ``"  |  "`` from the OCR text reconstruction.
+_SCALAR_TEXT_FIELDS_TO_SANITISE = (
+    "vendor_name",
+    "vendor_address",
+    "vendor_tax_id",
+    "vendor_email",
+    "vendor_phone",
+    "customer_name",
+    "customer_address",
+    "customer_tax_id",
+    "customer_email",
+    "customer_phone",
+    "doc_number",
+    "doc_type",
+    "currency",
+    "concept",
+    "category",
+    "payment_method",
+    "notes",
+    "observations",
+)
+
+
+def _sanitise_scalar_text_fields(payload: Any) -> Any:
+    """Strip OCR column-separator artifacts from top-level text fields.
+
+    Generic post-processing applied after every extraction path so any
+    layout markers leaked by the OCR text reconstruction (see
+    ``ocr_service._reconstruct_page_text_by_words``) never reach
+    persistence. Only top-level scalar strings on a known set of
+    canonical fields are touched; nested structures (line items, page
+    groups, raw OCR text) are preserved verbatim.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    for key in _SCALAR_TEXT_FIELDS_TO_SANITISE:
+        value = payload.get(key)
+        if isinstance(value, str) and "|" in value:
+            cleaned = _strip_column_separators(value)
+            if cleaned is not None:
+                payload[key] = cleaned
+    return payload
 
 logger = logging.getLogger("importador.processing")
 
@@ -3399,6 +3448,8 @@ async def _process_run_document(
         _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
     )
 
+    if isinstance(datos_extraidos, dict):
+        datos_extraidos = _sanitise_scalar_text_fields(datos_extraidos)
     datos_extraidos = (
         _json_safe(datos_extraidos)
         if isinstance(datos_extraidos, (dict, list))

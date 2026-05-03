@@ -45,7 +45,10 @@ _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
 OCR_EXTRACTION_CACHE_VERSION = (
-    "2026-04-24-1"  # bumped: OCR quality + EasyOCR fallback + candidate normalization
+    # bumped: per-row gap heuristic in _reconstruct_page_text_by_words
+    # invalidates cached extractions that contain spurious "  |  "
+    # column separators between every word.
+    "2026-05-02-1"
 )
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
@@ -893,17 +896,35 @@ def _reconstruct_page_text_by_words(page: Any, *, y_tolerance: int = 3) -> str:
     Soluciona el problema de PyMuPDF donde get_text('text') aplana tablas
     multicolumna en texto columnar. Usar get_text('words') con coordenadas
     permite reconstruir filas horizontales correctamente.
+
+    El separador de columna ``"  |  "`` se inserta sólo cuando un hueco
+    horizontal es estadísticamente distinto del espaciado típico entre
+    palabras de la *misma fila*. La detección combina tres criterios:
+
+    1. **Mediana por fila**: el hueco debe ser sensiblemente mayor que la
+       mediana de huecos de esa fila (``gap > median * 2.5``). Esto evita
+       que cabeceras o títulos con *letter-spacing* decorativo —donde todos
+       los huecos son uniformes— se interpreten como tabla.
+    2. **Anchura de carácter**: el hueco debe superar ~2.5 anchos del
+       carácter medio de la fila, lo que descarta separaciones normales
+       entre palabras (~1 espacio).
+    3. **Mínimo absoluto**: nunca por debajo de ~8 pt para no insertar
+       columnas en separaciones tipográficas mínimas.
+
+    El comportamiento es genérico: se adapta a cada fila sin asumir un DPI
+    o tipografía concretos, por lo que funciona tanto para facturas con
+    tablas reales como para PDFs/imágenes con espaciado decorativo.
     """
     words = page.get_text("words")  # (x0, y0, x1, y1, text, block_no, line_no, word_no)
     if isinstance(words, str):
         return ""
     if not words:
         return ""
-    rows: dict[float, list[tuple[float, str]]] = {}
+    rows: dict[float, list[tuple[float, float, str]]] = {}
     for w in words:
         if not isinstance(w, (list, tuple)) or len(w) < 5:
             return ""
-        x0, y0, text = float(w[0]), float(w[1]), str(w[4])
+        x0, y0, x1, _y1, text = float(w[0]), float(w[1]), float(w[2]), float(w[3]), str(w[4])
         matched: float | None = None
         for ry in rows:
             if abs(y0 - ry) <= y_tolerance:
@@ -912,11 +933,66 @@ def _reconstruct_page_text_by_words(page: Any, *, y_tolerance: int = 3) -> str:
         if matched is None:
             rows[y0] = []
             matched = y0
-        rows[matched].append((x0, text))
+        rows[matched].append((x0, x1, text))
+
+    def _median(values: list[float]) -> float:
+        ordered = sorted(values)
+        n = len(ordered)
+        if n == 0:
+            return 0.0
+        mid = n // 2
+        if n % 2:
+            return ordered[mid]
+        return (ordered[mid - 1] + ordered[mid]) / 2.0
+
     lines: list[str] = []
     for ry in sorted(rows.keys()):
         row_words = sorted(rows[ry], key=lambda t: t[0])
-        lines.append("  |  ".join(t[1] for t in row_words))
+        if not row_words:
+            continue
+
+        # Average character width on this row drives the absolute floor for
+        # the column-gap threshold. Falls back to a generic value when we
+        # cannot measure widths (e.g. zero-width glyphs).
+        widths = [
+            (x1 - x0) / max(len(text), 1)
+            for x0, x1, text in row_words
+            if x1 > x0 and text
+        ]
+        avg_char_w = (sum(widths) / len(widths)) if widths else 4.0
+
+        gaps = [
+            max(0.0, curr[0] - prev[1])
+            for prev, curr in zip(row_words, row_words[1:])
+        ]
+
+        # When there is a single gap (only two words on the row) we cannot
+        # derive a meaningful row baseline; fall back to a conservative
+        # absolute threshold so we don't fabricate spurious columns.
+        if len(gaps) <= 1:
+            absolute_threshold = max(avg_char_w * 4.0, 14.0)
+            parts: list[str] = [row_words[0][2]]
+            for (prev, curr), gap in zip(zip(row_words, row_words[1:]), gaps):
+                sep = "  |  " if gap > absolute_threshold else " "
+                parts.append(sep)
+                parts.append(curr[2])
+            lines.append("".join(parts))
+            continue
+
+        median_gap = _median(gaps)
+        # Per-row threshold: the gap must be both statistically larger than
+        # the typical inter-word gap on this row AND big enough in absolute
+        # terms (so uniform decorative spacing is treated as plain text).
+        relative_threshold = median_gap * 2.5 if median_gap > 0 else 0.0
+        absolute_threshold = max(avg_char_w * 2.5, 8.0)
+        column_gap_threshold = max(relative_threshold, absolute_threshold)
+
+        parts = [row_words[0][2]]
+        for (prev, curr), gap in zip(zip(row_words, row_words[1:]), gaps):
+            sep = "  |  " if gap > column_gap_threshold else " "
+            parts.append(sep)
+            parts.append(curr[2])
+        lines.append("".join(parts))
     return "\n".join(lines)
 
 

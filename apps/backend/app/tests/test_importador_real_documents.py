@@ -648,7 +648,12 @@ class TestVentasSummaryRealPdf:
         )
 
         assert result.get("issue_date") == "2026-03-20"
-        assert abs(float(result.get("total_amount") or 0.0) - 169.0) < 0.01
+        # Expect the last row's "Total" column ($22.34). Earlier extractions
+        # accidentally returned the items count (169.0) because the OCR row
+        # reconstruction injected pipe separators between every word, which
+        # caused the labeled extractor to map columns by index incorrectly.
+        # See ``ocr_service._reconstruct_page_text_by_words``.
+        assert abs(float(result.get("total_amount") or 0.0) - 22.34) < 0.01
 
     @pytest.mark.no_db
     def test_promocion_doc_type_sales_summary(self):
@@ -1031,7 +1036,9 @@ class TestNativeHeuristicsWeakDocs:
         )
 
         assert result.get("issue_date") == "2026-03-20"
-        assert abs(float(result.get("total_amount") or 0.0) - 169.0) < 0.01
+        # Expect the last row's "Total" column ($22.34). Same rationale as
+        # ``TestVentasSummaryRealPdf.test_extrae_issue_date_total_y_line_items``.
+        assert abs(float(result.get("total_amount") or 0.0) - 22.34) < 0.01
 
     @pytest.mark.no_db
     def test_recibos_recupera_transferencias_y_total(self):
