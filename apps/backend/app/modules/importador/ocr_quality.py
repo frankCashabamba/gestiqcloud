@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import re
 from typing import Any
 
@@ -137,3 +138,212 @@ def estimate_text_quality(
         "useful_hits": float(useful_hits),
     }
     return result
+
+
+# ---------------------------------------------------------------------------
+# Combined score (text + structured fields) and plausibility checks.
+# ---------------------------------------------------------------------------
+
+# Tax-id valid lengths across the markets we support today.
+# - Ecuador RUC: 13, CI: 10
+# - Peru RUC: 11
+# - Spain CIF/NIF: 9 (kept as text, length only — letter validation is out of scope)
+# - Colombia NIT: 9-10
+_VALID_TAX_ID_LENGTHS = {9, 10, 11, 13}
+
+# Anything above this for a single document is almost certainly a misread total.
+_MAX_PLAUSIBLE_TOTAL = 10_000_000.0
+
+# Year window for issue dates: docs older than this are usually OCR junk.
+_MIN_PLAUSIBLE_YEAR = 2000
+
+_KEYWORD_HINTS = ("ruc", "nit", "cif", "rfc", "total", "subtotal", "fecha", "factura")
+
+
+def _coerce_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    raw = str(value).strip()
+    if not raw:
+        return None
+    raw = raw.replace("\u00a0", "").replace(" ", "")
+    # Heurística simple: si tiene coma y punto se asume miles + decimal coma o
+    # punto. Si solo tiene coma -> coma decimal. Si solo punto -> punto decimal.
+    if "," in raw and "." in raw:
+        if raw.rfind(",") > raw.rfind("."):
+            raw = raw.replace(".", "").replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+    elif "," in raw:
+        raw = raw.replace(",", ".")
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _coerce_date(value: Any) -> datetime.date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    raw = str(value).strip()
+    if not raw:
+        return None
+    # Common formats; intentionally narrow to avoid false positives.
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y", "%d-%m-%Y", "%Y%m%d"):
+        try:
+            return datetime.datetime.strptime(raw[:10], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _looks_like_tax_id(value: Any) -> bool:
+    raw = re.sub(r"\D", "", str(value or ""))
+    return len(raw) in _VALID_TAX_ID_LENGTHS
+
+
+def _looks_like_positive_number(value: Any) -> bool:
+    num = _coerce_float(value)
+    return num is not None and num > 0
+
+
+def _looks_like_plausible_date(value: Any) -> bool:
+    parsed = _coerce_date(value)
+    if parsed is None:
+        return False
+    today = datetime.date.today()
+    return _MIN_PLAUSIBLE_YEAR <= parsed.year <= today.year + 1
+
+
+def _line_items_consistent(line_items: Any) -> bool:
+    """True if at least one line item has qty * unit_price ≈ total_price (±5%)."""
+    if not isinstance(line_items, list) or not line_items:
+        return False
+    for row in line_items:
+        if not isinstance(row, dict):
+            continue
+        qty = _coerce_float(row.get("quantity"))
+        unit = _coerce_float(row.get("unit_price"))
+        total = _coerce_float(row.get("total_price"))
+        if qty is None or unit is None or total is None:
+            continue
+        expected = qty * unit
+        if abs(expected) < 0.01:
+            continue
+        if abs(total - expected) / abs(expected) <= 0.05:
+            return True
+    return False
+
+
+def has_plausibility_issues(fields: dict[str, Any] | None) -> list[str]:
+    """Return a list of plausibility issue codes for the extracted fields.
+
+    Empty list ⇒ no issues detected. Each code is a short, log-friendly string
+    so it can be appended to ``ImportPipelineDecision.reasons`` without further
+    formatting.
+
+    Detected issues:
+        * ``total_non_positive``      - total_amount ≤ 0
+        * ``total_unrealistic``       - total_amount > 10M (likely OCR misread)
+        * ``date_too_far_future``     - issue_date.year > today.year + 1
+        * ``date_too_far_past``       - issue_date.year < 2000
+        * ``vendor_tax_id_invalid``   - vendor_tax_id length not in {9,10,11,13}
+        * ``customer_tax_id_invalid`` - customer_tax_id length not in {9,10,11,13}
+        * ``line_items_arithmetic_mismatch`` - any row where qty*price ≠ total (>5%)
+    """
+    fields = fields or {}
+    issues: list[str] = []
+
+    total = _coerce_float(fields.get("total_amount"))
+    if total is not None:
+        if total <= 0:
+            issues.append("total_non_positive")
+        elif total > _MAX_PLAUSIBLE_TOTAL:
+            issues.append("total_unrealistic")
+
+    issue_date = _coerce_date(fields.get("issue_date"))
+    if issue_date is not None:
+        today = datetime.date.today()
+        if issue_date.year > today.year + 1:
+            issues.append("date_too_far_future")
+        elif issue_date.year < _MIN_PLAUSIBLE_YEAR:
+            issues.append("date_too_far_past")
+
+    vendor_tax_id = str(fields.get("vendor_tax_id") or "").strip()
+    if vendor_tax_id and not _looks_like_tax_id(vendor_tax_id):
+        issues.append("vendor_tax_id_invalid")
+
+    customer_tax_id = str(fields.get("customer_tax_id") or "").strip()
+    if customer_tax_id and not _looks_like_tax_id(customer_tax_id):
+        issues.append("customer_tax_id_invalid")
+
+    line_items = fields.get("line_items")
+    if isinstance(line_items, list) and line_items:
+        bad = 0
+        for row in line_items:
+            if not isinstance(row, dict):
+                continue
+            qty = _coerce_float(row.get("quantity"))
+            unit = _coerce_float(row.get("unit_price"))
+            tot = _coerce_float(row.get("total_price"))
+            if qty is None or unit is None or tot is None:
+                continue
+            expected = qty * unit
+            if abs(expected) < 0.01:
+                continue
+            ratio = abs(tot - expected) / abs(expected)
+            if ratio > 0.05:
+                bad += 1
+        if bad >= 1:
+            issues.append("line_items_arithmetic_mismatch")
+
+    return issues
+
+
+def ocr_quality_score(
+    text: str,
+    fields: dict[str, Any] | None = None,
+    *,
+    ocr_runtime: dict[str, Any] | None = None,
+) -> float:
+    """Combined OCR quality score in [0.0, 1.0].
+
+    Three weighted components:
+        * 0.50 ``estimate_text_quality`` (length, alpha ratio, useful markers)
+        * 0.20 raw-text keyword presence (RUC, TOTAL, FECHA, …)
+        * 0.30 structured-field signal (presence + plausibility)
+
+    Then a small penalty (capped at -0.25) for each detected plausibility issue.
+
+    A value < 0.7 is the trigger used by the router to escalate to vision_fallback.
+    """
+    base = float(estimate_text_quality(text, ocr_runtime=ocr_runtime).get("score") or 0.0)
+    fields = fields or {}
+
+    lowered = (text or "").lower()
+    keyword_hits = sum(1 for kw in _KEYWORD_HINTS if kw in lowered)
+    keyword_score = min(keyword_hits / 4.0, 1.0)
+
+    field_signals = (
+        _looks_like_positive_number(fields.get("total_amount")),
+        _looks_like_plausible_date(fields.get("issue_date")),
+        _looks_like_tax_id(fields.get("vendor_tax_id")),
+        bool(str(fields.get("vendor") or "").strip()),
+        bool(str(fields.get("doc_number") or "").strip()),
+        _line_items_consistent(fields.get("line_items")),
+    )
+    field_score = sum(1 for ok in field_signals if ok) / float(len(field_signals))
+
+    issues = has_plausibility_issues(fields)
+    penalty = min(0.25, 0.08 * len(issues))
+
+    score = (0.50 * base) + (0.20 * keyword_score) + (0.30 * field_score) - penalty
+    return round(max(0.0, min(1.0, score)), 3)

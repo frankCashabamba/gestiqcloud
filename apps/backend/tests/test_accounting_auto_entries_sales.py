@@ -14,9 +14,8 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
 
-from app.models.accounting.chart_of_accounts import ChartOfAccounts, JournalEntry
+from app.models.accounting.chart_of_accounts import ChartOfAccounts
 from app.models.sales.order import SalesOrder
 from app.modules.sales.application.journal import (
     CODE_AR,

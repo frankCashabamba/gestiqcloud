@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .document_fields import safe_floatish
+from .ocr_quality import has_plausibility_issues
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,6 +224,32 @@ def decide_import_pipeline(
                 "El documento no tiene total, fecha ni lineas utilizables para extraerlo "
                 "automaticamente con seguridad. Edita los datos manualmente o sube una imagen mejor."
             ),
+        )
+
+    # Gate: even when the local parser thinks it has enough evidence, escalate
+    # to the vision LLM (MiniCPM-V) if the OCR quality is low or the extracted
+    # fields show plausibility issues (e.g. negative totals, dates 2 years in
+    # the future, tax ids of wrong length, line items whose qty*price does not
+    # match the total). This prevents silent "confident garbage".
+    plausibility_min_quality = float(
+        processing_cfg.get("pipeline_local_min_quality_score") or 0.70
+    )
+    plausibility_issues = has_plausibility_issues(fields)
+    low_local_quality = quality is not None and quality < plausibility_min_quality
+    if visual and bool(has_vision) and (low_local_quality or plausibility_issues):
+        gate_reasons: list[str] = []
+        if low_local_quality:
+            gate_reasons.append(f"low_local_quality<{plausibility_min_quality:.2f}")
+        if plausibility_issues:
+            gate_reasons.append("plausibility=" + ",".join(plausibility_issues))
+        return ImportPipelineDecision(
+            route="vision_fallback",
+            family=family,
+            action="VISION_FALLBACK",
+            confidence=0.55,
+            force_vision=True,
+            vision_first=quality is None or quality < reject_quality,
+            reasons=(*reasons, "vision_available", *gate_reasons),
         )
 
     if (

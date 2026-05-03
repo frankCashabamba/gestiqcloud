@@ -2,7 +2,6 @@
 Tests for BaseCatalogModel and related utilities.
 """
 
-import pytest
 from datetime import datetime, UTC
 from uuid import uuid4
 

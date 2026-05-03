@@ -29,13 +29,11 @@ import argparse
 import sys
 import os
 from datetime import datetime
-from decimal import Decimal
-from uuid import uuid4
 
 # Ajusta el path para importar la app
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config.database import engine

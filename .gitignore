@@ -17,6 +17,13 @@ desktop.ini
 coverage/
 htmlcov/
 *.log
+*.log.*
+*.log[0-9]
+.testmondata
+admin-eslint.json
+# vite.config.ts source siempre OK; ignoramos salidas tsc accidentales
+apps/*/vite.config.js
+apps/*/vite.config.d.ts
 
 # --- secretos / envs (mantén los .example) ---
 .env

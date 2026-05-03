@@ -416,6 +416,7 @@ _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
     "pipeline_reject_min_words": 45,
     "pipeline_vision_quality_threshold": 0.68,
     "pipeline_local_min_strong_fields": 3,
+    "pipeline_local_min_quality_score": 0.70,
     "structured_output_rows_limit": 200,
     "persist_text_ocr_max_chars": 50000,
     "ai_failure_tokens": ["timeout", "timed out", "unavailable", "connection", "refused", "failed"],
@@ -1647,7 +1648,11 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 config[key] = _float_value(value, float(config[key]), minimum=0.0)
             elif key in {"pre_extract_image_force_ai", "pipeline_reject_low_quality_enabled"}:
                 config[key] = _bool_value(value, bool(config.get(key, True)))
-            elif key in {"pipeline_reject_quality_threshold", "pipeline_vision_quality_threshold"}:
+            elif key in {
+                "pipeline_reject_quality_threshold",
+                "pipeline_vision_quality_threshold",
+                "pipeline_local_min_quality_score",
+            }:
                 config[key] = _float_value(value, float(config[key]), minimum=0.0)
             elif key == "ai_failure_tokens":
                 config[key] = _list_value(value, config[key], uppercase=False)
@@ -1676,7 +1681,11 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
                     config[key] = _bool_value(row.value_text, bool(config.get(key, True)))
                 elif (
                     key
-                    in {"pipeline_reject_quality_threshold", "pipeline_vision_quality_threshold"}
+                    in {
+                        "pipeline_reject_quality_threshold",
+                        "pipeline_vision_quality_threshold",
+                        "pipeline_local_min_quality_score",
+                    }
                     and row.value_text is not None
                 ):
                     config[key] = _float_value(row.value_text, float(config[key]), minimum=0.0)

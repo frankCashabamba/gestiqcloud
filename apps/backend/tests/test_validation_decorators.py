@@ -6,8 +6,7 @@ import pytest
 from uuid import UUID, uuid4
 from unittest.mock import ANY, Mock, patch
 
-from fastapi import HTTPException, Request
-from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 from app.decorators.validation import (
     validate_uuid,

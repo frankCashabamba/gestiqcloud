@@ -3,10 +3,8 @@ Tests for schema generator utility.
 """
 
 import pytest
-from typing import Dict, Type
 
 from pydantic import BaseModel, Field
-from pydantic.config import ConfigDict
 
 from app.utils.schema_generator import (
     create_catalog_schemas,

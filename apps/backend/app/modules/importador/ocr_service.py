@@ -1155,8 +1155,20 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
 
 
 async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
-    """Image: OCR with Tesseract with preprocessing for better results."""
+    """Image: OCR with Tesseract with preprocessing for better results.
+
+    Preprocessing is delegated to :func:`image_preprocess.preprocess_for_ocr`
+    (grayscale → CLAHE → median blur → adaptive threshold). The original color
+    image is preserved for the optional vision LLM fallback (MiniCPM-V), since
+    binarized images are not what the vision model expects.
+
+    If OpenCV is unavailable or any preprocessing stage fails, the function
+    falls back to the previous PIL-only enhancement chain (backwards
+    compatible behavior).
+    """
     from PIL import ImageEnhance
+
+    from .image_preprocess import preprocess_for_ocr
 
     config = _ocr_runtime_config()
     img = Image.open(io.BytesIO(file_bytes))
@@ -1168,31 +1180,36 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
         scale = min(min_width / img.width, 2.0)
         img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
 
-    # CLAHE (Contrast Limited Adaptive Histogram Equalization) para iluminación
-    # irregular (fotos de WhatsApp, escáneres con sombras). Mucho más efectivo que
-    # contraste global para documentos fotografiados en condiciones variables.
-    # Si cv2 no está disponible, cae a la mejora global de Pillow como antes.
-    _clahe_applied = False
-    try:
-        import cv2
-        import numpy as np
+    # Serialize the (possibly resized) image so the preprocess module receives
+    # raw bytes: this keeps the boundary clean and lets the helper own all cv2
+    # logic in one place.
+    #
+    # Adaptive threshold is opt-in here (default off) because aggressive
+    # binarization destroys low-contrast WhatsApp/handwritten notes. The
+    # remaining stages (grayscale + CLAHE + median blur) preserve the previous
+    # behavior plus a light denoise, which is a strict improvement.
+    apply_threshold = bool(config.get("ocr_preprocess_apply_threshold", False))
+    resized_buffer = io.BytesIO()
+    img.convert("RGB").save(resized_buffer, format="PNG")
+    pre_img, pre_meta = preprocess_for_ocr(
+        resized_buffer.getvalue(), apply_threshold=apply_threshold
+    )
 
-        gray = cv2.cvtColor(np.array(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
-        img = Image.fromarray(enhanced).convert("RGB")
-        _clahe_applied = True
-    except Exception:
-        pass
-
-    if not _clahe_applied:
+    if pre_meta.get("applied"):
+        ocr_img = pre_img
+        if not apply_threshold:
+            # Mild sharpen still helps Tesseract on grayscale (no-op when binarized).
+            ocr_img = ImageEnhance.Sharpness(ocr_img).enhance(
+                float(config["image_sharpness"])
+            )
+    else:
         # Fallback: mejora global de contraste/nitidez (comportamiento anterior)
-        img = ImageEnhance.Contrast(img).enhance(float(config["image_contrast"]))
+        ocr_img = ImageEnhance.Contrast(img).enhance(float(config["image_contrast"]))
+        ocr_img = ImageEnhance.Sharpness(ocr_img).enhance(float(config["image_sharpness"]))
+        ocr_img = ocr_img.filter(ImageFilter.SHARPEN)
 
-    img = ImageEnhance.Sharpness(img).enhance(float(config["image_sharpness"]))
-    img = img.filter(ImageFilter.SHARPEN)
-
-    text = _ocr_image(img)
+    text = _ocr_image(ocr_img)
+    # Vision LLM receives the original (color) image, not the binarized one.
     vision_image_bytes = _image_to_jpeg_bytes(img)
     ocr_quality = _estimate_text_quality(text, ocr_runtime=config)
     return {
@@ -1202,6 +1219,7 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
         "format": "IMAGE_OCR",
         "vision_image_bytes": vision_image_bytes,
         "ocr_quality_score": float(ocr_quality.get("score") or 0.0),
+        "preprocess_applied": list(pre_meta.get("applied") or []),
     }
 
 
