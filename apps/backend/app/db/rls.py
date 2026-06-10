@@ -18,63 +18,42 @@ __all__ = [
 ]
 
 
-def _to_str(val) -> str | None:
-    try:
-        if val is None:
-            return None
-        return str(val)
-    except Exception:
-        return None
-
-
 def ensure_rls(
     request: Request,
     db: Session = Depends(get_db),
 ):
     """Setea variables de sesión de Postgres para políticas RLS.
 
-    Requiere que exista `request.state.access_claims` (p.ej. vía with_access_claims)
-    o, en su defecto, `request.state.session` con `tenant_id` y `tenant_user_id`.
-    Falla si la ruta exige RLS pero no hay tenant/user para setear.
+    Resuelve tenant/usuario por la única puerta `get_tenant_context` (claims o,
+    en su defecto, session legacy). Falla si la ruta exige RLS pero no hay
+    tenant/user para setear.
     """
-    tenant_id = None
-    user_id = None
+    from app.core.tenant_context import get_tenant_context
 
-    claims = getattr(request.state, "access_claims", None) or {}
-    if isinstance(claims, dict):
-        tenant_id = claims.get("tenant_id")
-        user_id = claims.get("user_id") or claims.get("sub")
-
-    if tenant_id is None or user_id is None:
-        sess = getattr(request.state, "session", {}) or {}
-        tenant_id = tenant_id or sess.get("tenant_id")
-        user_id = user_id or sess.get("tenant_user_id")
-
-    t_id = _to_str(tenant_id)
-    u_id = _to_str(user_id)
+    ctx = get_tenant_context(request)
+    t_id = str(ctx.tenant_id) if ctx.tenant_id else None
+    u_id = str(ctx.user_id) if ctx.user_id else None
     if t_id is None or u_id is None:
         raise HTTPException(status_code=401, detail="RLS tenant/user context missing")
 
     try:
-        # Usa SET LOCAL para scope de transacción/request
-        # Pero solo en PostgreSQL (SQLite no lo soporta)
+        # SET LOCAL (scope de transacción/request); solo en PostgreSQL.
         try:
             from app.config.database import IS_SQLITE
 
             if not IS_SQLITE:
-                db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
-                db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
+                db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": t_id})
+                db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": u_id})
         except Exception:
-            # Si la BD no es PG, skip SET LOCAL
             pass
 
-        # Expón tenant_id en session.info para hooks/utilidades ORM
+        # Expón el contexto en session.info para hooks/utilidades ORM (after_begin).
         try:
-            db.info["tenant_id"] = str(t_id)
+            db.info["tenant_id"] = t_id
+            db.info["user_id"] = u_id
         except Exception:
             pass
     except Exception as e:
-        # No romper la request si falla el SET, pero log el error
         import logging
 
         logging.error(f"RLS setup failed: {e}")
