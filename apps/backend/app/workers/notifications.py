@@ -228,7 +228,8 @@ def check_expiry_alerts(days_ahead: int = 30):
     """
     from sqlalchemy import text
 
-    with get_db_context() as db:
+    # Barrido cross-tenant (bypass); el envío se delega a send_notification_task por tenant.
+    with system_session() as db:
         # Buscar lotes que caducan en los próximos `days_ahead` días y tienen stock > 0
         rows = db.execute(
             text(
@@ -315,7 +316,9 @@ def check_expiry_alerts(days_ahead: int = 30):
 @shared_task
 def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
     """Notifica al cliente sobre una factura emitida."""
-    with get_db_context() as db:
+    # La task solo recibe invoice_id; se carga por id con sesión de sistema (el
+    # envío real se delega a send_notification_task con el tenant de la factura).
+    with system_session() as db:
         from app.models.core import Invoice
 
         invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
@@ -375,7 +378,8 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
 @shared_task
 def cleanup_old_logs(days: int = 90):
     """Elimina logs de notificaciones enviadas con más de `days` días."""
-    with get_db_context() as db:
+    # Mantenimiento global (todos los tenants) → sesión de sistema.
+    with system_session() as db:
         cutoff = datetime.now(UTC) - timedelta(days=days)
         deleted = (
             db.query(NotificationLog)

@@ -8,7 +8,6 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 import time
 from urllib import error as urlerror

@@ -32,7 +32,7 @@ BACKEND_ROOT = ROOT / "apps" / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from apps.backend.app.config.database import make_db_url
+from apps.backend.app.config.database import make_db_url  # noqa: E402
 VALID_UNITS = {
     "kg",
     "g",

@@ -3,9 +3,8 @@ Employee Department Endpoints - Example using validation decorators
 """
 
 from typing import Any
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db

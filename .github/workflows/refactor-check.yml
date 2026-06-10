@@ -74,15 +74,26 @@ jobs:
         # Use `python -m pytest` so the current working directory is added to
         # sys.path. Otherwise the bridge conftest at tests/conftest.py cannot
         # import `app.tests.conftest` and pytest fails at collection time.
+        #
+        # NOTE: pass the coverage target as a FILE PATH (app/models/base.py), not
+        # a dotted module (app.models.base). With a dotted leaf module, coverage
+        # imports it at startup — before the test conftest sets up the env/paths —
+        # which double-loads SQLAlchemy and aborts collection with
+        # "Type <class 'object'> is already registered". The file-path form
+        # measures the same file without importing it early.
+
+        # These are targeted single-file runs, so override the global
+        # --cov-fail-under=40 gate from pytest.ini (--cov-fail-under=0): the
+        # goal here is per-module coverage reports, not the repo-wide threshold.
 
         # Run tests for BaseCatalogModel
-        python -m pytest tests/test_base_catalog_model.py -v --cov=app.models.base
+        python -m pytest tests/test_base_catalog_model.py -v --cov=app/models/base.py --cov-fail-under=0
 
         # Run tests for validation decorators
-        python -m pytest tests/test_validation_decorators.py -v --cov=app.decorators.validation
+        python -m pytest tests/test_validation_decorators.py -v --cov=app/decorators/validation.py --cov-fail-under=0
 
         # Run tests for schema generator
-        python -m pytest tests/test_schema_generator.py -v --cov=app.utils.schema_generator
+        python -m pytest tests/test_schema_generator.py -v --cov=app/utils/schema_generator.py --cov-fail-under=0
 
     - name: Upload coverage reports
       uses: actions/upload-artifact@v4

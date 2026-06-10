@@ -2,9 +2,7 @@
 Repository sanity checks for db-pipeline CI.
 """
 
-import re
 import subprocess
-import sys
 from pathlib import Path
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"

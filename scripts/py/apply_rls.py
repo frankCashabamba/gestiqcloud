@@ -148,7 +148,7 @@ def apply_rls(conn, schema: str, dry_run: bool = False):
     if not dry_run:
         conn.commit()
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  RLS enabled: {enabled}")
     print(f"  Policies created: {applied}")
     print(f"  Already existed: {skipped_existing}")

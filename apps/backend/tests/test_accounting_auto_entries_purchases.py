@@ -78,8 +78,8 @@ def test_post_purchase_entry_creates_balanced_entry(db, tenant_minimal):
     assert entry.ref_doc_type == "purchase"
     assert entry.debit_total == entry.credit_total
 
-    debits = {l.account_id: l.debit for l in entry.lines if l.debit > 0}
-    credits = {l.account_id: l.credit for l in entry.lines if l.credit > 0}
+    debits = {ln.account_id: ln.debit for ln in entry.lines if ln.debit > 0}
+    credits = {ln.account_id: ln.credit for ln in entry.lines if ln.credit > 0}
     assert accs[CODE_INVENTORY].id in debits
     assert accs[CODE_VAT_INPUT].id in debits
     assert credits[accs[CODE_AP].id] == Decimal("120")

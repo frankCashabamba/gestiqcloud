@@ -205,7 +205,7 @@ class EmployeeDepartmentService:
         """
         return self.db.query(EmployeeDepartment).filter(
             EmployeeDepartment.tenant_id == self.tenant_id,
-            EmployeeDepartment.is_active == True
+            EmployeeDepartment.is_active.is_(True)
         ).count()
 
     def find_by_code(self, code: str) -> Optional[EmployeeDepartment]:
@@ -221,5 +221,5 @@ class EmployeeDepartmentService:
         return self.db.query(EmployeeDepartment).filter(
             EmployeeDepartment.tenant_id == self.tenant_id,
             EmployeeDepartment.code == code,
-            EmployeeDepartment.is_active == True
+            EmployeeDepartment.is_active.is_(True)
         ).first()

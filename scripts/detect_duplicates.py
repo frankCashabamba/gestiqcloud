@@ -4,12 +4,10 @@ Script to detect code duplication patterns in GestiQCloud.
 Analyzes backend models and frontend types to identify opportunities for refactoring.
 """
 
-import ast
-import os
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
-from collections import defaultdict, Counter
+from typing import Dict, List
+from collections import defaultdict
 
 
 class DuplicateDetector:
@@ -270,7 +268,7 @@ class DuplicateDetector:
 
         # Summary
         total_issues = sum(len(findings) for findings in self.findings.values())
-        report.append(f"## Summary")
+        report.append("## Summary")
         report.append(f"- **Total Issues Found**: {total_issues}")
         report.append(f"- **Backend Model Issues**: {len(self.findings['backend_models'])}")
         report.append(f"- **Backend Schema Issues**: {len(self.findings['backend_schemas'])}")

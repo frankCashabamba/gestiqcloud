@@ -4,6 +4,7 @@ Centralized document numbering compatibility service.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -30,7 +31,7 @@ def generar_numero_documento(
     savepoint = None
     try:
         savepoint = db.begin_nested()
-        year = db.execute(text("SELECT EXTRACT(year FROM now())::int")).scalar()
+        year = datetime.now(UTC).year
         num = db.execute(
             text("SELECT public.assign_next_number(CAST(:tenant AS uuid), :tipo, :anio, :serie)"),
             {
@@ -90,7 +91,7 @@ def generar_numero_fallback(
         raise ValueError(f"Tipo de documento desconocido: {tipo}")
     columna_numero = columnas_numero.get(tipo, "numero")
 
-    year = db.execute(text("SELECT EXTRACT(year FROM now())::int")).scalar()
+    year = datetime.now(UTC).year
 
     try:
         result = db.execute(

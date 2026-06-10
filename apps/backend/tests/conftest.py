@@ -1,6 +1,14 @@
 """Bridge fixtures from app test suite for root-level backend tests."""
 
 import os
+import sys
+from pathlib import Path
+
+# Asegura que `apps/backend` esté en sys.path para que `app.*` resuelva sin
+# importar cómo se invoque pytest. El script de consola `pytest` no añade el
+# directorio de trabajo a sys.path (solo `python -m pytest` lo hace) y como
+# `tests/` no es paquete (sin __init__.py), `app` no sería importable.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Debe estar antes de cualquier import de app para que celery_config
 # no intente conectar a Redis durante la recolección de tests.
