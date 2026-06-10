@@ -1075,6 +1075,19 @@ def _ensure_sqlite_stub_tables(engine):
             conn.execute(
                 text(
                     """
+                    CREATE TABLE IF NOT EXISTS journal_sequences (
+                        tenant_id TEXT NOT NULL,
+                        year INTEGER NOT NULL,
+                        last_number INTEGER NOT NULL DEFAULT 0,
+                        updated_at TEXT,
+                        PRIMARY KEY (tenant_id, year)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS imp_review_session (
                         id TEXT PRIMARY KEY,
                         tenant_id TEXT NOT NULL,
