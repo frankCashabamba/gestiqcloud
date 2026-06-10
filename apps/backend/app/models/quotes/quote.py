@@ -18,11 +18,14 @@ import uuid
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, Numeric, String, Text, func
+from sqlalchemy import JSON, Date, DateTime, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import TENANT_UUID, BaseTransactionalModel
+
+# JSONB en PostgreSQL (producción) con fallback a JSON en SQLite (tests).
+JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class QuoteStatus(StrEnum):
@@ -45,7 +48,7 @@ class Quote(BaseTransactionalModel):
     )
 
     # Lines: list[{product_id, name, qty, unit_price, tax_rate, discount_percent, line_total}]
-    lines: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list)
+    lines: Mapped[list[dict]] = mapped_column(JSON_TYPE, nullable=False, default=list)
 
     # Totals
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
