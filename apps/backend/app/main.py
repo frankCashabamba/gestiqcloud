@@ -864,14 +864,10 @@ try:
 except Exception as e:
     _router_logger.error(f"Error mounting Admin Logs router: {e}")
 
-# Notifications
-try:
-    from app.modules.notifications.interface.http.tenant import router as notifications_router
-
-    app.include_router(notifications_router, prefix="/api/v1")
-    _router_logger.info("Notifications router mounted at /api/v1/notifications")
-except Exception as e:
-    _router_logger.error(f"Error mounting Notifications router: {e}")
+# Notifications: se monta vía build_api_router en /api/v1/tenant/notifications.
+# El montaje legacy en /api/v1/notifications se retiró (2026-06-10): duplicaba la
+# superficie sin require_scope y el frontend solo usa /api/v1/tenant/notifications.
+# Ver docs/routes-inventory.md.
 
 # Feature Flags
 try:
@@ -891,14 +887,10 @@ try:
 except Exception as e:
     _router_logger.warning(f"HR router mount failed: {e}")
 
-# Profit Reports
-try:
-    from app.modules.reports.interface.http.profit import router as profit_router
-
-    app.include_router(profit_router, prefix="/api/v1")
-    _router_logger.info("Profit Reports router mounted at /api/v1/reports")
-except Exception as e:
-    _router_logger.warning(f"Profit Reports router mount failed: {e}")
+# Profit Reports: se monta vía build_api_router en /api/v1/tenant/reports/profit.
+# El montaje legacy en /api/v1/reports/profit se retiró (2026-06-10): duplicaba la
+# superficie y el frontend solo usa /api/v1/tenant/reports/profit.
+# Ver docs/routes-inventory.md.
 
 # E-invoicing - Montado por platform/http/router.py (ver línea ~360)
 

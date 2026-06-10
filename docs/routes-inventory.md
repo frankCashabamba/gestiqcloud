@@ -15,18 +15,18 @@
 
 **El frontend usa el prefijo `/api/v1/tenant/...`** (verificado en `apps/tenant/src`, p.ej. `useCompanySectorFullConfig.ts`, `ProductLineInput.tsx`). Los paths sin `/tenant` son **superficie legacy** que el frontend no consume.
 
-## Superficie duplicada (legacy a retirar)
+## Superficie duplicada (legacy)
 
-`app/main.py` monta a mano, además de `build_api_router()`, varios routers con prefix `/api/v1` (sin `/tenant`), duplicando la superficie. Módulos afectados:
+`app/main.py` montaba a mano, además de `build_api_router()`, varios routers con prefix `/api/v1` (sin `/tenant`), duplicando la superficie. Estado tras la validación contra el frontend (2026-06-10):
 
-| Módulo | Path legacy (main.py) | Path canónico (build_api_router) | Monta legacy en |
+| Módulo | Path legacy | Path canónico | Estado |
 |---|---|---|---|
-| hr | `/api/v1/hr/*` | `/api/v1/tenant/hr/*` | `main.py` `hr_router` |
-| notifications | `/api/v1/notifications/*` | `/api/v1/tenant/notifications/*` | `main.py` `notifications_router` |
-| reports/profit | `/api/v1/reports/profit` | `/api/v1/tenant/reports/profit` | `main.py` `profit_router` |
-| products / dashboard / documents / auth | `/api/v1/<x>` | `/api/v1/tenant/<x>` | (revisar origen exacto) |
+| notifications | `/api/v1/notifications/*` | `/api/v1/tenant/notifications/*` | ✅ **Retirado** (frontend usa solo `/tenant`; el legacy iba sin `require_scope`) |
+| reports/profit | `/api/v1/reports/profit` | `/api/v1/tenant/reports/profit` | ✅ **Retirado** (frontend usa solo `/tenant`) |
+| hr | `/api/v1/hr/*` | `/api/v1/tenant/hr/*` | ⏳ **Pendiente**: el frontend usa rutas relativas (no se confirma con grep de strings). Validar antes de retirar. |
+| sectors | `/api/v1/sectors` | `/api/v1/sectors` (mismo) | ❌ **No retirar**: `apps/admin` usa `/api/v1/sectors` directamente (`sectorAdminConfig.ts`). |
 
-Total: **44 endpoints** con doble superficie (auth, dashboard, documents, hr, notifications, products, reports).
+Retirados el 2026-06-10: **11 rutas** (830 → 819). Resto de doble superficie (dashboard, documents, products, auth…): pendiente de validar el origen exacto del montaje y el uso del frontend antes de tocar.
 
 ## Riesgo
 
