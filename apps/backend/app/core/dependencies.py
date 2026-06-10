@@ -1,7 +1,6 @@
 """Core dependencies for FastAPI dependency injection."""
 
 from collections.abc import Iterator
-from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, Request
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db as _get_db
 from app.core.access_guard import with_access_claims
+from app.core.tenant_context import get_tenant_context
 
 
 def get_db(request: Request) -> Iterator[Session]:
@@ -18,19 +18,17 @@ def get_db(request: Request) -> Iterator[Session]:
 
 def get_tenant_uuid(request: Request) -> UUID:
     """
-    Extract tenant_id UUID from JWT claims already set by auth middleware.
+    Extract tenant_id UUID del contexto de tenant (asume claims ya seteados).
 
     Use this as a plain call inside sync route handlers:
         tenant_id = get_tenant_uuid(request)
 
-    Raises HTTPException(401) if claims are missing or tenant_id is invalid.
+    Raises HTTPException(401) if tenant_id is missing/invalid.
     """
-    claims = getattr(request.state, "access_claims", None) or {}
-    raw = claims.get("tenant_id") if isinstance(claims, dict) else None
-    try:
-        return UUID(str(raw))
-    except (TypeError, ValueError):
+    ctx = get_tenant_context(request, allow_session_fallback=False)
+    if ctx.tenant_id is None:
         raise HTTPException(status_code=401, detail="tenant_id inválido")
+    return ctx.tenant_id
 
 
 async def get_tenant_id_from_token(request: Request) -> UUID:
@@ -39,20 +37,12 @@ async def get_tenant_id_from_token(request: Request) -> UUID:
 
     Raises HTTPException(401) if token is invalid or missing tenant_id.
     """
-    claims: dict[str, Any] = with_access_claims(request)
-
-    tenant_id = claims.get("tenant_id")
-    if not tenant_id:
+    # with_access_claims valida el token (lanza 401 si falta/expira/ inválido).
+    with_access_claims(request)
+    ctx = get_tenant_context(request, allow_session_fallback=False)
+    if ctx.tenant_id is None:
         raise HTTPException(status_code=401, detail="Missing tenant_id in token")
-
-    # Convert to UUID if it's a string
-    if isinstance(tenant_id, str):
-        try:
-            return UUID(tenant_id)
-        except (ValueError, TypeError):
-            raise HTTPException(status_code=401, detail="Invalid tenant_id format")
-
-    return tenant_id
+    return ctx.tenant_id
 
 
 def get_current_tenant_id(request: Request) -> UUID:
@@ -77,19 +67,13 @@ def get_current_tenant_id(request: Request) -> UUID:
 
     logger = logging.getLogger(__name__)
 
-    # 1. Intentar desde state directo (middleware)
-    tid = getattr(request.state, "tenant_id", None)
-    if tid is not None:
-        return UUID(str(tid))
+    # 1. Resolución canónica vía tenant context (claims o session fallback)
+    ctx = get_tenant_context(request)
+    if ctx.tenant_id is not None:
+        return ctx.tenant_id
 
-    # 2. Intentar desde access_claims
-    claims = getattr(request.state, "access_claims", None) or {}
-    if isinstance(claims, dict):
-        tid = claims.get("tenant_id") or claims.get("empresa_id")
-        if tid is not None:
-            return UUID(str(tid))
-
-    # 3. Dev mode fallback - solo si no es producción
+    # 3. Dev mode fallback - solo si no es producción.
+    #    (No vive en get_tenant_context: la puerta limpia nunca inventa tenant.)
     dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
     if dev_mode:
         try:

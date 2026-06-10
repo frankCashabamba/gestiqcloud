@@ -5,14 +5,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.core.security import get_current_active_tenant_user
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 from app.modules.einvoicing.application.use_cases import (
     get_einvoice_status_use_case,
     send_einvoice_use_case,
 )
 from app.schemas.einvoicing import EinvoicingSendRequest, EinvoicingStatusResponse
 
-router = APIRouter(prefix="/einvoicing", tags=["Einvoicing"])
+router = APIRouter(
+    prefix="/einvoicing",
+    tags=["Einvoicing"],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
+)
 
 
 class EinvoicingSendResponse(BaseModel):
@@ -23,9 +28,9 @@ class EinvoicingSendResponse(BaseModel):
 @router.post("/send", response_model=EinvoicingSendResponse)
 async def send_einvoice(
     payload: EinvoicingSendRequest,
-    user=Depends(get_current_active_tenant_user),
+    claims: dict = Depends(with_access_claims),
 ) -> EinvoicingSendResponse:
-    tenant_id = getattr(user, "tenant_id", None)
+    tenant_id = claims.get("tenant_id")
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="tenant_id_missing")
     task_result = await send_einvoice_use_case(tenant_id, payload.invoice_id, payload.country)
@@ -37,9 +42,9 @@ async def send_einvoice(
 @router.get("/status/{invoice_id}", response_model=EinvoicingStatusResponse)
 async def get_einvoice_status(
     invoice_id: UUID,
-    user=Depends(get_current_active_tenant_user),
+    claims: dict = Depends(with_access_claims),
 ) -> EinvoicingStatusResponse:
-    tenant_id = getattr(user, "tenant_id", None)
+    tenant_id = claims.get("tenant_id")
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="tenant_id_missing")
     status_result = await get_einvoice_status_use_case(tenant_id, invoice_id)

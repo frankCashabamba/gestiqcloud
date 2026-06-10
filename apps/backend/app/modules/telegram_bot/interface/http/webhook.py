@@ -23,9 +23,8 @@ import secrets
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from app.config.database import SessionLocal
+from app.config.database import tenant_session_scope
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.ai.incident import NotificationChannel as ChannelConfig
@@ -48,37 +47,28 @@ router = APIRouter(prefix="/telegram", tags=["Telegram Bot"])
 # ---------------------------------------------------------------------------
 
 
-def _get_bot_db(tenant_id: str) -> Session:
-    """Deprecated: usar bot_session_scope() en su lugar"""
-
-    # Para compatibilidad temporal, retornamos la sesión del context manager
-    # NOTA: El caller debe manejar el cleanup
-    db = SessionLocal()
-    db.info["tenant_id"] = tenant_id
-    db.info["bypass_rls"] = True
-    return db
-
-
 def _load_telegram_config(tenant_id: str) -> dict | None:
-    """Lee config del canal Telegram activo desde notification_channels."""
-    db = _get_bot_db(tenant_id)
+    """Lee config del canal Telegram activo desde notification_channels.
+
+    Usa `tenant_session_scope` (GUC app.tenant_id, RLS activa) — NO bypass_rls:
+    el webhook solo debe ver datos del tenant de la URL, no de otros (C-04).
+    """
     try:
-        channel = (
-            db.query(ChannelConfig)
-            .filter(
-                ChannelConfig.tenant_id == tenant_id,
-                ChannelConfig.channel_type == "telegram",
-                ChannelConfig.is_active.is_(True),
+        with tenant_session_scope(tenant_id) as db:
+            channel = (
+                db.query(ChannelConfig)
+                .filter(
+                    ChannelConfig.tenant_id == tenant_id,
+                    ChannelConfig.channel_type == "telegram",
+                    ChannelConfig.is_active.is_(True),
+                )
+                .order_by(ChannelConfig.priority.desc())
+                .first()
             )
-            .order_by(ChannelConfig.priority.desc())
-            .first()
-        )
-        return dict(channel.config) if channel and channel.config else None
+            return dict(channel.config) if channel and channel.config else None
     except Exception as exc:
         logger.error("[telegram_bot] Error cargando config [tenant=%s]: %s", tenant_id, exc)
         return None
-    finally:
-        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -151,19 +141,13 @@ async def _process_command(
 
     try:
         if command == "/stock_completo":
-            db = _get_bot_db(tenant_id)
-            try:
+            with tenant_session_scope(tenant_id) as db:
                 items = get_stock_completo(db, tenant_id)
-            finally:
-                db.close()
             response_text = _build_stock_completo_text(items, parse_mode)
 
         elif command == "/stock_bajo":
-            db = _get_bot_db(tenant_id)
-            try:
+            with tenant_session_scope(tenant_id) as db:
                 items = get_stock_bajo(db, tenant_id, threshold)
-            finally:
-                db.close()
             response_text = _build_stock_bajo_text(items, threshold, parse_mode)
 
         else:
@@ -213,7 +197,8 @@ async def telegram_webhook(
     if not webhook_secret:
         logger.warning("[telegram_bot] webhook_secret no configurado [tenant=%s]", tenant_id)
         raise HTTPException(status_code=403, detail="Forbidden")
-    if x_telegram_bot_api_secret_token != webhook_secret:
+    # Comparación timing-safe para no filtrar el secret por tiempo de respuesta.
+    if not secrets.compare_digest(x_telegram_bot_api_secret_token or "", webhook_secret):
         logger.warning("[telegram_bot] Secret inválido [tenant=%s]", tenant_id)
         raise HTTPException(status_code=403, detail="Forbidden")
 

@@ -37,7 +37,7 @@ const alias = {
   '@shared': pkgPath('../packages/shared/src'),
   // This one lives in the root-level packages dir, not apps/packages
   '@shared-lib': pkgPath('../../packages/shared/lib'),
-  zod: pkgPath('../packages/zod/index.ts'),
+  '@gestiq/mini-zod': pkgPath('../packages/zod/index.ts'),
   // Ensure deps required by shared packages resolve from this app
   'react-router-dom': pkgPath('./node_modules/react-router-dom'),
   'axios': pkgPath('./node_modules/axios'),

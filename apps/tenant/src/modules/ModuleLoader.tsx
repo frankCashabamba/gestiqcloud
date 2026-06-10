@@ -3,6 +3,10 @@ import { Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMisModulos } from '../hooks/useMisModulos'
 import { canonicalizeCompanyModuleKey, getCompanyModuleFolder } from '../lib/companyModuleKeys'
+// Side-effect import: forces every `./<module>/manifest.ts` to be evaluated at
+// startup so manifest declarations (permissions, menu, routes) are registered
+// instead of being silently tree-shaken / flagged unused by knip.
+import './registry'
 
 // Convención: cada módulo expone ./<modulo>/Routes.tsx (preferido) o ./<modulo>/Panel.tsx
 // Ejemplos: contabilidad/Panel.tsx, inventario/Panel.tsx, ventas/Routes.tsx, etc.

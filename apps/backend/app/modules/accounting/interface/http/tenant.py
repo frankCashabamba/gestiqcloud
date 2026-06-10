@@ -384,7 +384,11 @@ _SEED_ACCOUNTS = [
 ]
 
 
-@router.post("/chart-of-accounts/seed", status_code=200)
+@router.post(
+    "/chart-of-accounts/seed",
+    status_code=200,
+    dependencies=[Depends(require_permission(PERM_ACCOUNTING_ACCOUNT_MANAGE))],
+)
 async def seed_chart_of_accounts(
     force: bool = Query(default=False, description="Crear cuentas aunque ya existan algunas"),
     db: Session = Depends(get_db),

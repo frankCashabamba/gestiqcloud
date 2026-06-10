@@ -48,7 +48,7 @@
       "@packages/api-types": ["../packages/api-types/src"],
       "@packages/api-types/*": ["../packages/api-types/src/*"],
 
-      "zod": ["../packages/zod/index.ts"],
+      "@gestiq/mini-zod": ["../packages/zod/index.ts"],
 
       "react": ["./node_modules/@types/react/index.d.ts"],
       "react/*": ["./node_modules/@types/react/*"],

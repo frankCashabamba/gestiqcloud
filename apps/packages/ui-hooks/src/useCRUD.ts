@@ -3,7 +3,7 @@
  * Elimina duplicación de lógica de estado y operaciones básicas
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { z, type ZodTypeAny } from 'zod'
+import { z, type ZodTypeAny } from '@gestiq/mini-zod'
 
 export interface CRUDState<T> {
   items: T[]

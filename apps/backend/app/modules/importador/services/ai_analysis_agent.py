@@ -248,6 +248,7 @@ async def analyze_document_with_ai(
     *,
     doc_id: UUID,
     db: Any,
+    tenant_id: UUID | None = None,
     bypass_cache: bool = False,
     apply_result: bool = True,
 ) -> dict[str, Any]:
@@ -256,6 +257,9 @@ async def analyze_document_with_ai(
     Args:
         doc_id:        ID del documento en imp_documento.
         db:            Sesión SQLAlchemy activa.
+        tenant_id:     Tenant esperado. Si se indica, se valida que el documento
+                       pertenezca a ese tenant antes de procesarlo. Imprescindible
+                       cuando la sesión usa bypass_rls=True (RLS no protege).
         bypass_cache:  Si True, fuerza llamada al LLM sin caché.
         apply_result:  Si True (default), persiste mejoras en BD cuando las hay.
 
@@ -275,6 +279,14 @@ async def analyze_document_with_ai(
 
     doc: ImpDocumento | None = db.get(ImpDocumento, doc_id)
     if doc is None:
+        return {"doc_id": str(doc_id), "error": "documento no encontrado"}
+
+    # Aislamiento multi-tenant: con bypass_rls activo db.get() carga por PK sin
+    # filtrar tenant. Si el caller declara tenant_id, rechazar documentos ajenos.
+    if tenant_id is not None and str(getattr(doc, "tenant_id", None)) != str(tenant_id):
+        logger.warning(
+            "ai_agent doc_id=%s pertenece a otro tenant (esperado=%s)", doc_id, tenant_id
+        )
         return {"doc_id": str(doc_id), "error": "documento no encontrado"}
 
     filename = str(doc.nombre_archivo or "")
@@ -485,6 +497,7 @@ async def analyze_batch_with_ai(
         result = await analyze_document_with_ai(
             doc_id=doc_id,
             db=db,
+            tenant_id=tenant_id,
             bypass_cache=bypass_cache,
             apply_result=apply_result,
         )

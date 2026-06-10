@@ -204,9 +204,16 @@ async def _run_processing(
 
         from app.models.importador import ImpDocumento
 
-        doc = db.query(ImpDocumento).filter(ImpDocumento.id == doc_id).first()
+        # Filtra SIEMPRE por tenant_id además del id: la sesión usa bypass_rls=True,
+        # por lo que la barrera RLS no aplica y el aislamiento depende de esta query.
+        # Un job mal formado con doc_id de otro tenant no debe procesar nada.
+        doc = (
+            db.query(ImpDocumento)
+            .filter(ImpDocumento.id == doc_id, ImpDocumento.tenant_id == tenant_id)
+            .first()
+        )
         if doc is None:
-            logger.error("Documento %s no encontrado en BD", doc_id)
+            logger.error("Documento %s no encontrado en BD para tenant %s", doc_id, tenant_id)
             return
 
         # Guard de idempotencia: si el doc ya fue procesado, no reprocesar
@@ -404,7 +411,15 @@ def _make_task():
                     db.info["tenant_id"] = tenant_id
                     db.info["bypass_rls"] = True
                     db.execute(_text("SELECT 1"))
-                    doc = db.query(ImpDocumento).filter(ImpDocumento.id == UUID(doc_id)).first()
+                    # bypass_rls activo: filtrar por tenant_id en la query, no confiar en RLS.
+                    doc = (
+                        db.query(ImpDocumento)
+                        .filter(
+                            ImpDocumento.id == UUID(doc_id),
+                            ImpDocumento.tenant_id == UUID(str(tenant_id)),
+                        )
+                        .first()
+                    )
                     if doc:
                         # Si el documento ya tiene datos extraídos de un ciclo anterior, NO
                         # marcarlo como FAILED: la extracción fue exitosa. Solo registrar que
@@ -527,6 +542,7 @@ def _make_ai_analysis_task():
                     analyze_document_with_ai(
                         doc_id=UUID(doc_id),
                         db=db,
+                        tenant_id=UUID(str(tenant_id)),
                         bypass_cache=bypass_cache,
                     )
                 )

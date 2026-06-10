@@ -1,3 +1,30 @@
+/**
+ * @gestiq/mini-zod — a tiny, in-house Zod-shaped validator.
+ *
+ * IMPORTANT: This is NOT the npm `zod` package. It's a hand-rolled subset that
+ * provides only the surface area we actually use across the SaaS apps. It used
+ * to be aliased to the bare specifier `zod` in tsconfig + vite.config, which
+ * silently shadowed the real library and confused devs. It now lives behind
+ * the explicit `@gestiq/mini-zod` alias.
+ *
+ * Implemented:
+ *   - z.object(shape) with .parse() and .safeParse()
+ *   - z.string() with .url(), .min(), .nullable(), .optional(), .default()
+ *   - z.number() with .nullable(), .optional(), .default()
+ *   - z.boolean() with .nullable(), .optional(), .default()
+ *   - ZodError with .flatten().fieldErrors
+ *   - type ZodTypeAny (alias for `any` — no real type inference)
+ *
+ * NOT implemented (will silently fail / throw if you try):
+ *   - z.array, z.union, z.literal, z.enum, z.tuple, z.record, z.map, z.set
+ *   - z.intersection, z.discriminatedUnion, z.lazy, z.promise
+ *   - .refine, .transform, .pipe, .superRefine, .brand
+ *   - .min/.max on numbers, .email/.uuid/.regex on strings
+ *   - z.infer<T> works only superficially (returns the first matching shape)
+ *
+ * If you need any of the above, swap to the real `zod` package — adding it as
+ * a real dependency is preferable to extending this shim.
+ */
 export type SafeParseSuccess<T> = { success: true; data: T }
 export type SafeParseFailure = { success: false; error: ZodError }
 

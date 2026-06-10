@@ -18,7 +18,7 @@ const alias = {
   '@shared/utils': pkgPath('../packages/utils/src'),
   '@shared/telemetry': pkgPath('../packages/telemetry/src'),
   '@shared': pkgPath('../packages/shared/src'),
-  zod: pkgPath('../packages/zod/index.ts'),
+  '@gestiq/mini-zod': pkgPath('../packages/zod/index.ts'),
   // Packages reference these but can't resolve from their own directory
   axios: pkgPath('node_modules/axios'),
   'react-router-dom': pkgPath('node_modules/react-router-dom'),

@@ -34,13 +34,14 @@ def ctx():
     """
     tenant_id = uuid4()
 
-    # ---- Usuario simulado (para Depends) ----
-    async def _fake_user():
-        class _U: ...
-
-        u = _U()  # noqa: F841
-        u.tenant_id = tenant_id
-        return u
+    # ---- Claims simulados (para with_access_claims, la puerta de auth canónica) ----
+    def _fake_claims():
+        return {
+            "user_id": str(uuid4()),
+            "tenant_id": str(tenant_id),
+            "scope": "tenant",
+            "kind": "tenant",
+        }
 
     # ---- Sesión DB async simulada ----
     db_session = AsyncMock(name="AsyncSession")
@@ -50,10 +51,12 @@ def ctx():
     async def _fake_db_ctx(*_args, **_kwargs):
         yield db_session
 
-    # Registro de override SOLO para el usuario (FastAPI lo respeta)
-    from app.core import security as security_module
+    # Registro de override de la puerta de auth canónica (FastAPI lo respeta).
+    # Override de with_access_claims cubre también require_scope("tenant"),
+    # que la consume internamente.
+    from app.core.access_guard import with_access_claims
 
-    app.dependency_overrides[security_module.get_current_active_tenant_user] = _fake_user
+    app.dependency_overrides[with_access_claims] = _fake_claims
 
     # Parches EN EL MÓDULO DONDE SE USAN los símbolos
     p_db = patch("app.modules.einvoicing.application.use_cases.get_db_session", new=_fake_db_ctx)

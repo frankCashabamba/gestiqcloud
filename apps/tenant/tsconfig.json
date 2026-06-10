@@ -58,7 +58,7 @@
       "@validation": ["../packages/validation/src"],
       "@validation/*": ["../packages/validation/src/*"],
 
-      "zod": ["../packages/zod/index.ts"],
+      "@gestiq/mini-zod": ["../packages/zod/index.ts"],
 
       "react": ["./node_modules/@types/react/index.d.ts"],
       "react/*": ["./node_modules/@types/react/*"],

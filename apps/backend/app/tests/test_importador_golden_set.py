@@ -112,7 +112,9 @@ _GOLDEN_CASES = [
     GoldenCase(
         filename="Ventas_2026-02-21_2026-03-23.pdf",
         expected_doc_type="SALES",
-        expected_total=169.0,
+        # Suma real de la columna Total del summary:
+        #   $79.24 + $56.46 + $22.34 = $158.04
+        expected_total=158.04,
         allowed_reason_tags={"sales_keyword"},
         minimum_confidence=0.63,
         expected_min_line_items=0,
@@ -166,11 +168,19 @@ def _extract_fields(text: str, page_texts: list[str] | None) -> dict:
     return extracted
 
 
+# Casos cuarentenados (xfail) hasta arreglar bugs en el extractor.
+# Mantener este set lo más pequeño posible y eliminar entradas en cuanto
+# se arregle el bug correspondiente. Cada entrada DEBE incluir motivo.
+_GOLDEN_XFAIL_FILES: dict[str, str] = {}
+
+
 @pytest.mark.no_db
 @pytest.mark.parametrize("case", _GOLDEN_CASES, ids=lambda c: c.filename)
 def test_importador_golden_set_phase1(case: GoldenCase):
     if case.requires_image_opt_in and os.getenv("IMPORTADOR_GOLDEN_INCLUDE_IMAGES") != "1":
         pytest.skip("Imagenes opt-in: defina IMPORTADOR_GOLDEN_INCLUDE_IMAGES=1")
+    if case.filename in _GOLDEN_XFAIL_FILES:
+        pytest.xfail(_GOLDEN_XFAIL_FILES[case.filename])
 
     path, text, page_texts = _load_text(case.filename)
     assert text.strip(), f"{case.filename} no devolvio texto OCR util"

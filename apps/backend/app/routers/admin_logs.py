@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.auth_dependencies import get_current_user
+from app.core.authz import require_scope
 from app.models.ai.incident import NotificationChannel, NotificationLog
 from app.models.core.audit_event import AuditEvent
 from app.models.tenant import Tenant
@@ -205,11 +206,15 @@ def list_audit_events(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _: dict = Depends(get_current_user),
+    _: dict = Depends(require_scope("admin")),
 ):
     """
     Lista de audit events de TODOS los tenants (superadmin).
     Filtrable por tenant_id, acción, entidad o búsqueda libre.
+
+    Requiere scope "admin" (plataforma). require_scope distingue al admin de
+    plataforma del admin de empresa (kind="tenant"), por lo que un company-admin
+    no puede leer auditoría global.
     """
     since = datetime.now(UTC) - timedelta(days=days)
 
@@ -263,9 +268,10 @@ def get_audit_stats(
     tenant_id: str | None = None,
     days: int = Query(7, ge=1, le=365),
     db: Session = Depends(get_db),
-    _: dict = Depends(get_current_user),
+    _: dict = Depends(require_scope("admin")),
 ):
-    """Estadísticas de audit events: totales por acción, entidad y top tenants."""
+    """Estadísticas de audit events de TODOS los tenants: totales por acción,
+    entidad y top tenants. Requiere scope "admin" (plataforma)."""
     since = datetime.now(UTC) - timedelta(days=days)
     base = [AuditEvent.created_at >= since]
     if tenant_id:

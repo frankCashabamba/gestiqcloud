@@ -13,7 +13,7 @@ from typing import Any
 from celery import shared_task
 from sqlalchemy import text
 
-from app.db.session import get_db_context
+from app.config.database import session_scope, tenant_session_scope
 from app.modules.inventory.application.expiry_alerts import ExpiryAlertService
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,8 @@ def check_expiry_alerts(self, days_ahead: int = 30) -> dict[str, Any]:
     total_expiring = 0
     total_expired = 0
 
-    with get_db_context() as db:
+    # Sesión de sistema solo para listar tenants (la tabla `tenants` no tiene RLS).
+    with session_scope() as db:
         tenants = db.execute(
             text(
                 "SELECT id, name FROM tenants WHERE is_active = true "
@@ -49,43 +50,45 @@ def check_expiry_alerts(self, days_ahead: int = 30) -> dict[str, Any]:
             )
         ).fetchall()
 
-        for tenant_row in tenants:
-            tenant_id = str(tenant_row[0])
-            tenant_name = tenant_row[1] or "Empresa"
+    for tenant_row in tenants:
+        tenant_id = str(tenant_row[0])
+        tenant_name = tenant_row[1] or "Empresa"
 
-            try:
+        try:
+            # Sesión POR tenant con GUC app.tenant_id: RLS aísla los datos.
+            with tenant_session_scope(tenant_id) as tdb:
                 expiring = ExpiryAlertService.check_expiring_products(
-                    db, tenant_id, days_ahead=days_ahead
+                    tdb, tenant_id, days_ahead=days_ahead
                 )
-                expired = ExpiryAlertService.check_expired_products(db, tenant_id)
+                expired = ExpiryAlertService.check_expired_products(tdb, tenant_id)
 
-                if expiring:
-                    logger.warning(
-                        "Tenant %s (%s): %d lotes próximos a vencer en %d días",
-                        tenant_id,
-                        tenant_name,
-                        len(expiring),
-                        days_ahead,
-                    )
-                    total_expiring += len(expiring)
-
-                if expired:
-                    logger.warning(
-                        "Tenant %s (%s): %d lotes ya vencidos con stock",
-                        tenant_id,
-                        tenant_name,
-                        len(expired),
-                    )
-                    total_expired += len(expired)
-
-                tenants_checked += 1
-
-            except Exception as err:
-                logger.error(
-                    "Error revisando caducidad para tenant %s: %s",
+            if expiring:
+                logger.warning(
+                    "Tenant %s (%s): %d lotes próximos a vencer en %d días",
                     tenant_id,
-                    err,
+                    tenant_name,
+                    len(expiring),
+                    days_ahead,
                 )
+                total_expiring += len(expiring)
+
+            if expired:
+                logger.warning(
+                    "Tenant %s (%s): %d lotes ya vencidos con stock",
+                    tenant_id,
+                    tenant_name,
+                    len(expired),
+                )
+                total_expired += len(expired)
+
+            tenants_checked += 1
+
+        except Exception as err:
+            logger.error(
+                "Error revisando caducidad para tenant %s: %s",
+                tenant_id,
+                err,
+            )
 
     logger.info(
         "check_expiry_alerts completado: %d tenants, %d lotes por vencer, %d vencidos",

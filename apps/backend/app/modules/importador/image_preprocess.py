@@ -31,9 +31,9 @@ logger = logging.getLogger("importador.image_preprocess")
 # Defaults tuned for WhatsApp / phone-camera photos of receipts and invoices.
 DEFAULT_CLAHE_CLIP_LIMIT = 2.0
 DEFAULT_CLAHE_TILE_GRID = (8, 8)
-DEFAULT_MEDIAN_KERNEL = 3            # 3x3 median: removes spike noise
-DEFAULT_ADAPTIVE_BLOCK_SIZE = 31     # odd, ~font-height in px after CLAHE
-DEFAULT_ADAPTIVE_C = 10              # bias subtracted from local mean
+DEFAULT_MEDIAN_KERNEL = 3  # 3x3 median: removes spike noise
+DEFAULT_ADAPTIVE_BLOCK_SIZE = 31  # odd, ~font-height in px after CLAHE
+DEFAULT_ADAPTIVE_C = 10  # bias subtracted from local mean
 
 
 def _load_cv2() -> tuple[Any, Any]:

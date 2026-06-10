@@ -32,12 +32,28 @@ router = APIRouter(
 )
 
 
+# Caracteres que disparan evaluación de fórmulas en Excel/LibreOffice/Sheets.
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_cell(value):
+    """Neutraliza CSV/formula injection.
+
+    Si un valor de texto empieza por un carácter que Excel interpretaría como
+    fórmula, se antepone un apóstrofo para forzar su tratamiento como texto.
+    Los valores no-string (números, fechas, None) se devuelven sin tocar.
+    """
+    if isinstance(value, str) and value and value[0] in _FORMULA_TRIGGERS:
+        return "'" + value
+    return value
+
+
 def _csv(rows, header):
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(header)
     for r in rows:
-        w.writerow([r.get(h) for h in header])
+        w.writerow([_sanitize_cell(r.get(h)) for h in header])
     return buf.getvalue().encode("utf-8")
 
 
@@ -164,9 +180,9 @@ def export_stock_xlsx(
     for row in rows:
         ws.append(
             [
-                row[0] or "",
-                row[1] or "",
-                row[2] or "",
+                _sanitize_cell(row[0] or ""),
+                _sanitize_cell(row[1] or ""),
+                _sanitize_cell(row[2] or ""),
                 float(row[3] or 0),
                 float(row[4] or 0),
                 float(row[5] or 0),

@@ -33,6 +33,7 @@ from .doc_type_resolution import promote_doc_type_from_text_fallback
 from .document_fields import safe_floatish
 from .document_pipeline_router import ImportPipelineDecision, decide_import_pipeline
 from .field_alias_loader import get_canonical_fields, get_field_aliases
+from .field_extractors import _strip_column_separators as _strip_column_separators
 from .invoice_ocr_rescue import invoice_rescue_from_ocr
 from .local_document_parsers import parse_local_document
 from .ocr_quality import estimate_text_quality as _estimate_text_quality
@@ -55,10 +56,8 @@ from .schemas import DocumentReviewHintOut, DocumentRoutingDecision
 from .services.document_model_learning_service import should_run_learning_rerun
 from .services.document_routing_agent import build_document_routing_decision
 from .snapshot_learning import build_snapshot_review_hints
-from .field_extractors import _strip_column_separators as _strip_column_separators
 from .text_fallback_extractor import extract_fields_from_text
 from .utils import json_safe as _json_safe
-
 
 # Top-level canonical fields whose values are free-text and never carry
 # the OCR column separator semantically. Sanitised at the persistence
@@ -106,6 +105,7 @@ def _sanitise_scalar_text_fields(payload: Any) -> Any:
             if cleaned is not None:
                 payload[key] = cleaned
     return payload
+
 
 logger = logging.getLogger("importador.processing")
 

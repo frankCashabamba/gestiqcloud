@@ -1455,18 +1455,52 @@ def _looks_like_sales_summary_export(lines: list[str]) -> bool:
 
 
 def _infer_sales_summary_total(lines: list[str]) -> float | None:
+    """Infer total for a sales-summary export.
+
+    Strategy:
+    1. SUM the monetary Total column across all data rows when the table
+       layout is recognisable (Fecha | Pedidos | Items | Total). This is
+       the *real* total of the report — picking a single row would be
+       arbitrary.
+    2. Otherwise fall back to the last currency / numeric amount on the
+       page (legacy behaviour for unstructured exports).
+    """
     if not _looks_like_sales_summary_export(lines):
         return None
 
     data_rows = [line for line in lines if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", line)]
-    if len(data_rows) > 1:
-        last_row = data_rows[-1]
-        cells = [cell.strip() for cell in re.split(r"\s*\|\s*", last_row) if cell.strip()]
-        if len(cells) >= 3:
-            items_value = _parse_loose_number(cells[2])
-            if items_value is not None:
-                return round(float(items_value), 2)
 
+    # ---- Preferred path: parse rows column-by-column and sum the Total $ ----
+    # Cells can be separated by '|' (some OCR engines insert it) or by
+    # consecutive whitespace (typical Tesseract output for this PDF).
+    if data_rows:
+        currency_re = re.compile(r"[$€£]")
+        row_totals: list[float] = []
+        for row in data_rows:
+            # Split on '|' first; if that gives only one cell, split on
+            # 2+ whitespaces, finally on single whitespace as last resort.
+            cells = [c.strip() for c in re.split(r"\s*\|\s*", row) if c.strip()]
+            if len(cells) < 2:
+                cells = [c.strip() for c in re.split(r"\s{2,}", row) if c.strip()]
+            if len(cells) < 2:
+                cells = [c.strip() for c in row.split() if c.strip()]
+
+            # The Total column is the right-most cell that looks monetary
+            # (currency symbol or a decimal number with cents).
+            total_value: float | None = None
+            for cell in reversed(cells):
+                if currency_re.search(cell) or re.search(r"\d+[.,]\d{2}\b", cell):
+                    parsed = _parse_loose_number(re.sub(r"[^\d.,\-]", "", cell))
+                    if parsed is not None and parsed > 0:
+                        total_value = float(parsed)
+                        break
+            if total_value is not None:
+                row_totals.append(total_value)
+
+        if row_totals:
+            return round(sum(row_totals), 2)
+
+    # ---- Fallback (legacy): last currency or numeric token on the page ----
     currency_amounts: list[float] = []
     numeric_tokens: list[float] = []
     numeric_pattern = re.compile(r"(?<!\d)(-?\d+(?:[.,]\d+)?)(?!\d)")
@@ -2162,6 +2196,38 @@ def _extract_ticket_items(lines: list[str]) -> list[dict[str, Any]]:
     return items
 
 
+_PRODUCT_EVIDENCE_FIELDS: tuple[str, ...] = (
+    "description",
+    "quantity",
+    "unit_price",
+    "total_price",
+)
+
+
+def _line_items_have_product_evidence(items: list[dict[str, Any]] | None) -> bool:
+    """Return True if at least one row carries real product information.
+
+    The tabular extractor sometimes returns "rows" that only contain
+    side-fields (``issue_date``, ``extra_columns``) when the OCR header
+    detection misfires (typical for low-quality WhatsApp invoices). Those
+    rows are useless downstream and prevent the visual fallback from
+    running. This helper tells the caller to discard them.
+    """
+    if not items:
+        return False
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        for field in _PRODUCT_EVIDENCE_FIELDS:
+            value = row.get(field)
+            if value in (None, "", [], {}):
+                continue
+            if isinstance(value, str) and not value.strip():
+                continue
+            return True
+    return False
+
+
 def _line_items_positive_total(items: list[dict[str, Any]]) -> float | None:
     total = 0.0
     count = 0
@@ -2294,7 +2360,15 @@ def extract_fields_from_text(
         bank_items = _extract_bank_statement_items(lines)
         if bank_items:
             line_items = bank_items
-    elif not line_items:
+    elif not line_items or not _line_items_have_product_evidence(line_items):
+        # Si la pasada tabular no produce items útiles (todos sin descripción
+        # ni cantidad/precio/total reales — caso típico OCR "WhatsApp" donde
+        # las filas detectadas solo arrastran metadatos como `issue_date` o
+        # `extra_columns`), descartamos esos items basura y probamos los
+        # extractores especializados, terminando con el visual heurístico
+        # que parsea mejor las facturas con separadores `|` mezclados.
+        line_items = []
+        line_item_page_groups = []
         inline_items = _extract_inline_pipe_table(ocr_text)
         if inline_items:
             line_items = inline_items

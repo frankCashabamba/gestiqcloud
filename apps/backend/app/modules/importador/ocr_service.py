@@ -954,17 +954,10 @@ def _reconstruct_page_text_by_words(page: Any, *, y_tolerance: int = 3) -> str:
         # Average character width on this row drives the absolute floor for
         # the column-gap threshold. Falls back to a generic value when we
         # cannot measure widths (e.g. zero-width glyphs).
-        widths = [
-            (x1 - x0) / max(len(text), 1)
-            for x0, x1, text in row_words
-            if x1 > x0 and text
-        ]
+        widths = [(x1 - x0) / max(len(text), 1) for x0, x1, text in row_words if x1 > x0 and text]
         avg_char_w = (sum(widths) / len(widths)) if widths else 4.0
 
-        gaps = [
-            max(0.0, curr[0] - prev[1])
-            for prev, curr in zip(row_words, row_words[1:])
-        ]
+        gaps = [max(0.0, curr[0] - prev[1]) for prev, curr in zip(row_words, row_words[1:])]
 
         # When there is a single gap (only two words on the row) we cannot
         # derive a meaningful row baseline; fall back to a conservative
@@ -1199,9 +1192,7 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
         ocr_img = pre_img
         if not apply_threshold:
             # Mild sharpen still helps Tesseract on grayscale (no-op when binarized).
-            ocr_img = ImageEnhance.Sharpness(ocr_img).enhance(
-                float(config["image_sharpness"])
-            )
+            ocr_img = ImageEnhance.Sharpness(ocr_img).enhance(float(config["image_sharpness"]))
     else:
         # Fallback: mejora global de contraste/nitidez (comportamiento anterior)
         ocr_img = ImageEnhance.Contrast(img).enhance(float(config["image_contrast"]))

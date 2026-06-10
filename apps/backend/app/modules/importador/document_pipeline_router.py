@@ -231,9 +231,7 @@ def decide_import_pipeline(
     # fields show plausibility issues (e.g. negative totals, dates 2 years in
     # the future, tax ids of wrong length, line items whose qty*price does not
     # match the total). This prevents silent "confident garbage".
-    plausibility_min_quality = float(
-        processing_cfg.get("pipeline_local_min_quality_score") or 0.70
-    )
+    plausibility_min_quality = float(processing_cfg.get("pipeline_local_min_quality_score") or 0.70)
     plausibility_issues = has_plausibility_issues(fields)
     low_local_quality = quality is not None and quality < plausibility_min_quality
     if visual and bool(has_vision) and (low_local_quality or plausibility_issues):

@@ -648,12 +648,13 @@ class TestVentasSummaryRealPdf:
         )
 
         assert result.get("issue_date") == "2026-03-20"
-        # Expect the last row's "Total" column ($22.34). Earlier extractions
-        # accidentally returned the items count (169.0) because the OCR row
-        # reconstruction injected pipe separators between every word, which
-        # caused the labeled extractor to map columns by index incorrectly.
-        # See ``ocr_service._reconstruct_page_text_by_words``.
-        assert abs(float(result.get("total_amount") or 0.0) - 22.34) < 0.01
+        # El documento es un summary del rango 2026-02-21 a 2026-03-23 con
+        # 3 días de datos: $79.24 + $56.46 + $22.34 = $158.04. Devolver el
+        # total de un único día (p.ej. el último, $22.34) o la cuenta de
+        # items de un día (169.0) es semánticamente erróneo: el
+        # ``total_amount`` del documento debe ser la suma de la columna
+        # Total. Ver ``_infer_sales_summary_total``.
+        assert abs(float(result.get("total_amount") or 0.0) - 158.04) < 0.01
 
     @pytest.mark.no_db
     def test_promocion_doc_type_sales_summary(self):
@@ -1036,9 +1037,10 @@ class TestNativeHeuristicsWeakDocs:
         )
 
         assert result.get("issue_date") == "2026-03-20"
-        # Expect the last row's "Total" column ($22.34). Same rationale as
-        # ``TestVentasSummaryRealPdf.test_extrae_issue_date_total_y_line_items``.
-        assert abs(float(result.get("total_amount") or 0.0) - 22.34) < 0.01
+        # Total agregado del summary (suma de las 3 filas, ver
+        # ``TestVentasSummaryRealPdf.test_extrae_issue_date_total_y_line_items``):
+        # $79.24 + $56.46 + $22.34 = $158.04.
+        assert abs(float(result.get("total_amount") or 0.0) - 158.04) < 0.01
 
     @pytest.mark.no_db
     def test_recibos_recupera_transferencias_y_total(self):

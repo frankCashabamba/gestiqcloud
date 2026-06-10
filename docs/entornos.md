@@ -1,13 +1,13 @@
 # Entornos y estado
 
 ## Producción
-- API: Render `gestiqcloud-api` → https://api.gestiqcloud.com (proxy vía Worker CF en dominios admin/www).
-- Frontends: `gestiqcloud-tenant` en https://www.gestiqcloud.com, `gestiqcloud-admin` en https://admin.gestiqcloud.com.
-- Worker CF: rutas `admin.gestiqcloud.com/api/*` y `www.gestiqcloud.com/api/*` hacia Render (ver ADR-0001).
-- RLS: flags en `render.yaml` `RUN_RLS_APPLY=1`, `RLS_SET_DEFAULT=1` (confirmar estado aplicado en DB).
-- Pagos: Stripe/Payphone/Kushki (claves como secretos en Render; sandbox/prod según configuración actual).
+- API backend: **VPS** → https://api.gestiqcloud.com (proxy vía Worker CF en dominios admin/www). Incluye Redis, Celery (worker/beat) e IA/OCR locales. (`render.yaml` mantiene una definición histórica/alternativa, no es el backend productivo.)
+- Frontends (estáticos en Render): `gestiqcloud-tenant` en https://www.gestiqcloud.com, `gestiqcloud-admin` en https://admin.gestiqcloud.com.
+- Worker CF: rutas `admin.gestiqcloud.com/api/*` y `www.gestiqcloud.com/api/*` hacia el VPS (ver ADR-0001).
+- RLS: activo; el backend setea el GUC `app.tenant_id`. Migraciones SQL manuales en `ops/migrations/` aplicadas en el VPS.
+- Pagos: Stripe/Payphone/Kushki (claves como secretos en el VPS; sandbox/prod según configuración actual).
 - E-invoicing: gestiona SRI/Facturae (credenciales como secretos; confirmar modo sandbox/prod en env).
-- Imports: `IMPORTS_ENABLED=0` en Render por defecto (activar según necesidad).
+- Imports: `IMPORTS_ENABLED` configurable en el VPS (activar según necesidad).
 - Observabilidad: OTEL_ENABLED=1 (backend/worker/beat) con endpoint OTLP configurado como secreto.
 - Secretos: DATABASE_URL, JWT_SECRET_KEY, SECRET_KEY, correo, pagos, OTEL endpoint. Responsable: completar.
 

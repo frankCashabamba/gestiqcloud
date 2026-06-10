@@ -5,7 +5,7 @@
 import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { GenericList, type ColumnConfig, type ActionConfig } from '@crud-components'
-import { z } from 'zod'
+import { z } from '@gestiq/mini-zod'
 import { useToast } from '../../../shared/toast'
 
 // Schema para validación

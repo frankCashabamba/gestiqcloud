@@ -122,18 +122,15 @@ def tenant_id_sql_expr_text(param_name: str = "tid") -> str:
 
 
 def tenant_id_from_request(request: Request) -> str | None:
-    """Extrae tenant_id desde claims o session en la request.
+    """Extrae tenant_id (string) desde el tenant context único.
 
     Devuelve UUID en string cuando está disponible, si no devuelve None.
+    Delega en `get_tenant_context` (claims o, en su defecto, session legacy).
     """
-    claims = getattr(request.state, "access_claims", None) or {}
-    if isinstance(claims, dict):
-        tid = claims.get("tenant_id")
-        if tid is not None:
-            return str(tid)
-    sess = getattr(request.state, "session", {}) or {}
-    tid = sess.get("tenant_id")
-    return str(tid) if tid is not None else None
+    from app.core.tenant_context import get_tenant_context
+
+    ctx = get_tenant_context(request)
+    return str(ctx.tenant_id) if ctx.tenant_id is not None else None
 
 
 def set_tenant_guc(db: Session, tenant_id: str, persist: bool = False) -> None:

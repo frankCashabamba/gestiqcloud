@@ -15,7 +15,7 @@ from typing import Any
 from celery import shared_task
 from sqlalchemy import text
 
-from app.db.session import get_db_context
+from app.config.database import session_scope, tenant_session_scope
 from app.modules.notifications.infrastructure._transport import send_smtp
 from app.services.ai.base import AITask
 from app.services.ai.service import AIService
@@ -193,8 +193,8 @@ def daily_executive_summary(self):
     sent_count = 0
     error_count = 0
 
-    with get_db_context() as db:
-        # Obtener tenants activos con email configurado
+    # Sesión de sistema solo para listar tenants (la tabla `tenants` no tiene RLS).
+    with session_scope() as db:
         tenants = db.execute(
             text(
                 "SELECT id, name FROM tenants WHERE is_active = true "
@@ -202,20 +202,22 @@ def daily_executive_summary(self):
             )
         ).fetchall()
 
-        for tenant_row in tenants:
-            tenant_id = str(tenant_row[0])
-            tenant_name = tenant_row[1] or "Empresa"
+    for tenant_row in tenants:
+        tenant_id = str(tenant_row[0])
+        tenant_name = tenant_row[1] or "Empresa"
 
-            try:
-                admin_emails = _get_admin_emails(db, tenant_id)
+        try:
+            # Sesión POR tenant con GUC app.tenant_id: RLS aísla los datos.
+            with tenant_session_scope(tenant_id) as tdb:
+                admin_emails = _get_admin_emails(tdb, tenant_id)
                 if not admin_emails:
                     continue
+                context = _build_summary_context(tdb, tenant_id)
 
-                context = _build_summary_context(db, tenant_id)
-                summary_text = _generate_summary_sync(context, tenant_name)
+            summary_text = _generate_summary_sync(context, tenant_name)
 
-                subject = f"Resumen ejecutivo {context['fecha']} — {tenant_name}"
-                body = f"""<html><body>
+            subject = f"Resumen ejecutivo {context['fecha']} — {tenant_name}"
+            body = f"""<html><body>
 <h2 style="color:#1e40af">Resumen Ejecutivo Diario</h2>
 <p style="color:#6b7280">{context['fecha']} · {tenant_name}</p>
 <hr/>
@@ -227,16 +229,16 @@ def daily_executive_summary(self):
 </p>
 </body></html>"""
 
-                for email in admin_emails:
-                    try:
-                        send_smtp({}, to=email, subject=subject, body=body)
-                        sent_count += 1
-                    except Exception as email_err:
-                        logger.warning("Error enviando email a %s: %s", email, email_err)
+            for email in admin_emails:
+                try:
+                    send_smtp({}, to=email, subject=subject, body=body)
+                    sent_count += 1
+                except Exception as email_err:
+                    logger.warning("Error enviando email a %s: %s", email, email_err)
 
-            except Exception as tenant_err:
-                logger.error("Error en resumen para tenant %s: %s", tenant_id, tenant_err)
-                error_count += 1
+        except Exception as tenant_err:
+            logger.error("Error en resumen para tenant %s: %s", tenant_id, tenant_err)
+            error_count += 1
 
     logger.info(
         "daily_executive_summary completado: %d emails enviados, %d errores",

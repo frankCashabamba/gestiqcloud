@@ -451,6 +451,29 @@ def tenant_session_scope(tenant_id: str | None = None) -> Iterator[Session]:
 
 
 @contextmanager
+def system_session() -> Iterator[Session]:
+    """Sesión de sistema para jobs de plataforma cross-tenant (Celery Beat global).
+
+    Activa bypass_rls vía db.info (el hook after_begin lo reaplica en cada
+    transacción, por lo que sobrevive a commits). Permite barrer datos de TODOS
+    los tenants. Usar SOLO para tareas de plataforma; el procesamiento de los
+    datos de un tenant concreto debe ir en tenant_session_scope.
+    Ver docs/security/bypass-rls-register.md.
+    """
+    db = SessionLocal()
+    db.info["bypass_rls"] = True
+    try:
+        db.execute(text("SELECT set_config('app.bypass_rls', 'true', true)"))
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@contextmanager
 def bot_session_scope(tenant_id: str) -> Iterator[Session]:
     """
     Context manager para webhooks/bots sin user session:

@@ -16,7 +16,6 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.core.cache import build_cache_key, cache_delete
-from app.core.security_cookies import get_current_user
 from app.schemas.sector_plantilla import (
     SectorConfigJSON,
     SectorConfigResponse,
@@ -82,7 +81,7 @@ def update_admin_sector_config(
     code: str,
     payload: SectorConfigUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(with_access_claims),
 ):
     """
     Updates the complete configuration of a sector.

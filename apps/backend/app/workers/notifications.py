@@ -11,7 +11,7 @@ from typing import Any
 
 from celery import shared_task
 
-from app.db.session import get_db_context
+from app.config.database import system_session, tenant_session_scope
 from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
 from app.modules.notifications.infrastructure._transport import (
     send_smtp,
@@ -49,7 +49,7 @@ def send_notification_task(
         ref_id:          UUID del documento relacionado
         config_override: Config custom (omite la BD de canales)
     """
-    with get_db_context() as db:
+    with tenant_session_scope(tenant_id) as db:
         # 1. Obtener configuración del canal
         if config_override:
             config = config_override
@@ -135,7 +135,9 @@ def check_and_notify_low_stock():
     """
     from sqlalchemy import text
 
-    with get_db_context() as db:
+    # Job de plataforma: barre StockAlert de TODOS los tenants (bypass_rls).
+    # El envío real se delega a send_notification_task, que corre por tenant.
+    with system_session() as db:
         db.execute(text("SELECT check_low_stock()"))
         db.commit()
 

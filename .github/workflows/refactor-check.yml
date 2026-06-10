@@ -19,6 +19,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: 'apps/backend/requirements.txt'
 
     - name: Install dependencies
       run: |
@@ -56,6 +58,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: 'apps/backend/requirements.txt'
 
     - name: Install dependencies
       run: |
@@ -67,14 +71,18 @@ jobs:
       env:
         TEST_MINIMAL: "1"
       run: |
+        # Use `python -m pytest` so the current working directory is added to
+        # sys.path. Otherwise the bridge conftest at tests/conftest.py cannot
+        # import `app.tests.conftest` and pytest fails at collection time.
+
         # Run tests for BaseCatalogModel
-        pytest tests/test_base_catalog_model.py -v --cov=app.models.base
+        python -m pytest tests/test_base_catalog_model.py -v --cov=app.models.base
 
         # Run tests for validation decorators
-        pytest tests/test_validation_decorators.py -v --cov=app.decorators.validation
+        python -m pytest tests/test_validation_decorators.py -v --cov=app.decorators.validation
 
         # Run tests for schema generator
-        pytest tests/test_schema_generator.py -v --cov=app.utils.schema_generator
+        python -m pytest tests/test_schema_generator.py -v --cov=app.utils.schema_generator
 
     - name: Upload coverage reports
       uses: actions/upload-artifact@v4
@@ -82,48 +90,6 @@ jobs:
         name: coverage-reports
         path: htmlcov/
         retention-days: 30
-
-  apply-refactors:
-    runs-on: ubuntu-latest
-    name: Apply Automatic Refactors
-    needs: detect-duplicates
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        pip install -r apps/backend/requirements.txt
-
-    - name: Apply high-confidence refactors
-      run: |
-        # Apply refactors with confidence >= 0.8
-        python scripts/apply_refactor_patterns.py --apply --confidence 0.8
-
-    - name: Check for changes
-      id: changes
-      run: |
-        if git diff --quiet; then
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-        else
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Commit and push changes
-      if: steps.changes.outputs.has_changes == 'true'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add .
-        git commit -m "auto: Apply refactors for code duplication reduction"
-        git push origin HEAD:${GITHUB_REF#refs/heads/}
 
   quality-gate:
     runs-on: ubuntu-latest

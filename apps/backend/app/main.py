@@ -456,6 +456,20 @@ async def force_utf8_response(request, call_next):
     return response
 
 
+# CSRF (double-submit cookie). Se registra ANTES que SessionMiddleware para que
+# en el stack quede más interno y se ejecute con request.state.session ya poblada.
+# Valida métodos no seguros comparando el header X-CSRF-Token/X-CSRF con la cookie
+# csrf_token o con el token de sesión. Exime login/refresh/logout. El frontend
+# obtiene el token vía GET /auth/csrf y lo reenvía en el header.
+try:
+    if str(os.getenv("CSRF_ENABLED", "1")).lower() in ("1", "true"):
+        from app.middleware.require_csrf import RequireCSRFMiddleware
+
+        app.add_middleware(RequireCSRFMiddleware)
+        logging.getLogger("app.startup").info("CSRF protection enabled")
+except Exception as e:
+    logging.getLogger("app.startup").warning(f"Could not enable CSRF protection: {e}")
+
 # Sessions
 app.add_mmiddleware = app.add_middleware  # optional alias
 app.add_middleware(

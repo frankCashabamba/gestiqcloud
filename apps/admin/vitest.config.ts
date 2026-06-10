@@ -33,7 +33,7 @@ export default defineConfig({
       '@shared/utils': pkgPath('../packages/utils/src'),
       '@shared/telemetry': pkgPath('../packages/telemetry/src'),
       '@shared': pkgPath('../packages/shared/src'),
-      zod: pkgPath('../packages/zod/index.ts'),
+      '@gestiq/mini-zod': pkgPath('../packages/zod/index.ts'),
       'react-router-dom': pkgPath('./node_modules/react-router-dom'),
       'axios': pkgPath('./node_modules/axios'),
       'idb-keyval': pkgPath('./node_modules/idb-keyval'),
