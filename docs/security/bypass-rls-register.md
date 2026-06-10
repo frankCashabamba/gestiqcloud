@@ -22,16 +22,16 @@ El GUC `app.bypass_rls` también se setea automáticamente para superadmin en `a
 
 | Código | Fichero:línea | Motivo | Alcance | Aislamiento real | Test cross-tenant | Owner | Revisión |
 |---|---|---|---|---|---|---|---|
-| RLS-IMP-1 | `modules/importador/tasks.py:~202` (`_run_processing`) | Worker Celery procesa documento sin contexto de request | 1 tenant (parámetro `tenant_id`) | ✅ query filtra `ImpDocumento.id == doc_id AND tenant_id == tenant_id` (2026-06-09) | ❌ pendiente | importador | 2026-06-09 |
-| RLS-IMP-2 | `modules/importador/tasks.py:~405` (recuperación payload) | Marcar doc FAILED/unavailable cuando el payload expiró | 1 tenant | ✅ query filtra por `id` + `tenant_id` (2026-06-09) | ❌ pendiente | importador | 2026-06-09 |
-| RLS-IMP-3 | `modules/importador/tasks.py:~523` (`analyze_document_ai`) | Análisis IA de un documento ya procesado | 1 tenant | ✅ `analyze_document_with_ai(tenant_id=...)` valida `doc.tenant_id` (2026-06-09) | ❌ pendiente | importador | 2026-06-09 |
+| ~~RLS-IMP-1~~ | `importador/tasks.py` `_run_processing` | **CERRADO (2026-06-10)**: bypass eliminado | 1 tenant | ✅ Sin bypass: RLS por `app.tenant_id` (política `tenant_isolation`, solo tenant) + filtro explícito `id AND tenant_id`. Validado con rol no-superuser. | ✅ `test_importador_isolation.py` + suite (361 ok) | importador | 2026-06-10 |
+| ~~RLS-IMP-2~~ | `importador/tasks.py` (recuperación payload) | **CERRADO (2026-06-10)**: bypass eliminado | 1 tenant | ✅ Sin bypass: RLS + filtro `id`+`tenant_id`. | ✅ suite importador | importador | 2026-06-10 |
+| ~~RLS-IMP-3~~ | `importador/tasks.py` `analyze_document_ai` | **CERRADO (2026-06-10)**: bypass eliminado | 1 tenant | ✅ Sin bypass: RLS + `analyze_document_with_ai` valida `doc.tenant_id`. | ✅ `test_importador_isolation.py` | importador | 2026-06-10 |
 | ~~RLS-TG-1~~ | ~~`telegram_bot/.../webhook.py` `_get_bot_db`~~ | **CERRADO (2026-06-10)** | — | ✅ Ya no usa bypass: migrado a `tenant_session_scope(tenant_id)` (GUC, RLS activa). Secret validado con `secrets.compare_digest`. `_get_bot_db` eliminado. | ✅ `test_telegram_webhook.py` | telegram_bot | 2026-06-10 |
 
-## Pendientes (hallazgo C-04 y plan base técnica)
+## Estado (2026-06-10)
 
-- **RLS-TG-1**: no usar bypass para *leer* datos del tenant; abrir sesión tenant con GUC y reservar bypass solo si es imprescindible. Añadir test con `tenant_id` ajeno y `webhook_secret` inválido.
-- Añadir tests cross-tenant a RLS-IMP-1/2/3 (un `doc_id` de tenant B con job de tenant A debe devolver "no encontrado").
-- Migrar `app/db/session.py` a wrapper de `app/config/database.py` (C-01) para que ningún worker abra sesiones sin GUC/RLS.
+- ✅ RLS-TG-1 (Telegram), RLS-IMP-1/2/3 (importador): **cerrados** — sin bypass, RLS por tenant + filtros explícitos. Bypass restante solo en helpers de plataforma (`system_session`, `bot_session_scope`).
+- ✅ `app/db/session.py` convertido en shim de `app/config/database.py` (C-01).
+- 🔴 **Bloqueante real**: RLS no protege en la práctica hasta que la app use un rol DB **no-superuser** (ver `docs/security/db-app-role.md`). Con `postgres` (superuser) todo el bypass/aislamiento es irrelevante.
 
 ## Regla
 

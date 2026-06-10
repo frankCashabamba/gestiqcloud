@@ -199,13 +199,14 @@ async def _run_processing(
 
         db.info["tenant_id"] = str(tenant_id)
         db.info["user_id"] = str(user_id) if user_id else None
-        db.info["bypass_rls"] = True
+        # Sin bypass_rls: la política RLS de imp_documento (tenant_isolation, solo
+        # app.tenant_id) protege con un rol DB no-superuser. El after_begin reaplica
+        # los GUCs desde db.info tras cada commit intermedio.
         db.execute(_text("SELECT 1"))
 
         from app.models.importador import ImpDocumento
 
-        # Filtra SIEMPRE por tenant_id además del id: la sesión usa bypass_rls=True,
-        # por lo que la barrera RLS no aplica y el aislamiento depende de esta query.
+        # Filtra SIEMPRE por tenant_id además del id (defensa en profundidad además de RLS).
         # Un job mal formado con doc_id de otro tenant no debe procesar nada.
         doc = (
             db.query(ImpDocumento)
@@ -409,9 +410,8 @@ def _make_task():
                     from sqlalchemy import text as _text
 
                     db.info["tenant_id"] = tenant_id
-                    db.info["bypass_rls"] = True
                     db.execute(_text("SELECT 1"))
-                    # bypass_rls activo: filtrar por tenant_id en la query, no confiar en RLS.
+                    # Sin bypass: RLS por tenant + filtro explícito (defensa en profundidad).
                     doc = (
                         db.query(ImpDocumento)
                         .filter(
@@ -535,7 +535,7 @@ def _make_ai_analysis_task():
                 from sqlalchemy import text as _text
 
                 db.info["tenant_id"] = tenant_id
-                db.info["bypass_rls"] = True
+                # Sin bypass: RLS por tenant. analyze_document_with_ai además valida tenant.
                 db.execute(_text("SELECT 1"))
 
                 result = asyncio.run(
