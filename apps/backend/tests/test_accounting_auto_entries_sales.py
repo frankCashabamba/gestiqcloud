@@ -127,7 +127,7 @@ def test_post_sale_entry_paid_uses_cash_account(db, tenant_minimal):
 
     entry = post_sale_entry(db, sale, user_id=None, paid=True)
     assert entry is not None
-    debit_account_ids = {l.account_id for l in entry.lines if l.debit > 0}
+    debit_account_ids = {ln.account_id for ln in entry.lines if ln.debit > 0}
     assert accs[CODE_CASH].id in debit_account_ids
     assert accs[CODE_AR].id not in debit_account_ids
 

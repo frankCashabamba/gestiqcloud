@@ -4,11 +4,9 @@ Script to automatically apply refactor patterns to existing models and schemas.
 Identifies models that can benefit from BaseCatalogModel and applies the refactor.
 """
 
-import ast
-import os
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 
@@ -118,8 +116,6 @@ __all__ = [
 
         # Extract table name from __tablename__ if possible
         content = match.group(0)
-        table_name_match = re.search(r'__tablename__\s*=\s*"([^"]+)"', content)
-        table_name = table_name_match.group(1) if table_name_match else class_name.lower() + "s"
 
         # Count matching fields
         field_matches = 0
@@ -136,7 +132,7 @@ __all__ = [
             suggested_pattern="Inherit from BaseCatalogModel",
             confidence=confidence,
             changes=[
-                f"Replace manual field definitions with BaseCatalogModel inheritance",
+                "Replace manual field definitions with BaseCatalogModel inheritance",
                 f"Reduce from ~{field_matches * 15} lines to ~5 lines"
             ]
         )
@@ -144,8 +140,6 @@ __all__ = [
     def _analyze_schema_match(self, match, file_path: Path, pattern_config: Dict) -> Optional[RefactorCandidate]:
         """Analyze a schema pattern match."""
         base_name = match.group(1)
-        create_name = match.group(2)
-        update_name = match.group(3)
 
         # Extract entity name (remove Base/Create/Update suffix)
         entity_name = base_name.replace("Base", "")
@@ -157,9 +151,9 @@ __all__ = [
             suggested_pattern="Use schema_generator.create_catalog_schemas()",
             confidence=0.9,  # High confidence for this pattern
             changes=[
-                f"Replace manual schema definitions with automatic generation",
-                f"Reduce from ~80 lines to ~3 lines",
-                f"Ensure consistency across all catalog schemas"
+                "Replace manual schema definitions with automatic generation",
+                "Reduce from ~80 lines to ~3 lines",
+                "Ensure consistency across all catalog schemas"
             ]
         )
 
@@ -277,7 +271,7 @@ class {candidate.class_name}(BaseCatalogModel):
         medium_confidence = [c for c in candidates if 0.6 <= c.confidence < 0.8]
         low_confidence = [c for c in candidates if c.confidence < 0.6]
 
-        report.append(f"## Summary")
+        report.append("## Summary")
         report.append(f"- **Total Candidates**: {len(candidates)}")
         report.append(f"- **High Confidence (≥0.8)**: {len(high_confidence)}")
         report.append(f"- **Medium Confidence (0.6-0.8)**: {len(medium_confidence)}")

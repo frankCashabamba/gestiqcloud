@@ -77,7 +77,6 @@ def test_list_quotes_requires_auth(client: TestClient, monkeypatch: pytest.Monke
 
 
 def test_list_quotes_requires_permission(client: TestClient, tenant_q) -> None:
-    tok = _token_for_tenant(tenant_q["tenant_id"], is_company_admin=False)
     # Without "quotes.manage" permission and without admin → forbidden
     from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 

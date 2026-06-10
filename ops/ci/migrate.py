@@ -3,7 +3,6 @@ CI migration validator: checks folder layout and SQL syntax basics.
 """
 
 import re
-import sys
 from pathlib import Path
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"

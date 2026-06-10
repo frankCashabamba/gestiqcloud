@@ -216,9 +216,9 @@ def run(dry_run: bool = False, tenant_filter: str | None = None):
         db.flush()
 
         # Recalcular StockItem.qty y Product.stock para cada producto afectado
-        affected_products = set(d["product_id"] for d in corrections_detail)
+        affected_products = {d["product_id"] for d in corrections_detail}
         for prod_id in affected_products:
-            tenants = set(d["tenant_id"] for d in corrections_detail if d["product_id"] == prod_id)
+            tenants = {d["tenant_id"] for d in corrections_detail if d["product_id"] == prod_id}
             for tenant_id in tenants:
                 # Recalcular qty total desde todos los moves
                 total = (
