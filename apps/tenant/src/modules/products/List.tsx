@@ -172,7 +172,7 @@ export default function ProductosList() {
 
       try {
         const rawConfigs = await apiFetch<RawPrinterLabelConfig[]>(
-          `/v1/tenant/printing/configurations?port=${encodeURIComponent(port)}`
+          `/api/v1/tenant/printing/configurations?port=${encodeURIComponent(port)}`
         )
         const normalizedConfigs = rawConfigs.map((config) => normalizeSavedConfig(config))
         setSavedConfigs(normalizedConfigs)
@@ -258,7 +258,7 @@ export default function ProductosList() {
             barcode_width?: number
             price_alignment?: PrintConfig['priceAlignment']
           }
-        } | null>('/v1/tenant/printing/settings')
+        } | null>('/api/v1/tenant/printing/settings')
         if (settings?.label_config) {
             setDefaultPrintConfig((prev) => ({
               ...prev,
@@ -320,7 +320,7 @@ export default function ProductosList() {
     try {
       const printConfig = saveLabelConfigModal.config
       setPrinterSaving(true)
-      const saved = await apiFetch<RawPrinterLabelConfig>('/v1/tenant/printing/configurations', {
+      const saved = await apiFetch<RawPrinterLabelConfig>('/api/v1/tenant/printing/configurations', {
         method: 'POST',
         body: JSON.stringify({
           printer_port: printer.port,

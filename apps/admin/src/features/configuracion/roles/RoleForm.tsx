@@ -88,8 +88,8 @@ const RoleForm: React.FC<RoleFormProps> = ({ mode, initialData, onSubmit, availa
     };
 
     const endpoint = mode === 'edit'
-      ? `/v1/roles-base/${initialData?.id}`
-      : '/v1/roles-base/';
+      ? `/api/v1/roles-base/${initialData?.id}`
+      : '/api/v1/roles-base/';
 
     try {
       const savedRole = mode === 'edit'

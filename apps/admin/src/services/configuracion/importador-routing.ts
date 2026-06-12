@@ -203,7 +203,7 @@ export type RuntimeConfigEntryPayload = {
   value_list: string[]
 }
 
-const BASE = '/v1/admin/importador/routing'
+const BASE = '/api/v1/admin/importador/routing'
 
 function normalizeProfile(input: Partial<RoutingProfile>): RoutingProfile {
   return {

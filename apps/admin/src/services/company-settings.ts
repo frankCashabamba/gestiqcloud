@@ -119,37 +119,37 @@ function toApiCompanySettings(settings: Partial<CompanySettings>) {
 }
 
 export async function getCompanySettings(tenantId: string): Promise<CompanySettings> {
-  const response = await api.get(`/v1/admin/companies/${tenantId}/company/settings`);
+  const response = await api.get(`/api/v1/admin/companies/${tenantId}/company/settings`);
   return normalizeCompanySettings(response.data);
 }
 
 export async function updateCompanySettings(tenantId: string, settings: Partial<CompanySettings>) {
-  const response = await api.put(`/v1/admin/companies/${tenantId}/company/settings`, toApiCompanySettings(settings));
+  const response = await api.put(`/api/v1/admin/companies/${tenantId}/company/settings`, toApiCompanySettings(settings));
   return response.data;
 }
 
 export async function getCompanyLimits(tenantId: string): Promise<CompanyLimits> {
-  const response = await api.get(`/v1/admin/companies/${tenantId}/company/settings/limits`);
+  const response = await api.get(`/api/v1/admin/companies/${tenantId}/company/settings/limits`);
   return response.data;
 }
 
 export async function updateCompanyLimits(tenantId: string, limits: CompanyLimits) {
-  const response = await api.put(`/v1/admin/companies/${tenantId}/company/settings/limits`, limits);
+  const response = await api.put(`/api/v1/admin/companies/${tenantId}/company/settings/limits`, limits);
   return response.data;
 }
 
 export async function getCompanyBillingPlans(tenantId: string): Promise<CompanyPlan[]> {
-  const response = await api.get(`/v1/admin/companies/${tenantId}/billing/plans`);
+  const response = await api.get(`/api/v1/admin/companies/${tenantId}/billing/plans`);
   return response.data;
 }
 
 export async function getAdminBillingPlans(): Promise<CompanyPlan[]> {
-  const response = await api.get('/v1/admin/billing/plans');
+  const response = await api.get('/api/v1/admin/billing/plans');
   return response.data;
 }
 
 export async function getCompanySubscription(tenantId: string): Promise<CompanySubscription | null> {
-  const response = await api.get(`/v1/admin/companies/${tenantId}/billing/subscription`);
+  const response = await api.get(`/api/v1/admin/companies/${tenantId}/billing/subscription`);
   return response.data;
 }
 
@@ -157,7 +157,7 @@ export async function subscribeCompany(
   tenantId: string,
   payload: { plan_id: string; billing_cycle?: 'monthly' | 'yearly'; return_url?: string | null }
 ) {
-  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/subscribe`, payload);
+  const response = await api.post(`/api/v1/admin/companies/${tenantId}/billing/subscribe`, payload);
   return response.data;
 }
 
@@ -165,12 +165,12 @@ export async function changeCompanyPlan(
   tenantId: string,
   payload: { new_plan_id: string; billing_cycle?: 'monthly' | 'yearly' | null }
 ) {
-  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/change-plan`, payload);
+  const response = await api.post(`/api/v1/admin/companies/${tenantId}/billing/change-plan`, payload);
   return response.data;
 }
 
 export async function cancelCompanySubscription(tenantId: string) {
-  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/cancel`);
+  const response = await api.post(`/api/v1/admin/companies/${tenantId}/billing/cancel`);
   return response.data;
 }
 
@@ -178,12 +178,12 @@ export async function openCompanyBillingPortal(
   tenantId: string,
   payload: { return_url?: string | null } = {}
 ) {
-  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/portal`, payload);
+  const response = await api.post(`/api/v1/admin/companies/${tenantId}/billing/portal`, payload);
   return response.data;
 }
 
 export async function getCompanyFeatureFlags(tenantId: string): Promise<CompanyFeatureFlags> {
-  const response = await api.get(`/v1/admin/companies/${tenantId}/feature-flags`);
+  const response = await api.get(`/api/v1/admin/companies/${tenantId}/feature-flags`);
   return response.data;
 }
 
@@ -191,7 +191,7 @@ export async function updateCompanyFeatureFlags(
   tenantId: string,
   payload: { overrides: Record<string, boolean | null> }
 ): Promise<CompanyFeatureFlags> {
-  const response = await api.put(`/v1/admin/companies/${tenantId}/feature-flags`, payload);
+  const response = await api.put(`/api/v1/admin/companies/${tenantId}/feature-flags`, payload);
   return response.data;
 }
 
@@ -201,7 +201,7 @@ export async function updateModuleSettings(
   config: any
 ) {
   const response = await api.put(
-    `/v1/admin/companies/${tenantId}/settings/${module}`,
+    `/api/v1/admin/companies/${tenantId}/settings/${module}`,
     config
   );
   return response.data;
@@ -218,7 +218,7 @@ export async function uploadCertificate(
   formData.append('password', password);
 
   const response = await api.post(
-    `/v1/admin/companies/${tenantId}/einvoicing/${type}/certificate`,
+    `/api/v1/admin/companies/${tenantId}/einvoicing/${type}/certificate`,
     formData,
     {
       headers: {
@@ -230,14 +230,14 @@ export async function uploadCertificate(
 }
 
 export async function exportSettings(tenantId: string): Promise<Blob> {
-  const response = await api.get(`/v1/admin/companies/${tenantId}/settings/export`, {
+  const response = await api.get(`/api/v1/admin/companies/${tenantId}/settings/export`, {
     responseType: 'blob',
   });
   return response.data;
 }
 
 export async function restoreDefaults(tenantId: string) {
-  const response = await api.post(`/v1/admin/companies/${tenantId}/settings/restore-defaults`);
+  const response = await api.post(`/api/v1/admin/companies/${tenantId}/settings/restore-defaults`);
   return response.data;
 }
 

@@ -46,7 +46,7 @@ def _safe_filename(name: str | None) -> str:
     """Normaliza el nombre: descarta cualquier componente de ruta y caracteres
     de control, evitando path traversal lógico al persistir/mostrar el nombre."""
     base = os.path.basename((name or "").replace("\\", "/").strip()) or "unnamed"
-    cleaned = "".join(ch for ch in base if ch.isprintable() and ch not in '\r\n\t')
+    cleaned = "".join(ch for ch in base if ch.isprintable() and ch not in "\r\n\t")
     return cleaned[:255] or "unnamed"
 
 

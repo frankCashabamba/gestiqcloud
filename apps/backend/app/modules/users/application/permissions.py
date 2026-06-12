@@ -112,3 +112,26 @@ def require_perm_set_password_tenant_user(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     return _require_perm("users:set_password", db, current_user)
+
+
+def enforce_user_escalation(
+    db: Session,
+    current_user: AuthenticatedUser,
+    *,
+    granting_admin: bool,
+    assigning_roles: bool,
+) -> None:
+    """Exige permisos SEPARADOS para las acciones de escalada al gestionar usuarios (M-04).
+
+    Tener `users:create`/`users:update` permite alta/edición básica, pero NO promover a
+    admin ni asignar roles arbitrarios desde el payload:
+    - cambiar `is_company_admin`  → requiere `users:grant_admin`
+    - asignar/cambiar `roles`      → requiere `users:assign_roles`
+
+    superadmin y company_admin pasan (vía `_has_perm`). Evita que un perfil con solo
+    gestión básica se auto-promueva o conceda roles que no le corresponden.
+    """
+    if granting_admin and not _has_perm(db, current_user, "users:grant_admin"):
+        raise HTTPException(status_code=403, detail="forbidden: requires users:grant_admin")
+    if assigning_roles and not _has_perm(db, current_user, "users:assign_roles"):
+        raise HTTPException(status_code=403, detail="forbidden: requires users:assign_roles")

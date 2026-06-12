@@ -151,6 +151,14 @@ if ("backend" -notin $SkipSet) {
         $env:TENANT_NAMESPACE_UUID = "00000000-0000-0000-0000-000000000000"
         pytest app/tests -v --tb=short --cov=app --cov-report=term --ignore=app/tests/modules/imports/
     }
+
+    # Verificacion RLS REAL: corre verify_rls_isolation.sql como el rol de la app
+    # (gestiq_app, NO-superuser) usando DATABASE_URL del .env. A diferencia del pytest
+    # (que va en SQLite y SALTA los pg_only), esto valida el aislamiento de verdad.
+    # Skip elegante si no hay psql o Postgres; FALLA si la app es superuser o hay fuga.
+    Run-Step -Stage "backend" -StepName "RLS isolation real (gestiq_app)" -WorkDir $Root -Command {
+        & (Join-Path $Root "ops\security\verify_rls_isolation.ps1")
+    }
 } else {
     $skipped.Add("backend")
 }
@@ -219,7 +227,7 @@ if ($E2E -and "e2e" -notin $SkipSet) {
 
     Run-Step -Stage "e2e" -StepName "Playwright tests" -WorkDir $Root -NonBlocking -Command {
         $env:CI = "true"
-        $env:VITE_API_URL = "http://localhost:8000/api"
+        $env:VITE_API_URL = "http://localhost:8000"
         npx playwright test --project=chromium
     }
 } else {

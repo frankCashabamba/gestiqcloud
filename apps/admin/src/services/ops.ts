@@ -16,11 +16,11 @@ export type MigrationRecord = {
 }
 
 export async function getMigrationsList(limit = 200): Promise<MigrationRecord[]> {
-  return apiFetch(`/v1/migrations/history?limit=${limit}`, { method: 'GET' })
+  return apiFetch(`/api/v1/migrations/history?limit=${limit}`, { method: 'GET' })
 }
 
 export async function markMigration(version: string, status: string, note?: string): Promise<{ ok: boolean }> {
-  return apiFetch('/v1/migrations/mark', {
+  return apiFetch('/api/v1/migrations/mark', {
     method: 'POST',
     body: JSON.stringify({ version, status, note }),
   })
@@ -34,12 +34,12 @@ export async function getMigrationDetails(): Promise<{
   pending_revisions: string[]
   config: { inline_enabled: boolean; mode: string; reason?: string | null }
 }> {
-  return apiFetch('/v1/admin/ops/migrate/status/details', { method: 'GET' })
+  return apiFetch('/api/v1/admin/ops/migrate/status/details', { method: 'GET' })
 }
 
 export async function runMigrations(): Promise<{ ok: boolean; job_id?: string; started?: boolean; mode?: string; message?: string; pending_count?: number; applied_count?: number; runner?: string }>{
   // Backend mounts admin ops under /api/v1; Worker accepts /v1/*
-  return apiFetch('/v1/admin/ops/migrate', { method: 'POST' })
+  return apiFetch('/api/v1/admin/ops/migrate', { method: 'POST' })
 }
 
 export type MigrationConfig = {
@@ -63,11 +63,11 @@ export type MigrationState = {
 }
 
 export async function getMigrationStatus(): Promise<MigrationState> {
-  return apiFetch('/v1/admin/ops/migrate/status', { method: 'GET' })
+  return apiFetch('/api/v1/admin/ops/migrate/status', { method: 'GET' })
 }
 
 export async function getMigrationConfig(): Promise<MigrationConfig> {
-  return apiFetch('/v1/admin/ops/migrate/config', { method: 'GET' })
+  return apiFetch('/api/v1/admin/ops/migrate/config', { method: 'GET' })
 }
 
 export type MigrationHistoryItem = {
@@ -84,9 +84,9 @@ export type MigrationHistoryItem = {
 }
 
 export async function getMigrationHistory(limit = 20): Promise<{ ok: boolean; items: MigrationHistoryItem[] }>{
-  return apiFetch(`/v1/admin/ops/migrate/history?limit=${encodeURIComponent(String(limit))}`, { method: 'GET' })
+  return apiFetch(`/api/v1/admin/ops/migrate/history?limit=${encodeURIComponent(String(limit))}`, { method: 'GET' })
 }
 
 export async function refreshMigrations(): Promise<{ ok: boolean; updated: boolean; status: string }>{
-  return apiFetch('/v1/admin/ops/migrate/refresh', { method: 'POST' })
+  return apiFetch('/api/v1/admin/ops/migrate/refresh', { method: 'POST' })
 }

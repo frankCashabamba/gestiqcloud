@@ -111,17 +111,23 @@ _KNOWN_UNIT_ALIASES = {
 
 def ensure_unit_aliases_seeded(db: Session) -> None:
     """Crea la tabla unit_aliases si no existe y siembra desde _KNOWN_UNIT_ALIASES."""
-    db.execute(
-        text(
-            """
-            CREATE TABLE IF NOT EXISTS unit_aliases (
-                alias        VARCHAR(50)  PRIMARY KEY,
-                canonical    VARCHAR(20)  NOT NULL,
-                updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    # El rol de aplicación es NO-superuser y no tiene CREATE en el esquema.
+    # Solo intentamos el DDL si la tabla aún no existe (BD virgen); en dev/prod
+    # ya existe vía migración, así que esto es no-op y no toca permisos.
+    from app.config.database import table_exists
+
+    if not table_exists(db, "unit_aliases"):
+        db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS unit_aliases (
+                    alias        VARCHAR(50)  PRIMARY KEY,
+                    canonical    VARCHAR(20)  NOT NULL,
+                    updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+                )
+                """
             )
-            """
         )
-    )
     for alias, canonical in _KNOWN_UNIT_ALIASES.items():
         db.execute(
             text(

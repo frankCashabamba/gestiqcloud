@@ -36,7 +36,7 @@ describe('incidents service', () => {
     const incidents = await listIncidents({ estado: 'open,in_progress' })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/v1/admin/incidents?status=open%2Cin_progress',
+      '/api/v1/admin/incidents?status=open%2Cin_progress',
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer admin-token',
@@ -96,7 +96,7 @@ describe('incidents service', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      '/v1/admin/incidents/inc-1/analyze',
+      '/api/v1/admin/incidents/inc-1/analyze',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
@@ -107,7 +107,7 @@ describe('incidents service', () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      '/v1/admin/incidents/inc-1',
+      '/api/v1/admin/incidents/inc-1',
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer admin-token',

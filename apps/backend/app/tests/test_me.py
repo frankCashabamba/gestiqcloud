@@ -146,7 +146,7 @@ def test_critical_routes_are_not_duplicated(client: TestClient):
         ("GET", "/api/v1/modules"),
         ("GET", "/api/v1/admin/modules"),
         ("GET", "/api/v1/sectors/{code}/config"),
-        ("GET", "/api/v1/dashboard/kpis"),
+        ("GET", "/api/v1/tenant/dashboard/kpis"),
         ("POST", "/api/v1/tenant/sales_orders/{order_id}/invoice"),
         ("GET", "/api/v1/tenant/pos/shifts/{shift_id}/summary"),
     ]

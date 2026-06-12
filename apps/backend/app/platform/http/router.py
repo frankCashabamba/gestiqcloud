@@ -378,26 +378,8 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.analytics.interface.http.tenant", "router"), prefix="/tenant"
     )
 
-    # Legacy alias /api/v1/dashboard/kpis (kept 1 release; emits X-Deprecated header)
-    def _analytics_legacy_header(response: Response):
-        response.headers["X-Deprecated"] = "use /api/v1/tenant/dashboard/kpis"
-
-    try:
-        legacy_analytics = _import_attr("app.routers.dashboard_stats", "router")
-        if isinstance(legacy_analytics, APIRouter):
-            # NOTE: dashboard_stats.router is the SAME object as the analytics
-            # tenant router, so we MUST NOT mutate its route attributes here
-            # (that would also mark the canonical /tenant mount as deprecated).
-            # We only re-mount it with an extra dependency that emits the
-            # X-Deprecated response header.
-            legacy_wrapper = APIRouter(dependencies=[Depends(_analytics_legacy_header)])
-            legacy_wrapper.include_router(legacy_analytics)
-            r.include_router(legacy_wrapper)
-            logger.debug(
-                "Mounted legacy analytics alias at /dashboard/kpis with X-Deprecated header"
-            )
-    except Exception as e:  # pragma: no cover - optional
-        logger.debug("Skip mounting legacy analytics alias: %s", e)
+    # El alias legacy /api/v1/dashboard/kpis se retiró (2026-06-10): el canónico es
+    # /api/v1/tenant/dashboard/kpis (montado arriba) y el frontend ya lo usa.
 
     # Tenant roles management
     include_router_safe(r, ("app.modules.identity.interface.http.tenant_roles", "router"))
@@ -517,3 +499,148 @@ def build_api_router() -> APIRouter:
     )
 
     return r
+
+
+def register_all_routers(app) -> None:
+    """ÚNICA fuente de verdad para el montaje de routers de la aplicación.
+
+    `main.py` NO debe montar routers de módulo directamente: todo se registra aquí.
+    El test de invariante `app/tests/security/test_router_mounting.py` verifica que
+    `main.py` solo llama a esta función y que no existen rutas duplicadas.
+
+    Los routers transversales/legacy conservan su prefijo absoluto histórico para no
+    cambiar las URLs públicas (no rompe el frontend). Lo que se garantiza es que el
+    montaje vive en un solo sitio.
+    """
+    # Router de API moderno (módulos en app/modules/*) bajo /api/v1.
+    app.include_router(build_api_router(), prefix="/api/v1")
+
+    # UI Configuration router (Sistema Sin Hardcodes)
+    try:
+        from app.modules.ui_config.interface.http.admin import router as ui_config_router
+
+        app.include_router(ui_config_router, prefix="/api/v1/admin")
+        logger.info("UI Configuration router mounted at /api/v1/admin")
+    except Exception as e:
+        logger.error(f"Error mounting UI Configuration router: {e}")
+
+    # Sector Templates (Plantillas de Sector)
+    try:
+        from app.routers.sector_templates import router as sector_templates_router
+
+        app.include_router(sector_templates_router)  # Prefix="/api/v1/sectores"
+        logger.info("Sector Templates router mounted")
+    except Exception as e:
+        logger.error(f"Error mounting Sector Templates router: {e}")
+
+    # Sectors (FASE 1 - Consolidación)
+    try:
+        from app.routers.sectors import router as sectors_router
+
+        app.include_router(sectors_router)  # Prefix="/api/v1/sectors"
+        logger.info("Sectors router mounted")
+    except Exception as e:
+        logger.error(f"Error mounting Sectors router: {e}")
+
+    # Admin Stats
+    try:
+        from app.routers.admin_stats import router as admin_stats_router
+
+        app.include_router(admin_stats_router, prefix="")
+        logger.info("Admin Stats router mounted at /api/v1/admin/stats")
+    except Exception as e:
+        logger.error(f"Error mounting Admin Stats router: {e}")
+
+    # Admin Field Config (imports/templates catalog)
+    try:
+        from app.modules.settings.interface.http.tenant import admin_router as field_admin_router
+
+        app.include_router(field_admin_router, prefix="/api/v1")
+        logger.info("Field-config admin router mounted at /api/v1/admin/field-config")
+    except Exception as e:
+        logger.error(f"Error mounting Field-config admin router: {e}")
+
+    # Settings
+    try:
+        from app.routers.settings_router import router as settings_router
+
+        app.include_router(settings_router, prefix="/api/v1")
+        logger.info("Settings router mounted at /api/v1/settings")
+    except Exception as e:
+        logger.error(f"Error mounting Settings router: {e}")
+
+    # Public Tenant Settings (unified)
+    try:
+        from app.routers.company_settings_public import router as company_settings_public_router
+
+        app.include_router(company_settings_public_router, prefix="/api/v1")
+        logger.info("Company Settings (public) mounted at /api/v1/company/settings/config")
+    except Exception as e:
+        logger.error(f"Error mounting Tenant Settings public router: {e}")
+
+    # Incidents + IA
+    try:
+        from app.modules.support.interface.http.incidents import router as incidents_router
+
+        app.include_router(incidents_router, prefix="/api/v1/admin")
+        logger.info("Incidents router mounted at /api/v1/admin/incidents")
+    except Exception as e:
+        logger.error(f"Error mounting Incidents router: {e}")
+
+    # Admin Logs (NotificationLog → /api/v1/admin/logs)
+    try:
+        from app.routers.admin_logs import router as admin_logs_router
+
+        app.include_router(admin_logs_router, prefix="/api/v1/admin")
+        logger.info("Admin Logs router mounted at /api/v1/admin/logs")
+    except Exception as e:
+        logger.error(f"Error mounting Admin Logs router: {e}")
+
+    # Notifications, HR y Profit: se montan vía build_api_router bajo /api/v1/tenant.
+    # Sus montajes legacy duplicados (/api/v1/notifications, /api/v1/hr, /api/v1/reports/profit)
+    # y el alias /api/v1/dashboard/kpis se retiraron (2026-06-10).
+
+    # Feature Flags
+    try:
+        from app.modules.feature_flags.interface.http.tenant import router as feature_flags_router
+
+        app.include_router(feature_flags_router, prefix="/api/v1")
+        logger.info("Feature Flags router mounted at /api/v1/feature-flags")
+    except Exception as e:
+        logger.warning(f"Feature Flags router mount failed: {e}")
+
+    # Importador Contable Universal
+    try:
+        from app.modules.importador.router import router as importador_router
+
+        app.include_router(importador_router, prefix="/api/v1")
+        logger.info("Importador router mounted at /api/v1/importador")
+    except Exception as e:
+        logger.warning(f"Importador router mount failed: {e}")
+
+    try:
+        from app.modules.importador.admin_router import router as importador_admin_router
+
+        app.include_router(importador_admin_router, prefix="/api/v1")
+        logger.info("Importador admin routing router mounted at /api/v1/admin/importador")
+    except Exception as e:
+        logger.warning(f"Importador admin routing router mount failed: {e}")
+
+    try:
+        from app.modules.importador.recipes_router import router as importador_recipes_router
+
+        app.include_router(importador_recipes_router, prefix="/api/v1")
+        logger.info("Importador recipes router mounted at /api/v1/importador")
+    except Exception as e:
+        logger.warning(f"Importador recipes router mount failed: {e}")
+
+    # Document Storage
+    try:
+        from app.modules.documents.interface.http.document_storage import (
+            router as doc_storage_router,
+        )
+
+        app.include_router(doc_storage_router, prefix="/api/v1")
+        logger.info("Document Storage router mounted at /api/v1/documents/storage")
+    except Exception as e:
+        logger.warning(f"Document Storage router mount failed: {e}")

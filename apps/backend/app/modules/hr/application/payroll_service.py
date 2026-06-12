@@ -112,6 +112,13 @@ class PayrollService:
 
     @staticmethod
     def _ensure_payroll_parameters_table(db: Session) -> None:
+        # Rol de app NO-superuser: sin CREATE/ALTER en el esquema. Si la tabla ya
+        # existe (dev/prod vía migración) no tocamos DDL; crearla es trabajo de
+        # las migraciones, no del runtime.
+        from app.config.database import table_exists
+
+        if table_exists(db, "payroll_parameters"):
+            return
         db.execute(
             text(
                 """

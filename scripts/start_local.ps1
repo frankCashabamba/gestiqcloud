@@ -136,7 +136,7 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-$defaultApiUrl = "http://localhost:8000/api"
+$defaultApiUrl = "http://localhost:8000"  # origin SIN /api (rutas frontend ya usan /api/v1)
 $frontendUrl = Get-EnvValue -lines $rootEnvLines -key "FRONTEND_URL" -default "http://localhost:8081"
 $tenantOrigin = Get-EnvValue -lines $rootEnvLines -key "TENANT_URL" -default "http://localhost:8082"
 $apiUrl = Get-EnvValue -lines $rootEnvLines -key "API_URL" -default $defaultApiUrl

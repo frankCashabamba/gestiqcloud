@@ -1,8 +1,8 @@
 # GestiqCloud — Auditoría consolidada y plan para dejar una base técnica sólida
 
-Fecha: 2026-06-09  
-Repositorio: `frankCashabamba/gestiqcloud`  
-Commit observado en revisiones GitHub: `556018a1373f2b74ca828d44d17ff4617166f687`  
+Fecha: 2026-06-09
+Repositorio: `frankCashabamba/gestiqcloud`
+Commit observado en revisiones GitHub: `556018a1373f2b74ca828d44d17ff4617166f687`
 Alcance: backend, documentación general, despliegue, seguridad, multitenancy, workers, módulos críticos y plan de unificación.
 
 ---
@@ -39,6 +39,25 @@ Al probar el aislamiento multi-tenant contra Postgres real se descubrió que **R
 
 Test invariante añadido: `test_app_db_connection_is_not_superuser` (pg_only) — falla si la conexión es superuser.
 
+### ESTADO (2026-06-10) — ✅ RESUELTO EN DEV · 🟠 PENDIENTE EN PRODUCCIÓN (PDT)
+
+**Hecho y verificado en DEV (Windows + Postgres local):**
+- Rol `gestiq_app` (NO-superuser, `NOBYPASSRLS`) creado. Scripts en `ops/security/`: `01_create_app_role.sql` (parametrizado `:app_pw`/`:dbname`), `02_force_rls_remaining.sql` (FORCE en las 15 tablas), `verify_rls_isolation.sql` (smoke RLS read-only). Wrappers `apply_app_role.ps1`/`.sh` leen `APP_DB_PASSWORD` del `.env`.
+- `DATABASE_URL`/`DB_DSN` cambiados a `gestiq_app` en `.env` y `.env.local`. Backend arranca limpio como `gestiq_app`.
+- RLS real verificado (como `gestiq_app`): sin tenant=0, tenant A=554, tenant B=553, bypass=4356.
+- **Bugs destapados y arreglados** (solo afloraban con rol no-superuser): (a) `config/database.py` enviaba `-c lc_messages=C` (SUSET, superuser-only) → rompía la conexión en Windows; eliminado. (b) 4 funciones `ensure_*` hacían `CREATE TABLE IF NOT EXISTS` en runtime (`system_defaults_service`, `unit_catalog_service`, `inventory_costing`, `hr/payroll_service`) → guard `to_regclass` (solo intentan DDL si la tabla no existe).
+
+**🟠 PDT — replicar en PRODUCCIÓN (VPS + Render + Cloudflare):**
+1. Ejecutar `01_create_app_role.sql` en la BD de prod (`ENV_FILE=.env.production bash ops/security/apply_app_role.sh`), con **contraseña propia de prod** (no la de dev) y el **nombre de BD de prod** (se resuelve solo vía `:dbname`).
+2. Ejecutar `02_force_rls_remaining.sql` en prod.
+3. Cambiar `DATABASE_URL`/`DB_DSN` a `gestiq_app` en **backend Y workers/Celery** (ambos en el VPS) y reiniciar ambos.
+4. Validar con `verify_rls_isolation.sql` (debe dar los 5 OK) + smoke de login/navegación + corrida de la suite del importador como `gestiq_app`.
+5. Rollback: revertir `DATABASE_URL` a `postgres` y reiniciar (el rol y el FORCE pueden quedarse).
+
+**🟠 PDT — CI:** mientras CI use `postgres` (superuser), `test_app_db_connection_is_not_superuser` saldrá rojo. Decidir: apuntar CI a un rol no-superuser, o que el test haga `skip` (no `fail`) cuando detecte superuser.
+
+**Nota:** los endpoints admin de DDL (`admin_config/migrations.py`, `routers/admin/ops.py`, `payroll_params.py`) fallarán como `gestiq_app` — es lo correcto; ejecutarlos como `postgres` cuando se necesite migrar.
+
 ---
 
 ## 0.1 Estado de ejecución — primera tanda (2026-06-09)
@@ -59,14 +78,14 @@ Todos los hallazgos de este documento se verificaron contra código (16 de 17 co
 | # | Punto | Estado |
 |---|---|---|
 | 1 | Auth única | ✅ **Núcleo resuelto** (2026-06-09): una sola puerta `with_access_claims`; puertas paralelas eliminadas; contrato en `docs/security/auth-contract.md`; tests verdes. Falta: tests de login con BD. |
-| 2 | Tenant context único | ✅ **Puerta resuelta** (2026-06-09): `core/tenant_context.py` (`TenantContext` + `get_tenant_context`); las ~8 funciones lectoras delegan; contrato en `docs/security/tenant-context-contract.md`; tests verdes. Falta: auditar tenant desde payload + reconciliar GUC en punto 3. |
+| 2 | Tenant context único | ✅ **Resuelto** (2026-06-09 puerta · 2026-06-12 auditoría payload): `core/tenant_context.py` (`TenantContext` + `get_tenant_context`); las ~8 funciones lectoras delegan; contrato en `docs/security/tenant-context-contract.md`. **Auditoría tenant_id-desde-payload (2026-06-12):** los `tenant_id` en schemas son casi todos de **response** (`*Out`); **un solo** endpoint persiste `tenant_id` del body (`identity/.../tenant_auth.py` login — legítimo, excepción §3.2: login con tenant explícito sin token aún). Escrituras cubiertas a nivel DB por **RLS (`gestiq_app`)** + ORM auto-fill `_auto_fill_multitenant_fields`. Sin endpoints de negocio que confíen en tenant del payload. |
 | 3 | Session DB única (GUC/RLS) | ✅ **Resuelto** (2026-06-09): `db/session.py` es shim de `config/database.py`; nuevo `system_session()`. Tests estructurales verdes; RLS real pendiente CI-Postgres. |
 | 4 | Bypass RLS inventariado y cerrado | ✅ **Resuelto** (2026-06-10): inventario en `bypass-rls-register.md`; importador filtra por tenant; C-04 Telegram migrado a `tenant_session_scope` (sin bypass) + `compare_digest`. Bypass restante (`system_session`, `bot_session_scope`) documentado y justificado. |
-| 5 | CSRF | 🟡 Montado (bypass bajo pytest, flag `PYTEST_DISABLE_CSRF_BYPASS`); falta verificar en prod + tests. |
+| 5 | CSRF | ✅ **Montado + tests** (2026-06-12): `RequireCSRFMiddleware` (double-submit + token de sesión), exime login/refresh/logout y webhooks entrantes `/webhook/`. Tests de integración reales en `test_csrf_middleware.py` (7, con `PYTEST_DISABLE_CSRF_BYPASS=1`): GET pasa · POST sin token→403 · double-submit válido→200 · exenciones. Flujo documentado en `docs/security/csrf.md`. **PDT: confirmar en prod que el Cloudflare Worker no elimina `X-CSRF-Token`.** |
 | 6 | Rate limit único | ✅ **Consolidado** (2026-06-10): `EndpointRateLimiter` con Redis+fallback (cierra evasión multi-proceso del login); decorador muerto eliminado; capas documentadas con responsabilidad clara en `docs/seguridad.md`. |
 | 7 | Telemetry única + redacción PII | ✅ **Resuelto** (2026-06-10): `telemetry` es la única capa (eliminados `metrics/store.py` y `middleware/metrics.py`, código muerto). Nueva utilidad `core/redact.py` `redact_sensitive`. Tests verdes. |
-| 8 | Router moderno fuente de verdad | 🟡 **Inventariado + retirada parcial** (2026-06-10): `docs/routes-inventory.md`. Retirados de `main.py` los montajes legacy de **notifications** y **profit** (11 rutas, 830→819) tras validar que el frontend usa solo `/tenant`. `hr` pendiente (frontend con rutas relativas), `sectors` no se retira (admin lo usa sin `/tenant`). |
-| 9 | Workers con aislamiento probado | 🟠 Workers (ai/expiry/notifications) y **importador migrados** (2026-06-10: bypass eliminado, validado con la suite de 361 tests del importador + rol no-superuser). Tests cross-tenant en `test_session_isolation.py` y `test_importador_isolation.py`. **Bloqueante: RLS solo protege con rol DB no-superuser (ver §0.0).** Con el rol correcto, aislamiento probado OK. |
+| 8 | Router moderno fuente de verdad | 🟢 **Backend centralizado + congelado por tests** (2026-06-11): **todo** el montaje vive en `platform/http/router.py:register_all_routers(app)`; `main.py` no tiene ni un `include_router` (solo delega). Movidos los ~14 montajes sueltos de `main.py` preservando URLs (801 rutas, **0 duplicados**). 3 tests de invariante en `test_router_mounting.py` (no duplicados · main.py no monta · legacy retirado no reaparece). Antes ya se habían retirado notifications/profit/hr/alias-kpis. **✅ migración admin `/v1`→`/api/v1` ejecutada** (2026-06-11): 132 rutas migradas en 15 ficheros + cliente admin (quitado interceptor `/api/v1/admin`→`/v1` y exempts legacy); `render.yaml` admin→`https://api.gestiqcloud.com` (tenant intacto en `/v1`, su `resolveRuntimeApiBase` lo colapsa a `/api` same-origin); typecheck admin+tenant verde. Los rewrites `/v1` (backend `main.py` + Worker) quedan como **red de seguridad retirable** tras confirmar 0 tráfico `/v1` en prod. `sectors` no se retira (admin sin `/tenant`); `hr/document-id-types` queda en `/api/v1/hr` vía router `lookups`. |
+| 9 | Workers con aislamiento probado | ✅ **Resuelto en DEV · 🟠 PDT prod** (2026-06-10): workers (ai/expiry/notifications) e **importador migrados** (bypass eliminado, suite de 361 tests + rol no-superuser). El **bloqueante de §0.0 está cerrado en dev**: rol `gestiq_app` (NO-superuser) creado, `DATABASE_URL` conmutado, **RLS real verificado** (`verify_rls_isolation.sql`: A=554/B=553/sin-tenant=0/bypass=4356) y backend arrancando limpio como `gestiq_app`. Tests cross-tenant en `test_session_isolation.py`/`test_importador_isolation.py`. **PDT: replicar rol+switch en prod (backend Y Celery) — ver §0.0.** |
 | 10 | Documentación deploy real | ✅ **Resuelto** (2026-06-10): `docs/deploy.md` y `docs/entornos.md` alineados a VPS (backend+SQL+Redis+Celery+IA en VPS; Render solo frontends; Cloudflare edge). Corregido `app.current_tenant`→`app.tenant_id`. |
 
 Ver registro de bypass RLS en `docs/security/bypass-rls-register.md` y contrato de auth en `docs/security/auth-contract.md`.
@@ -687,6 +706,33 @@ con:
 
 | Ruta | Router | Estado | Front la usa | Retirar |
 |---|---|---|---|---|
+
+#### ESTADO (2026-06-11) — Backend RESUELTO; migración admin `/v1` auditada (PDT)
+
+**Hecho:** `main.py` ya no monta routers. Toda la superficie se registra en
+`platform/http/router.py:register_all_routers(app)` (builder moderno `/api/v1/*` +
+los ~14 routers transversales con su prefijo, URLs intactas). Congelado por
+`app/tests/security/test_router_mounting.py` (3 invariantes). Regla DoD: un router
+nuevo se añade en `register_all_routers`/`build_api_router`, **nunca** en `main.py`.
+
+**Auditoría de la migración admin `/v1`→`/api/v1` (no ejecutada — riesgo de despliegue):**
+El routing del frontend es un mecanismo de 3 capas acopladas:
+
+1. **Frontend admin**: `VITE_API_URL` **difiere por entorno** — prod (`render.yaml`)=`/v1`,
+   dev=`http://localhost:8000`, algunos scripts=`.../api`. Las rutas en `@shared/endpoints/admin.ts`
+   usan `/v1/*` (132 llamadas, 16 ficheros). El cliente (`shared/api/client.ts`) tiene un
+   interceptor que normaliza `/api/v1/admin`→`/v1` (porque en algún entorno baseURL incluye `/api`).
+2. **Cloudflare Worker** (`workers/edge-gateway.js`): ya acepta **ambos** — `/api/*` lo pasa
+   tal cual y `/v1/*` lo reescribe a `/api/v1`. Soporta el destino limpio sin cambios.
+3. **Backend** (`main.py`): middleware rewrite `/v1`→`/api/v1` (redundante con el Worker).
+
+**Veredicto:** la migración es **factible** (el Worker ya soporta `/api/*` nativo), pero es un
+cambio **coordinado de despliegue**, no un refactor local: rutas frontend + interceptor/exempts del
+cliente + `VITE_API_URL` en `render.yaml`/CI/scripts + retirar los dos rewrites `/v1` (Worker y
+backend) **al final**. Requiere build del admin (revisar Network tab) y validación en staging; no
+es seguro hacerlo a ciegas. Orden recomendado: (a) migrar rutas+cliente y fijar `VITE_API_URL`
+coherente; (b) desplegar con los rewrites `/v1` aún activos (red de seguridad); (c) verificar 0
+tráfico `/v1` en logs; (d) retirar rewrite del backend y del Worker.
 
 ---
 

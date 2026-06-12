@@ -37,7 +37,7 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
     const fetchTemplates = async () => {
       try {
         setLoading(true)
-        const response = await api.get('/v1/sectors/')
+        const response = await api.get('/api/v1/sectors/')
         setTemplates(response.data.templates || [])
         setError(null)
       } catch (err: any) {

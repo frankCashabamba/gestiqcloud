@@ -151,6 +151,8 @@ services:
         - .github/**
         - docs/**
     envVars:
+      # Tenant: same-origin vía Worker (resolveRuntimeApiBase colapsa a /api).
+      # NO poner el origin de la API aquí o el tenant pasaría a llamar cross-origin.
       - key: VITE_API_URL
         value: /v1
       - key: VITE_BASE_PATH
@@ -192,7 +194,7 @@ services:
         - docs/**
     envVars:
       - key: VITE_API_URL
-        value: /v1
+        value: https://api.gestiqcloud.com
       - key: VITE_BASE_PATH
         value: /
       - key: VITE_ADMIN_ORIGIN

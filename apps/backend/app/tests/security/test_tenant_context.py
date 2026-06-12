@@ -38,9 +38,7 @@ def _req(access_claims=None, session=None, request_id=None, tenant_id_attr=None)
 # get_tenant_context: resolución de scope
 # --------------------------------------------------------------------------- #
 def test_scope_tenant_from_claims():
-    ctx = get_tenant_context(
-        _req({"tenant_id": TID, "user_id": UID, "kind": "tenant"})
-    )
+    ctx = get_tenant_context(_req({"tenant_id": TID, "user_id": UID, "kind": "tenant"}))
     assert isinstance(ctx, TenantContext)
     assert ctx.scope == "tenant"
     assert ctx.tenant_id == UUID(TID)

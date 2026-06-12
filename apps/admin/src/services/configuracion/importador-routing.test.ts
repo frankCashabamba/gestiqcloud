@@ -51,7 +51,7 @@ describe('importador-routing service', () => {
 
     const result = await listRoutingProfiles()
 
-    expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/profiles')
+    expect(api.get).toHaveBeenCalledWith('/api/v1/admin/importador/routing/profiles')
     expect(result).toEqual([
       {
         id: 'p1',
@@ -74,7 +74,7 @@ describe('importador-routing service', () => {
 
     await listRoutingRules('tenant')
 
-    expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/rules?scope_kind=tenant')
+    expect(api.get).toHaveBeenCalledWith('/api/v1/admin/importador/routing/rules?scope_kind=tenant')
   })
 
   it('unwraps item responses for create and update operations', async () => {
@@ -139,7 +139,7 @@ describe('importador-routing service', () => {
     expect(created.id).toBe('p2')
     expect(updated.id).toBe('r1')
     expect(api.post).toHaveBeenCalled()
-    expect(api.put).toHaveBeenCalledWith('/v1/admin/importador/routing/rules/r1', expect.any(Object))
+    expect(api.put).toHaveBeenCalledWith('/api/v1/admin/importador/routing/rules/r1', expect.any(Object))
   })
 
   it('normalizes routing preview responses', async () => {
@@ -182,7 +182,7 @@ describe('importador-routing service', () => {
       destination_override: null,
     })
 
-    expect(api.post).toHaveBeenCalledWith('/v1/admin/importador/routing/preview', expect.any(Object))
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/importador/routing/preview', expect.any(Object))
     expect(result.decision.confidence).toBe(0.88)
     expect(result.matched_scope).toBe('tenant')
     expect(result.rule_source_key).toBe('INVOICE')
@@ -207,7 +207,7 @@ describe('importador-routing service', () => {
 
     const result = await listRoutingPreviewDocuments('tenant-1', 'factura')
 
-    expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/documents?tenant_id=tenant-1&q=factura')
+    expect(api.get).toHaveBeenCalledWith('/api/v1/admin/importador/routing/documents?tenant_id=tenant-1&q=factura')
     expect(result[0].monto_total).toBe(199.5)
   })
 
@@ -226,7 +226,7 @@ describe('importador-routing service', () => {
 
     const result = await getImportadorRoutingOverview('tenant-1', 6)
 
-    expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/overview?tenant_id=tenant-1&limit=6')
+    expect(api.get).toHaveBeenCalledWith('/api/v1/admin/importador/routing/overview?tenant_id=tenant-1&limit=6')
     expect(result.dashboard.confirmados).toBe(6)
     expect(result.tenant_name).toBe('Demo')
   })
@@ -278,13 +278,13 @@ describe('importador-routing service', () => {
     })
     await resetRuntimeConfigModule('learning')
 
-    expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/runtime-config')
+    expect(api.get).toHaveBeenCalledWith('/api/v1/admin/importador/routing/runtime-config')
     expect(catalog.modules[0].entries[0].value_kind).toBe('list')
     expect(updated.module).toBe('learning')
     expect(api.put).toHaveBeenCalledWith(
-      '/v1/admin/importador/routing/runtime-config/learning/event_weight_save',
+      '/api/v1/admin/importador/routing/runtime-config/learning/event_weight_save',
       expect.any(Object)
     )
-    expect(api.post).toHaveBeenCalledWith('/v1/admin/importador/routing/runtime-config/learning/reset')
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/importador/routing/runtime-config/learning/reset')
   })
 })

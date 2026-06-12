@@ -1,6 +1,6 @@
 /**
  * Hook para obtener KPIs del dashboard en tiempo real
- * Consumidor del endpoint /api/v1/dashboard/kpis
+ * Consumidor del endpoint /api/v1/tenant/dashboard/kpis
  */
 
 import { useEffect, useState } from 'react'
@@ -300,7 +300,7 @@ export function useDashboardKPIs(options: UseDashboardKPIsOptions = {}) {
 
     try {
       setError(null)
-      const result = await apiFetch<DashboardKPIs>('/api/v1/dashboard/kpis', { authToken: token })
+      const result = await apiFetch<DashboardKPIs>('/api/v1/tenant/dashboard/kpis', { authToken: token })
       const normalized = normalizeKPIs(result)
       setData(normalized)
       writeCachedResource(cacheKey, normalized)
@@ -361,7 +361,7 @@ export function useTallerKPIs(options: { enabled?: boolean } = {}) {
 
     const fetchTallerKPIs = async () => {
       try {
-        const result = await apiFetch<TallerKPIs>('/api/v1/dashboard/kpis?sector=taller', {
+        const result = await apiFetch<TallerKPIs>('/api/v1/tenant/dashboard/kpis?sector=taller', {
           authToken: token,
         })
         const normalized = normalizeKPIs(result)
@@ -406,7 +406,7 @@ export function usePanaderiaKPIs(options: { enabled?: boolean } = {}) {
 
     const fetchPanaderiaKPIs = async () => {
       try {
-        const result = await apiFetch<PanaderiaKPIs>('/api/v1/dashboard/kpis?sector=panaderia', {
+        const result = await apiFetch<PanaderiaKPIs>('/api/v1/tenant/dashboard/kpis?sector=panaderia', {
           authToken: token,
         })
         const normalized = normalizeKPIs(result)

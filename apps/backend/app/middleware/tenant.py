@@ -11,10 +11,6 @@ Ver `docs/security/auth-contract.md`.
 
 from __future__ import annotations
 
-from app.core.auth_dependencies import (
-    _validate_tenant_uuid,
-    ensure_tenant,
-    get_current_user,
-)
+from app.core.auth_dependencies import _validate_tenant_uuid, ensure_tenant, get_current_user
 
 __all__ = ["ensure_tenant", "get_current_user", "_validate_tenant_uuid"]

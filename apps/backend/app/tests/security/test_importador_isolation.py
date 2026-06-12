@@ -6,7 +6,9 @@ con tenant A no procesa documentos de otro tenant.
 
 - Unitarios (sin BD): la validación de tenant en `analyze_document_with_ai`.
 - Estructural: las cargas de documento por id en `tasks.py` filtran por tenant.
-- pg_only: placeholder para el flujo real de importación en CI-Postgres.
+
+El aislamiento RLS real a nivel de BD se valida aparte con
+`ops/security/verify_rls_isolation.sql` (corre como rol gestiq_app no-superuser).
 """
 
 from __future__ import annotations
@@ -15,12 +17,6 @@ import asyncio
 import inspect
 from types import SimpleNamespace
 from uuid import uuid4
-
-import pytest
-
-from app.config.database import IS_SQLITE
-
-pg_only = pytest.mark.skipif(IS_SQLITE, reason="requiere PostgreSQL (RLS/flujo real)")
 
 
 class _FakeDB:
@@ -46,7 +42,9 @@ def _analyze(doc, *, doc_id, tenant_id):
 # --------------------------------------------------------------------------- #
 def test_analyze_rejects_document_of_other_tenant():
     tid_a, tid_b = uuid4(), uuid4()
-    doc = SimpleNamespace(tenant_id=tid_b, nombre_archivo="x.pdf", tipo_archivo="PDF", texto_ocr="t")
+    doc = SimpleNamespace(
+        tenant_id=tid_b, nombre_archivo="x.pdf", tipo_archivo="PDF", texto_ocr="t"
+    )
     res = _analyze(doc, doc_id=uuid4(), tenant_id=tid_a)
     assert res.get("error") == "documento no encontrado", "no debe procesar doc de otro tenant"
 
@@ -76,16 +74,8 @@ def test_tasks_loads_document_filtered_by_tenant():
 
     src = inspect.getsource(tasks)
     # Toda carga de ImpDocumento por id debe ir acompañada de filtro por tenant_id.
-    assert "ImpDocumento.tenant_id == tenant_id" in src or "tenant_id == UUID(str(tenant_id))" in src
+    assert (
+        "ImpDocumento.tenant_id == tenant_id" in src or "tenant_id == UUID(str(tenant_id))" in src
+    )
     # No debe quedar la carga insegura por id sin tenant.
     assert ".filter(ImpDocumento.id == doc_id).first()" not in src
-
-
-# --------------------------------------------------------------------------- #
-# Integración real (CI-Postgres)
-# --------------------------------------------------------------------------- #
-@pg_only
-def test_importador_cross_tenant_flow_placeholder():
-    """Pendiente CI-Postgres con rol no-superuser: encolar análisis de tenant A
-    con un doc_id de tenant B debe devolver 'no encontrado' (RLS + filtro)."""
-    pytest.skip("Requiere fixtures Postgres + rol no-superuser (CI)")

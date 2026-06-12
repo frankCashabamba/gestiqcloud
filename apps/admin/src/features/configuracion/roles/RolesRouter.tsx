@@ -26,7 +26,7 @@ const RolesRouter: React.FC = () => {
   };
 
   useEffect(() => {
-    apiGet<RoleFromBackend[]>('/v1/roles-base/')
+    apiGet<RoleFromBackend[]>('/api/v1/roles-base/')
       .then(data => {
         const normalized = data.map(role => ({
           ...role,
@@ -62,8 +62,8 @@ const RolesRouter: React.FC = () => {
 
     try {
       const saved = roleData.id
-        ? await apiPut<RoleData>(`/v1/roles-base/${roleData.id}`, payload)
-        : await apiPost<RoleData>('/v1/roles-base/', payload);
+        ? await apiPut<RoleData>(`/api/v1/roles-base/${roleData.id}`, payload)
+        : await apiPost<RoleData>('/api/v1/roles-base/', payload);
 
       const normalized: Role = {
         ...saved,
@@ -86,7 +86,7 @@ const RolesRouter: React.FC = () => {
   const confirmDelete = async () => {
     if (deleteId !== null) {
       try {
-        await apiDelete(`/v1/roles-base/${deleteId}`);
+        await apiDelete(`/api/v1/roles-base/${deleteId}`);
         setRoles(prev => prev.filter(r => r.id !== deleteId));
         setDeleteId(null);
       } catch (err) {

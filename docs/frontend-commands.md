@@ -20,7 +20,7 @@ npm run dev -- --host --port 8082
 ```
 
 ## Overrides de API en local
-- Admin/Tenant: exporta `VITE_API_URL` (ej. `http://localhost:8000/api/v1`) y `VITE_ADMIN_ORIGIN`/`VITE_TENANT_ORIGIN` según host local.
+- Admin/Tenant: exporta `VITE_API_URL` con el ORIGIN del backend (ej. `http://localhost:8000` en local, `https://api.gestiqcloud.com` en prod) — NO incluyas `/api` ni `/v1`; las rutas ya usan el prefijo canónico `/api/v1/*`. Define también `VITE_ADMIN_ORIGIN`/`VITE_TENANT_ORIGIN` según host.
 - Limpiar SW (tenant) si cambias basepath o API: Ctrl+F5 o borrar SW en DevTools.
 
 ## Lint/format (si se añaden)

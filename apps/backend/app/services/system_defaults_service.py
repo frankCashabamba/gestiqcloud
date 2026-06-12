@@ -216,20 +216,26 @@ _DEFAULTS: list[dict[str, Any]] = [
 
 def ensure_system_defaults_table(db: Session) -> None:
     """Create the backing table and seed defaults if needed."""
-    db.execute(
-        text(
-            """
-            CREATE TABLE IF NOT EXISTS system_defaults (
-                key         VARCHAR(100) PRIMARY KEY,
-                category    VARCHAR(50)  NOT NULL DEFAULT 'general',
-                value_text  TEXT,
-                description TEXT,
-                value_type  VARCHAR(20)  NOT NULL DEFAULT 'number',
-                updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    # El rol de aplicación es NO-superuser y no tiene CREATE en el esquema.
+    # Solo intentamos el DDL si la tabla aún no existe (BD virgen); en dev/prod
+    # ya existe vía migración, así que esto es no-op y no toca permisos.
+    from app.config.database import table_exists
+
+    if not table_exists(db, "system_defaults"):
+        db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS system_defaults (
+                    key         VARCHAR(100) PRIMARY KEY,
+                    category    VARCHAR(50)  NOT NULL DEFAULT 'general',
+                    value_text  TEXT,
+                    description TEXT,
+                    value_type  VARCHAR(20)  NOT NULL DEFAULT 'number',
+                    updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+                )
+                """
             )
-            """
         )
-    )
     for row in _DEFAULTS:
         db.execute(
             text(

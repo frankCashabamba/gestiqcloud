@@ -15,17 +15,17 @@ const normalize = (raw: any): GlobalPermission => ({
 })
 
 export async function listPermisos(): Promise<GlobalPermission[]> {
-  const { data } = await api.get<GlobalPermission[]>('/v1/roles-base/global-permissions')
+  const { data } = await api.get<GlobalPermission[]>('/api/v1/roles-base/global-permissions')
   return (data || []).map(normalize)
 }
 
 export async function getPermiso(id: number | string): Promise<GlobalPermission> {
-  const { data } = await api.get<GlobalPermission>(`/v1/roles-base/global-permissions/${id}`)
+  const { data } = await api.get<GlobalPermission>(`/api/v1/roles-base/global-permissions/${id}`)
   return normalize(data)
 }
 
 export async function createPermiso(payload: Omit<GlobalPermission, 'id'>): Promise<GlobalPermission> {
-  const { data } = await api.post<GlobalPermission>('/v1/roles-base/global-permissions', payload)
+  const { data } = await api.post<GlobalPermission>('/api/v1/roles-base/global-permissions', payload)
   return normalize(data)
 }
 
@@ -33,10 +33,10 @@ export async function updatePermiso(
   id: number | string,
   payload: Omit<GlobalPermission, 'id'>
 ): Promise<GlobalPermission> {
-  const { data } = await api.put<GlobalPermission>(`/v1/roles-base/global-permissions/${id}`, payload)
+  const { data } = await api.put<GlobalPermission>(`/api/v1/roles-base/global-permissions/${id}`, payload)
   return normalize(data)
 }
 
 export async function removePermiso(id: number | string): Promise<void> {
-  await api.delete(`/v1/roles-base/global-permissions/${id}`)
+  await api.delete(`/api/v1/roles-base/global-permissions/${id}`)
 }

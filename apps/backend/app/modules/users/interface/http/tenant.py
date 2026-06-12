@@ -73,6 +73,13 @@ def create_user(
     current_user=Depends(permissions.require_perm_create_tenant_user),
 ):
     tenant_id = _tenant_id(request)
+    # Escalada: promover admin / asignar roles exige permisos separados (M-04).
+    permissions.enforce_user_escalation(
+        db,
+        current_user,
+        granting_admin=bool(usuario_in.is_company_admin),
+        assigning_roles=bool(usuario_in.roles),
+    )
     return services.create_company_user(
         db,
         tenant_id,
@@ -90,6 +97,13 @@ def update_user(
     current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
     tenant_id = _tenant_id(request)
+    # Escalada: cambiar admin / asignar roles exige permisos separados (M-04).
+    permissions.enforce_user_escalation(
+        db,
+        current_user,
+        granting_admin=usuario_in.is_company_admin is not None,
+        assigning_roles=usuario_in.roles is not None,
+    )
     return services.update_company_user(db, tenant_id, usuario_id, usuario_in)
 
 

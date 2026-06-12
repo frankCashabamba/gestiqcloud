@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-import platform
 import re
 from collections.abc import Generator, Iterator
 from contextlib import asynccontextmanager, contextmanager
@@ -55,9 +54,13 @@ def make_db_url() -> str:
 # ---------------------------------------------------------------------------
 STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mínimo 1s
 
+# Solo opciones que un rol NO-superuser pueda fijar por conexión.
+# `statement_timeout` es USERSET (válido para cualquier rol).
+# NO añadir `lc_messages` aquí: es SUSET (superuser-only) y rompería la conexión
+# del rol de aplicación gestiq_app con "permiso denegado para cambiar lc_messages".
+# Si se quieren mensajes en inglés en un entorno concreto, fijarlo a nivel de BD
+# como superuser: `ALTER DATABASE <db> SET lc_messages = 'C';`.
 _pg_options = f"-c statement_timeout={STATEMENT_TIMEOUT_MS}"
-if platform.system() == "Windows":
-    _pg_options += " -c lc_messages=C"
 
 CONNECT_ARGS = {
     "options": _pg_options,
@@ -362,6 +365,21 @@ def _is_postgres(db: Session) -> bool:
         getattr(getattr(db, "bind", None), "dialect", None)
         and getattr(db.bind.dialect, "name", "") == "postgresql"
     )  # type: ignore[union-attr]
+
+
+def table_exists(db: Session, table_name: str) -> bool:
+    """True si la tabla existe. Agnóstico de dialecto (Postgres y SQLite).
+
+    Se usa para evitar DDL (`CREATE TABLE`) en el hot path cuando la app corre con
+    el rol no-superuser `gestiq_app` (sin permiso CREATE en el esquema). NO usar
+    `to_regclass` aquí: es Postgres-only y rompe en los tests con SQLite.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    try:
+        return sa_inspect(db.get_bind()).has_table(table_name)
+    except Exception:
+        return False
 
 
 def set_rls_tenant(db: Session, tenant_id: str | None) -> None:

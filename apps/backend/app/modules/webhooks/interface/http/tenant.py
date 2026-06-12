@@ -1,5 +1,6 @@
 """FastAPI endpoints for webhooks module - Tenant endpoints."""
 
+import logging
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -34,6 +35,8 @@ from app.modules.webhooks.application.use_cases import (
     UpdateWebhookSubscriptionUseCase,
 )
 from app.modules.webhooks.domain.exceptions import InvalidWebhookURL, WebhookNotFound
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -105,8 +108,9 @@ async def create_webhook(
         return WebhookResponse.from_orm(subscription)
     except InvalidWebhookURL as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")
 
 
 @router.get("", response_model=WebhookListResponse)
@@ -159,8 +163,9 @@ async def update_webhook(
         raise HTTPException(status_code=404, detail=str(e))
     except InvalidWebhookURL as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")
 
 
 @router.delete("/{webhook_id}", status_code=204)
@@ -180,8 +185,9 @@ async def delete_webhook(
         return None
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")
 
 
 @router.get("/{webhook_id}/history", response_model=DeliveryListResponse)
@@ -206,8 +212,9 @@ async def get_webhook_history(
         return DeliveryListResponse(items=items, total=total, webhook_id=webhook_id)
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")
 
 
 @router.post("/{webhook_id}/retry", response_model=DeliveryResponse)
@@ -228,8 +235,9 @@ async def retry_delivery(
         return DeliveryResponse.from_orm(delivery)
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")
 
 
 @router.get("/{webhook_id}/secret", response_model=WebhookSecretResponse)
@@ -253,8 +261,9 @@ async def get_webhook_secret(
         )
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")
 
 
 @router.post("/{webhook_id}/rotate-secret", response_model=WebhookSecretResponse)
@@ -278,8 +287,9 @@ async def rotate_webhook_secret(
         )
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")
 
 
 @router.post("/{webhook_id}/test", response_model=WebhookTestResponse)
@@ -310,5 +320,6 @@ async def test_webhook(
         )
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error in webhooks endpoint")
+        raise HTTPException(status_code=400, detail="No se pudo procesar la solicitud de webhook")

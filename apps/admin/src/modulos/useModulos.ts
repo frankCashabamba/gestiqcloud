@@ -87,7 +87,7 @@ export function useModulos(): UseModulosResult {
         setLoading(true);
         setError(null);
         const res = await api.get<BackendModulo[]>(
-          "/v1/admin/modules/public",
+          "/api/v1/admin/modules/public",
           { signal: ac.signal } as AxiosRequestConfig
         );
         const data = res.data || [];

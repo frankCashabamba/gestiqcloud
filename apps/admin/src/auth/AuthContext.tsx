@@ -9,9 +9,9 @@ import { registerAuthHandlers } from '../lib/http'
 const api = createSharedClient({
     baseURL: env.apiUrl,
     tokenKey: 'access_token_admin',
-    refreshPath: '/v1/admin/auth/refresh',
-    csrfPath: '/v1/admin/auth/csrf',
-    authExemptSuffixes: ['/v1/admin/auth/login', '/v1/admin/auth/refresh', '/v1/admin/auth/logout', '/v1/admin/auth/csrf']
+    refreshPath: '/api/v1/admin/auth/refresh',
+    csrfPath: '/api/v1/admin/auth/csrf',
+    authExemptSuffixes: ['/api/v1/admin/auth/login', '/api/v1/admin/auth/refresh', '/api/v1/admin/auth/logout', '/api/v1/admin/auth/csrf']
 })
 
 type LoginBody = { identificador: string; password: string }
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }, [])
 
     async function loadMeProfile(_token?: string): Promise<MeAdmin> {
-        const r = await api.get<MeAdmin>('/v1/me/admin')
+        const r = await api.get<MeAdmin>('/api/v1/me/admin')
         return r.data
     }
 
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
      */
     async function refreshOnceIfPossible(): Promise<string | null> {
         try {
-            const r = await api.post<{ access_token?: string }>('/v1/admin/auth/refresh')
+            const r = await api.post<{ access_token?: string }>('/api/v1/admin/auth/refresh')
             return r.data?.access_token ?? null
         } catch {
             // El refresh falló (no hay refresh_token cookie o expiró)
@@ -151,8 +151,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
 
     const login = useCallback(async (body: LoginBody) => {
-          try { await api.get('/v1/admin/auth/csrf') } catch { /* noop: best-effort CSRF prefetch */ }
-           const r = await api.post<LoginResponse>('/v1/admin/auth/login', { identificador: body.identificador.trim(), password: body.password })
+          try { await api.get('/api/v1/admin/auth/csrf') } catch { /* noop: best-effort CSRF prefetch */ }
+           const r = await api.post<LoginResponse>('/api/v1/admin/auth/login', { identificador: body.identificador.trim(), password: body.password })
            const data = r.data
            // ✅ Actualizar tokenRef INMEDIATAMENTE para evitar race condition en remount
            tokenRef.current = data.access_token
@@ -163,7 +163,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }, [])
 
     const logout = useCallback(async () => {
-        try { await api.post('/v1/admin/auth/logout') } catch { /* noop: best-effort logout */ }
+        try { await api.post('/api/v1/admin/auth/logout') } catch { /* noop: best-effort logout */ }
         clear()
     }, [])
 

@@ -13,11 +13,7 @@ Para workers/jobs usar los context managers tipados:
 Ver docs/security/tenant-context-contract.md y docs/security/bypass-rls-register.md.
 """
 
-from app.config.database import (  # noqa: F401
-    SessionLocal,
-    engine,
-    get_db,
-)
+from app.config.database import SessionLocal, engine, get_db  # noqa: F401
 from app.config.database import session_scope as get_db_context  # noqa: F401
 
 __all__ = ["SessionLocal", "engine", "get_db", "get_db_context"]

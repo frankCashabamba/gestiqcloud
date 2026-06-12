@@ -36,7 +36,7 @@ export async function backfillPosReceiptDocuments(
   receiptId: string
 ): Promise<POSBackfillResult> {
   const response = await api.post(
-    `/v1/admin/companies/${tenantId}/pos/receipts/${receiptId}/backfill_documents`
+    `/api/v1/admin/companies/${tenantId}/pos/receipts/${receiptId}/backfill_documents`
   );
   return response.data;
 }
@@ -52,7 +52,7 @@ export async function listPosBackfillCandidates(
   }
 ): Promise<POSBackfillCandidatesResponse> {
   const response = await api.get(
-    `/v1/admin/companies/${tenantId}/pos/receipts/backfill_candidates`,
+    `/api/v1/admin/companies/${tenantId}/pos/receipts/backfill_candidates`,
     { params }
   );
   return response.data;

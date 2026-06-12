@@ -20,7 +20,7 @@ from fastapi.openapi.docs import (
 )
 from fastapi.staticfiles import StaticFiles
 
-from .platform.http.router import build_api_router
+from .platform.http.router import register_all_routers
 from .telemetry.otel import init_fastapi
 from .telemetry.sentry import init_sentry
 
@@ -431,7 +431,10 @@ async def custom_redoc() -> Response:
     )
 
 
-# Rewrite /v1 → /api/v1 so legacy SPA routes continue working while API lives under /api/v1
+# COMPAT (retirable): rewrite /v1 → /api/v1. Tras la migración del admin a /api/v1
+# (2026-06-11) ningún frontend debería emitir /v1; este middleware queda como red de
+# seguridad. Retirar cuando los logs confirmen 0 tráfico /v1 (y quitar también la
+# reescritura /v1 del Cloudflare Worker, workers/edge-gateway.js).
 @app.middleware("http")
 async def _rewrite_v1_to_api_v1(request: Request, call_next):
     path = request.scope.get("path", "")
@@ -744,192 +747,13 @@ _email_logger.setLevel(logging.INFO)
 _email_logger.propagate = False
 
 
-# API routers
-app.include_router(build_api_router(), prefix="/api/v1")
-
-# UI Configuration router (Sistema Sin Hardcodes)
-try:
-    from app.modules.ui_config.interface.http.admin import router as ui_config_router
-
-    app.include_router(ui_config_router, prefix="/api/v1/admin")
-    _router_logger.info("UI Configuration router mounted at /api/v1/admin")
-except Exception as e:
-    _router_logger.error(f"Error mounting UI Configuration router: {e}")
-
 # ============================================================================
-# LEGACY ROUTERS ELIMINADOS (2025-11-06)
+# MONTAJE DE ROUTERS — fuente de verdad ÚNICA en platform/http/router.py.
+# main.py NO monta routers de módulo directamente (lo verifica
+# app/tests/security/test_router_mounting.py). Para añadir un router, edítalo
+# en register_all_routers() / build_api_router(), nunca aquí.
 # ============================================================================
-# Todos los routers han sido migrados a módulos modernos en app/modules/
-
-
-# Ver: app/platform/http/router.py para el montaje moderno
-#
-# Routers eliminados:
-# - POS → app/modules/pos/interface/http/tenant.py
-# - Products → app/modules/products/interface/http/tenant.py
-# - Payments → app/modules/reconciliation/interface/http/tenant.py (pendiente)
-# - E-invoicing → app/modules/einvoicing/interface/http/tenant.py
-# - Finance → app/modules/finance/interface/http/tenant.py
-# - HR → app/modules/rrhh/interface/http/tenant.py
-# - Production → app/modules/produccion/interface/http/tenant.py
-# - Accounting → app/modules/contabilidad/interface/http/tenant.py
-# - Sales → app/modules/ventas/interface/http/tenant.py
-# - Suppliers → app/modules/suppliers/interface/http/tenant.py
-# - Purchases → app/modules/compras/interface/http/tenant.py
-# - Expenses → app/modules/expenses/interface/http/tenant.py
-#
-# Si necesitas restaurar alguno, ver git history antes de 2025-11-06
-# ============================================================================
-
-# Tenant Settings (Configuración centralizada del Tenant)
-# Consolidado en CompanySettings - única fuente de verdad para configuración por tenant
-_router_logger.info("Company Settings routers mounted via build_api_router()")
-
-# Sector Templates (Plantillas de Sector)
-try:
-    from app.routers.sector_templates import router as sector_templates_router
-
-    app.include_router(sector_templates_router)  # Prefix="/api/v1/sectores"
-    _router_logger.info("Sector Templates router mounted")
-except Exception as e:
-    _router_logger.error(f"Error mounting Sector Templates router: {e}")
-
-# Sectors (FASE 1 - Consolidación)
-try:
-    from app.routers.sectors import router as sectors_router
-
-    app.include_router(sectors_router)  # Prefix="/api/v1/sectors"
-    _router_logger.info("Sectors router mounted")
-except Exception as e:
-    _router_logger.error(f"Error mounting Sectors router: {e}")
-
-# ============================================================================
-# TODOS LOS MÓDULOS PROFESIONALES YA ESTÁN EN app/modules/
-# Ver app/platform/http/router.py:253-315 para montaje automático
-# ============================================================================
-
-# Dashboard Stats - PENDIENTE DE MIGRACIÓN A MÓDULO MODERNO
-
-# Admin Stats
-try:
-    from app.routers.admin_stats import router as admin_stats_router
-
-    app.include_router(admin_stats_router, prefix="")
-    _router_logger.info("Admin Stats router mounted at /api/v1/admin/stats")
-except Exception as e:
-    _router_logger.error(f"Error mounting Admin Stats router: {e}")
-
-# Admin Field Config (imports/templates catalog)
-try:
-    from app.modules.settings.interface.http.tenant import admin_router as field_admin_router
-
-    app.include_router(field_admin_router, prefix="/api/v1")
-    _router_logger.info("Field-config admin router mounted at /api/v1/admin/field-config")
-except Exception as e:
-    _router_logger.error(f"Error mounting Field-config admin router: {e}")
-
-# Settings
-try:
-    from app.routers.settings_router import router as settings_router
-
-    app.include_router(settings_router, prefix="/api/v1")
-    _router_logger.info("Settings router mounted at /api/v1/settings")
-except Exception as e:
-    _router_logger.error(f"Error mounting Settings router: {e}")
-
-# Public Tenant Settings (unified)
-try:
-    from app.routers.company_settings_public import router as company_settings_public_router
-
-    app.include_router(company_settings_public_router, prefix="/api/v1")
-    _router_logger.info("Company Settings (public) mounted at /api/v1/company/settings/config")
-except Exception as e:
-    _router_logger.error(f"Error mounting Tenant Settings public router: {e}")
-
-# Incidents + IA
-try:
-    from app.modules.support.interface.http.incidents import router as incidents_router
-
-    app.include_router(incidents_router, prefix="/api/v1/admin")
-    _router_logger.info("Incidents router mounted at /api/v1/admin/incidents")
-except Exception as e:
-    _router_logger.error(f"Error mounting Incidents router: {e}")
-
-# Admin Logs (NotificationLog → /api/v1/admin/logs)
-try:
-    from app.routers.admin_logs import router as admin_logs_router
-
-    app.include_router(admin_logs_router, prefix="/api/v1/admin")
-    _router_logger.info("Admin Logs router mounted at /api/v1/admin/logs")
-except Exception as e:
-    _router_logger.error(f"Error mounting Admin Logs router: {e}")
-
-# Notifications: se monta vía build_api_router en /api/v1/tenant/notifications.
-# El montaje legacy en /api/v1/notifications se retiró (2026-06-10): duplicaba la
-# superficie sin require_scope y el frontend solo usa /api/v1/tenant/notifications.
-# Ver docs/routes-inventory.md.
-
-# Feature Flags
-try:
-    from app.modules.feature_flags.interface.http.tenant import router as feature_flags_router
-
-    app.include_router(feature_flags_router, prefix="/api/v1")
-    _router_logger.info("Feature Flags router mounted at /api/v1/feature-flags")
-except Exception as e:
-    _router_logger.warning(f"Feature Flags router mount failed: {e}")
-
-# HR payroll
-try:
-    from app.modules.hr.interface.http.tenant import router as hr_router
-
-    app.include_router(hr_router, prefix="/api/v1")
-    _router_logger.info("HR router mounted at /api/v1/hr")
-except Exception as e:
-    _router_logger.warning(f"HR router mount failed: {e}")
-
-# Profit Reports: se monta vía build_api_router en /api/v1/tenant/reports/profit.
-# El montaje legacy en /api/v1/reports/profit se retiró (2026-06-10): duplicaba la
-# superficie y el frontend solo usa /api/v1/tenant/reports/profit.
-# Ver docs/routes-inventory.md.
-
-# E-invoicing - Montado por platform/http/router.py (ver línea ~360)
-
-
-# -----------------------------------------------------------
-# Módulo Importador Contable Universal v1.3
-# -----------------------------------------------------------
-try:
-    from app.modules.importador.router import router as importador_router
-
-    app.include_router(importador_router, prefix="/api/v1")
-    _router_logger.info("Importador router mounted at /api/v1/importador")
-except Exception as e:
-    _router_logger.warning(f"Importador router mount failed: {e}")
-
-try:
-    from app.modules.importador.admin_router import router as importador_admin_router
-
-    app.include_router(importador_admin_router, prefix="/api/v1")
-    _router_logger.info("Importador admin routing router mounted at /api/v1/admin/importador")
-except Exception as e:
-    _router_logger.warning(f"Importador admin routing router mount failed: {e}")
-
-try:
-    from app.modules.importador.recipes_router import router as importador_recipes_router
-
-    app.include_router(importador_recipes_router, prefix="/api/v1")
-    _router_logger.info("Importador recipes router mounted at /api/v1/importador")
-except Exception as e:
-    _router_logger.warning(f"Importador recipes router mount failed: {e}")
-
-# Document Storage
-try:
-    from app.modules.documents.interface.http.document_storage import router as doc_storage_router
-
-    app.include_router(doc_storage_router, prefix="/api/v1")
-    _router_logger.info("Document Storage router mounted at /api/v1/documents/storage")
-except Exception as e:
-    _router_logger.warning(f"Document Storage router mount failed: {e}")
+register_all_routers(app)
 
 if __name__ == "__main__":
     import uvicorn

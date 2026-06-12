@@ -174,6 +174,13 @@ class InventoryCostingService:
 
     def _ensure_layers_table(self) -> None:
         """Create cost layers table if it doesn't exist (idempotent)."""
+        # Rol de app NO-superuser: sin CREATE/ALTER en el esquema. Si la tabla ya
+        # existe (dev/prod vía migración) no tocamos DDL. Crear/alterar tablas es
+        # responsabilidad de las migraciones, no del runtime.
+        from app.config.database import table_exists
+
+        if table_exists(self.db, "inventory_cost_layers"):
+            return
         self.db.execute(
             text(
                 "CREATE TABLE IF NOT EXISTS inventory_cost_layers ("
