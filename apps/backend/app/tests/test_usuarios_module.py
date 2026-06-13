@@ -238,7 +238,10 @@ def test_seed_operational_roles_assigns_expected_permissions_for_bakery(
     items = response.json()["items"]
     roles_by_name = {item["role"]["name"]: item["role"]["permissions"] for item in items}
 
-    assert roles_by_name["Cajera"]["pos"] == {"read": True, "create": True, "update": True}
+    assert roles_by_name["Cajera"]["pos"] == {"read": True, "write": True, "cashier": True}
+    assert roles_by_name["Cajera"]["pos.receipt.create"] is True
+    assert roles_by_name["Cajera"]["pos.receipt.pay"] is True
+    assert roles_by_name["Cajera"]["pos.shift.open"] is True
     assert roles_by_name["Panadero"]["produccion"] == {"read": True, "write": True}
     assert roles_by_name["Panadero"]["inventory"] == {"read": True}
     assert roles_by_name["Encargado"]["inventory"] == {
