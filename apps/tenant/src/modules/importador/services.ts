@@ -1359,7 +1359,7 @@ export interface ReviewSession {
 
 
 export async function fetchStagingSummary(documentoId: string): Promise<StagingLineSummary> {
-  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/summary`)
+  const { data } = await api.get(TENANT_IMPORTADOR.documentStagingSummary(documentoId))
   return data
 }
 
@@ -1373,7 +1373,7 @@ export async function fetchStagingLines(
     offset?: number
   } = {}
 ): Promise<StagingLine[]> {
-  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging`, {
+  const { data } = await api.get(TENANT_IMPORTADOR.documentStaging(documentoId), {
     params: {
       estado: params.estado,
       error_code: params.error_code,
@@ -1389,7 +1389,7 @@ export async function fetchFieldAnalysis(
   documentoId: string,
   params: { estados?: string[]; error_codes?: string[]; sheet?: string } = {}
 ): Promise<FieldAnalysis> {
-  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/field-analysis`, {
+  const { data } = await api.get(TENANT_IMPORTADOR.documentStagingFieldAnalysis(documentoId), {
     params: {
       estados: params.estados ?? ['INVALID', 'PENDING', 'REVIEW'],
       error_codes: params.error_codes,
@@ -1400,7 +1400,7 @@ export async function fetchFieldAnalysis(
 }
 
 export async function fetchIterations(documentoId: string): Promise<IterationRecord[]> {
-  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/iterations`)
+  const { data } = await api.get(TENANT_IMPORTADOR.documentIterations(documentoId))
   return data
 }
 
@@ -1419,7 +1419,7 @@ export async function runIteration(
       filter_sheet: scope.filter_sheet ?? null,
     },
   }
-  const { data } = await api.post(`${TENANT_IMPORTADOR.documentById(documentoId)}/iterate`, body)
+  const { data } = await api.post(TENANT_IMPORTADOR.documentIterate(documentoId), body)
   return data
 }
 
@@ -1434,7 +1434,7 @@ export async function createReviewSession(
     filter_sheet?: string | null
   }
 ): Promise<ReviewSession> {
-  const { data } = await api.post(`${TENANT_IMPORTADOR.documentById(documentoId)}/review-session`, filters)
+  const { data } = await api.post(TENANT_IMPORTADOR.documentReviewSession(documentoId), filters)
   return data
 }
 
@@ -1442,9 +1442,7 @@ export async function runReviewSession(
   documentoId: string,
   sessionId: string
 ): Promise<IterationResult> {
-  const { data } = await api.post(
-    `${TENANT_IMPORTADOR.documentById(documentoId)}/review-session/${sessionId}/run`
-  )
+  const { data } = await api.post(TENANT_IMPORTADOR.documentReviewSessionRun(documentoId, sessionId))
   return data
 }
 
@@ -1457,7 +1455,7 @@ export async function patchStagingLine(
     normalized_data?: Record<string, unknown> | null
   }
 ): Promise<StagingLine> {
-  const { data } = await api.patch(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/${lineId}`, patch)
+  const { data } = await api.patch(TENANT_IMPORTADOR.documentStagingLine(documentoId, lineId), patch)
   return data
 }
 
@@ -1467,7 +1465,7 @@ export async function bulkPatchStagingLines(
   estado: 'REPROCESS' | 'REVIEW' | 'SKIPPED',
   camposRevision?: string[]
 ): Promise<{ updated: number; estado: string }> {
-  const { data } = await api.patch(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/bulk`, {
+  const { data } = await api.patch(TENANT_IMPORTADOR.documentStagingBulk(documentoId), {
     line_ids: lineIds,
     estado,
     campos_revision: camposRevision ?? null,

@@ -162,7 +162,11 @@ def _operational_role_presets(sector: str | None) -> list[dict]:
             "name": cashier_name,
             "description": "Operacion de caja y ventas de mostrador",
             "permissions": {
-                "pos": {"read": True, "create": True, "update": True},
+                "pos": {"read": True, "write": True, "cashier": True},
+                "pos.view": True,
+                "pos.receipt.create": True,
+                "pos.receipt.pay": True,
+                "pos.shift.open": True,
             },
         },
         {
@@ -178,11 +182,24 @@ def _operational_role_presets(sector: str | None) -> list[dict]:
             "name": "Encargado",
             "description": "Supervision operativa de caja, stock, produccion y RRHH basico",
             "permissions": {
-                "pos": {"read": True, "create": True, "update": True},
+                "pos": {
+                    "read": True,
+                    "write": True,
+                    "cashier": True,
+                    "close_shift": True,
+                    "refund": True,
+                },
+                "pos.view": True,
+                "pos.receipt.create": True,
+                "pos.receipt.pay": True,
+                "pos.receipt.refund": True,
+                "pos.shift.open": True,
+                "pos.shift.close": True,
                 "inventory": {"read": True, "create": True, "update": True},
                 "produccion": {"read": True, "write": True},
                 "hr": {"read": True, "manage": True},
                 "reportes": {"read": True},
+                "notifications": {"read": True, "manage": True},
             },
         },
     ]

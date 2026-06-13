@@ -11,6 +11,11 @@ interface ModuleCardProps {
     category?: string
     required?: boolean
     dependencies?: string[]
+    status?: 'active' | 'beta' | 'partial' | 'legacy' | string
+    maturity?: number
+    risk?: 'low' | 'medium' | 'high' | string
+    requiresOfflineAudit?: boolean
+    requiresFiscalValidation?: boolean
   }
   onToggle: (moduleId: string, enabled: boolean) => void
   onClick: (moduleId: string) => void
@@ -20,6 +25,19 @@ interface ModuleCardProps {
 const badgeColors = {
   on: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   off: 'bg-gray-100 text-gray-600 border-gray-200'
+}
+
+const statusLabels: Record<string, string> = {
+  active: 'Activo',
+  beta: 'Beta',
+  partial: 'Parcial',
+  legacy: 'Legacy',
+}
+
+const riskClasses: Record<string, string> = {
+  low: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  medium: 'bg-amber-50 text-amber-700 border-amber-200',
+  high: 'bg-red-50 text-red-700 border-red-200',
 }
 
 export default function ModuleCard({ module, onToggle, onClick, disabled = false }: ModuleCardProps) {
@@ -73,6 +91,34 @@ export default function ModuleCard({ module, onToggle, onClick, disabled = false
       {module.description && (
         <p className="text-sm text-gray-600 mb-4 line-clamp-3">{module.description}</p>
       )}
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {module.status && (
+          <span className="text-xs bg-slate-50 text-slate-700 px-2 py-1 rounded-full border border-slate-200">
+            {statusLabels[module.status] || module.status}
+          </span>
+        )}
+        {typeof module.maturity === 'number' && (
+          <span className="text-xs bg-slate-50 text-slate-700 px-2 py-1 rounded-full border border-slate-200">
+            Madurez {module.maturity}/5
+          </span>
+        )}
+        {module.risk && (
+          <span className={`text-xs px-2 py-1 rounded-full border ${riskClasses[module.risk] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+            Riesgo {module.risk}
+          </span>
+        )}
+        {module.requiresOfflineAudit && (
+          <span className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded-full border border-orange-200">
+            Auditar offline
+          </span>
+        )}
+        {module.requiresFiscalValidation && (
+          <span className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded-full border border-purple-200">
+            Validación fiscal
+          </span>
+        )}
+      </div>
 
       {/* Dependencias */}
       {module.dependencies && module.dependencies.length > 0 && (

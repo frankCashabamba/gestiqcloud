@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client'
+import { TENANT_REPORTS } from '@shared/endpoints'
 
 export interface DailySummary {
   date: string
@@ -56,7 +57,7 @@ export async function getProfitReport(
   dateFrom: string,
   dateTo: string
 ): Promise<ProfitReport> {
-  const response = await apiClient.get<ProfitReport>('/api/v1/tenant/reports/profit', {
+  const response = await apiClient.get<ProfitReport>(TENANT_REPORTS.profit, {
     params: {
       date_from: dateFrom,
       date_to: dateTo,
@@ -78,7 +79,7 @@ export async function getProductMargins(
   }
 ): Promise<ProductMarginsReport> {
   const response = await apiClient.get<ProductMarginsReport>(
-    '/api/v1/tenant/reports/product-margins',
+    TENANT_REPORTS.productMargins,
     {
       params: {
         date_from: dateFrom,
@@ -102,7 +103,7 @@ export async function triggerRecalculation(
   const response = await apiClient.post<{
     status: string
     days_recalculated: number
-  }>('/api/v1/tenant/reports/recalculate', null, {
+  }>(TENANT_REPORTS.recalculate, null, {
     params: {
       date_from: dateFrom,
       date_to: dateTo,

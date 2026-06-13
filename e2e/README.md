@@ -50,6 +50,8 @@ BASE_URL=http://localhost:3000 npx playwright test
 - `smoke.spec.ts` - Tests básicos de carga de la aplicación
 - `auth.spec.ts` - Tests de flujo de autenticación
 - `navigation.spec.ts` - Tests de navegación
+- `importador.spec.ts` - Entrada, revisión y estados básicos del importador
+- `permissions.spec.ts` - Smoke de rutas protegidas sin sesión
 
 ## Añadir a package.json (opcional)
 

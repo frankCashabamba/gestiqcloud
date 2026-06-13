@@ -1,16 +1,28 @@
-{
-  "id": "notifications",
-  "name": "Notifications",
-  "icon": "🔔",
-  "category": "integrations",
-  "description": "Notification center and alert management",
-  "parent_module": "settings",
-  "surface": "embedded",
-  "nav_group": "hidden",
-  "contractable": false,
-  "required": false,
-  "default_enabled": false,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "notifications",
+    "name":  "Notifications",
+    "icon":  "🔔",
+    "category":  "integrations",
+    "description":  "Notification center and alert management",
+    "parent_module":  "settings",
+    "surface":  "embedded",
+    "nav_group":  "hidden",
+    "contractable":  false,
+    "required":  false,
+    "default_enabled":  false,
+    "dependencies":  [
+
+                     ],
+    "permissions":  [
+                        "notifications:read",
+                        "notifications:manage"
+                    ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "partial",
+    "maturity":  2,
+    "risk":  "medium"
 }

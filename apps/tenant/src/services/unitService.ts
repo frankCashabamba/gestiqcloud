@@ -9,6 +9,7 @@
  */
 
 import tenantApi from '../shared/api/client'
+import { TENANT_SECTORS } from '@shared/endpoints'
 
 export interface Unit {
   code: string
@@ -142,9 +143,8 @@ export async function getSectorUnits(sectorCode: string): Promise<Unit[]> {
       return getDefaultUnits()
     }
 
-    const encodedCode = encodeURIComponent(sectorCode)
     const response = await tenantApi.get<SectorUnitsResponse>(
-      `/api/v1/sectors/${encodedCode}/units`
+      TENANT_SECTORS.units(sectorCode)
     )
 
     if (!response.data.ok || !response.data.units) {

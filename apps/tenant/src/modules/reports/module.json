@@ -1,14 +1,22 @@
-{
-  "id": "reports",
-  "name": "Reports",
-  "icon": "📊",
-  "category": "analytics",
-  "description": "Custom reports, dashboards and exports",
-  "surface": "backoffice",
-  "nav_group": "backoffice",
-  "required": false,
-  "default_enabled": true,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "reports",
+    "name":  "Reports",
+    "icon":  "📊",
+    "category":  "analytics",
+    "description":  "Custom reports, dashboards and exports",
+    "surface":  "backoffice",
+    "nav_group":  "backoffice",
+    "required":  false,
+    "default_enabled":  true,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "partial",
+    "maturity":  3,
+    "risk":  "medium"
 }

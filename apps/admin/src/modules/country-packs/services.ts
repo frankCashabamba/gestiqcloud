@@ -12,25 +12,25 @@ export interface CountryPack {
 }
 
 export async function listCountryPacks(): Promise<CountryPack[]> {
-  return api.get('/country-packs').then((r: { data: CountryPack[] }) => r.data)
+  return api.get('/api/v1/country-packs').then((r: { data: CountryPack[] }) => r.data)
 }
 
 export async function getCountryPack(code: string): Promise<CountryPack> {
-  return api.get(`/country-packs/${code}`).then((r: { data: CountryPack }) => r.data)
+  return api.get(`/api/v1/country-packs/${code}`).then((r: { data: CountryPack }) => r.data)
 }
 
 export async function createCountryPack(payload: CountryPack): Promise<CountryPack> {
-  return api.post('/country-packs', payload).then((r: { data: CountryPack }) => r.data)
+  return api.post('/api/v1/country-packs', payload).then((r: { data: CountryPack }) => r.data)
 }
 
 export async function updateCountryPack(code: string, payload: Partial<CountryPack>): Promise<CountryPack> {
-  return api.patch(`/country-packs/${code}`, payload).then((r: { data: CountryPack }) => r.data)
+  return api.patch(`/api/v1/country-packs/${code}`, payload).then((r: { data: CountryPack }) => r.data)
 }
 
 export async function deleteCountryPack(code: string): Promise<void> {
-  return api.delete(`/country-packs/${code}`).then((r: { data: void }) => r.data)
+  return api.delete(`/api/v1/country-packs/${code}`).then((r: { data: void }) => r.data)
 }
 
 export async function validateCountryConfig(code: string, config: Record<string, unknown>): Promise<{ valid: boolean; errors?: string[] }> {
-  return api.post(`/country-packs/${code}/validate`, config).then((r: { data: { valid: boolean; errors?: string[] } }) => r.data)
+  return api.post(`/api/v1/country-packs/${code}/validate`, config).then((r: { data: { valid: boolean; errors?: string[] } }) => r.data)
 }

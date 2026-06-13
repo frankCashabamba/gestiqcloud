@@ -1,16 +1,24 @@
-{
-  "id": "reconciliation",
-  "name": "Reconciliation",
-  "icon": "🔄",
-  "category": "finance",
-  "description": "Bank statement import and reconciliation workflows",
-  "parent_module": "settings",
-  "surface": "embedded",
-  "nav_group": "hidden",
-  "contractable": false,
-  "required": false,
-  "default_enabled": false,
-  "dependencies": ["finance"],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "reconciliation",
+    "name":  "Reconciliation",
+    "icon":  "🔄",
+    "category":  "finance",
+    "description":  "Bank statement import and reconciliation workflows",
+    "parent_module":  "settings",
+    "surface":  "embedded",
+    "nav_group":  "hidden",
+    "contractable":  false,
+    "required":  false,
+    "default_enabled":  false,
+    "dependencies":  [
+                         "finance"
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "beta",
+    "maturity":  3,
+    "risk":  "high"
 }

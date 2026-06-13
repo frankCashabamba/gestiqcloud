@@ -1,4 +1,5 @@
 import { apiFetch } from '../lib/http'
+import { TENANT_SETTINGS } from '@shared/endpoints'
 import { env } from '../env'
 import { TOKEN_KEY } from '../constants/storage'
 import { isNetworkIssue } from '../lib/offlineHttp'
@@ -111,8 +112,8 @@ export async function fetchCompanyTheme(empresa?: string | null): Promise<ThemeR
 
   const inflight = apiFetch<ThemeResponse>(
     empresa
-      ? `/api/v1/company/settings/theme?empresa=${encodeURIComponent(empresa)}`
-      : '/api/v1/company/settings/theme'
+      ? `${TENANT_SETTINGS.theme}?empresa=${encodeURIComponent(empresa)}`
+      : TENANT_SETTINGS.theme
   )
     .then((data) => {
       const normalized = {

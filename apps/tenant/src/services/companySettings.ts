@@ -1,4 +1,5 @@
 import tenantApi from '../shared/api/client'
+import { TENANT_SETTINGS } from '@shared/endpoints'
 import type { BulkPricingItem } from '../modules/pos/bakeryShortcuts'
 
 export type PosTheme = 'corporate-dark' | 'soft-dark' | 'light'
@@ -56,7 +57,7 @@ export async function getCompanySettings(options?: { force?: boolean }): Promise
   }
 
   try {
-    const response = await tenantApi.get<CompanySettings>('/api/v1/company/settings')
+    const response = await tenantApi.get<CompanySettings>(TENANT_SETTINGS.base)
     cachedSettings = response.data
     return response.data
   } catch (error) {
@@ -78,7 +79,7 @@ export function clearCompanySettingsCache() {
 }
 
 export async function updateCompanySettings(payload: Partial<CompanySettings>) {
-  await tenantApi.put('/api/v1/company/settings', payload)
+  await tenantApi.put(TENANT_SETTINGS.base, payload)
   clearCompanySettingsCache()
 }
 

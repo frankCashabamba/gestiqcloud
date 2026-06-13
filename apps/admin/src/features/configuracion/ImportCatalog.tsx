@@ -25,7 +25,7 @@ export default function ImportCatalog() {
   useEffect(() => {
     async function loadTables() {
       try {
-        const { data } = await api.get('/admin/field-config/import-tables')
+        const { data } = await api.get('/api/v1/admin/field-config/import-tables')
         const items: TableOption[] = data.items || []
         setTableOptions(items)
         if (items.length > 0) {
@@ -57,7 +57,7 @@ export default function ImportCatalog() {
     setLoading(true)
     setMsg(null)
     try {
-      const { data } = await api.post('/admin/field-config/import-table', {
+      const { data } = await api.post('/api/v1/admin/field-config/import-table', {
         table: tableName,
         module: moduleName,
         sector,

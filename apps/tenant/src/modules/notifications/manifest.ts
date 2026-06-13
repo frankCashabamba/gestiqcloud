@@ -5,7 +5,7 @@ export const manifest = {
   icon: 'bell',
   category: 'integrations',
   url: '/modules/notifications',
-  permissions: ['admin:notifications'],
+  permissions: ['notifications:read', 'notifications:manage'],
   features: [
     'list_notifications',
     'mark_read',

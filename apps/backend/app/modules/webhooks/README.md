@@ -1,6 +1,48 @@
 # Webhooks Module
 
-Módulo completo de gestión de webhooks para GestiqCloud. Permite que los tenants se suscriban a eventos de la plataforma y reciban notificaciones en sus endpoints mediante entregas con firma HMAC-SHA256.
+Gestión de webhooks para GestiqCloud. Permite que los tenants se suscriban a eventos de la plataforma y reciban notificaciones en sus endpoints mediante entregas con firma HMAC-SHA256.
+
+Estado: Activo
+Madurez: 4/5
+Owner: Backend
+Riesgo: Alto
+
+## Implementado
+
+- Suscripciones por tenant con RLS.
+- Entregas asíncronas con Celery.
+- Firma HMAC-SHA256.
+- Reintentos con backoff exponencial.
+- Tests unitarios del módulo.
+
+## Parcial
+
+- La robustez operativa depende de broker/worker y observabilidad en despliegue.
+- Los payloads deben revisarse por evento para no exponer datos sensibles innecesarios.
+
+## Pendiente
+
+- Validación con consumidores externos reales.
+- Métricas/alertas operativas de entregas fallidas.
+- Política de retención de request/response bodies.
+
+## Endpoints usados
+
+- `POST /api/v1/tenant/webhooks/subscriptions`
+- `GET /api/v1/tenant/webhooks/subscriptions`
+- `DELETE /api/v1/tenant/webhooks/subscriptions/{subscription_id}`
+- `POST /api/v1/tenant/webhooks/deliveries`
+
+## Permisos
+
+- Permisos tenant de webhooks definidos en backend.
+
+## Tests mínimos
+
+- Crear y listar suscripción.
+- Rechazar URL no HTTPS.
+- Encolar entrega y verificar firma.
+- Verificar aislamiento por tenant.
 
 ## Características
 
@@ -12,7 +54,7 @@ Módulo completo de gestión de webhooks para GestiqCloud. Permite que los tenan
 - ✅ Reintentos con backoff exponencial
 - ✅ Manejo robusto de errores
 - ✅ Logging estructurado
-- ✅ Tests unitarios completos
+- ✅ Tests unitarios del módulo
 
 ## Autenticación y Tenancy
 
@@ -399,8 +441,8 @@ logger.error(f"Webhook delivery failed after 3 attempts: {delivery_id}")
 
 **No se loggean:**
 - Secrets ni claves API
-- Payloads completos (pueden contener datos sensibles)
-- Request/response bodies completos
+- Payloads íntegros (pueden contener datos sensibles)
+- Request/response bodies íntegros
 
 ---
 

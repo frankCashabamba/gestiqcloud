@@ -3,7 +3,7 @@ import type { AxiosInstance } from '@shared/http'
 type ServiceOpts = { base: string }
 
 export function createEmpresaService(api: AxiosInstance, opts: ServiceOpts) {
-  const base = opts.base || '/api/v1/admin/empresas'
+  const base = opts.base || '/api/v1/admin/companies'
   return {
     async getEmpresas<T = any[]>(): Promise<T> {
       const r = await api.get<T>(base)

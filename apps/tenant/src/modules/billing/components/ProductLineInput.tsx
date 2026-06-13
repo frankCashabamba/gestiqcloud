@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import tenantApi from '../../../shared/api/client'
+import { TENANT_PRODUCTS } from '@shared/endpoints'
 
 interface Product {
   id: string | number
@@ -18,8 +19,8 @@ interface Props {
 let _cache: Product[] | null = null
 
 async function fetchProducts(): Promise<Product[]> {
-  const { data } = await tenantApi.get<any>('/api/v1/tenant/products')
-  const items: any[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+  const { data } = await tenantApi.get<Product[] | { items?: Product[] }>(TENANT_PRODUCTS.products.list)
+  const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
   return items.map(p => ({
     id: String(p.id),
     name: p.name || '',

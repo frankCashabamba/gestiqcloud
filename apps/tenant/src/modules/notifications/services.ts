@@ -1,4 +1,5 @@
 import api from '../../services/api/client'
+import { TENANT_NOTIFICATIONS } from '@shared/endpoints'
 
 export interface Notification {
   id: string
@@ -23,19 +24,19 @@ export interface UnreadCount {
 }
 
 export async function listNotifications(skip = 0, limit = 200): Promise<NotificationListResponse> {
-  return api.get('/api/v1/tenant/notifications', { params: { skip, limit } }).then(r => r.data)
+  return api.get(TENANT_NOTIFICATIONS.base, { params: { skip, limit } }).then(r => r.data)
 }
 
 export async function getUnreadCount(): Promise<UnreadCount> {
-  return api.get('/api/v1/tenant/notifications/unread-count').then(r => r.data)
+  return api.get(TENANT_NOTIFICATIONS.unreadCount).then(r => r.data)
 }
 
 export async function markAsRead(ids: string[]): Promise<{ updated: number }> {
   return api
-    .post('/api/v1/tenant/notifications/mark-read', { notification_ids: ids })
+    .post(TENANT_NOTIFICATIONS.markRead, { notification_ids: ids })
     .then(r => r.data)
 }
 
 export async function archiveNotification(id: string): Promise<Notification> {
-  return api.post(`/api/v1/tenant/notifications/${id}/archive`).then(r => r.data)
+  return api.post(TENANT_NOTIFICATIONS.archive(id)).then(r => r.data)
 }

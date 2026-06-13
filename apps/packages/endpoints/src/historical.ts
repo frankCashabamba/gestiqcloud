@@ -1,4 +1,5 @@
 export const TENANT_HISTORICAL = {
+  base: '/api/v1/tenant/historical',
   imports: '/api/v1/tenant/historical/imports',
   importById: (id: string) => `/api/v1/tenant/historical/imports/${id}`,
   upload: '/api/v1/tenant/historical/upload',

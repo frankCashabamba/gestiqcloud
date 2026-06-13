@@ -9,6 +9,11 @@ interface Module {
   description: string
   category: string
   enabled: boolean
+  status?: 'active' | 'beta' | 'partial' | 'legacy' | string
+  maturity?: number
+  risk?: 'low' | 'medium' | 'high' | string
+  requiresOfflineAudit?: boolean
+  requiresFiscalValidation?: boolean
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -19,6 +24,25 @@ const CATEGORY_LABELS: Record<string, string> = {
   analytics: 'Analítica',
   config: 'Configuración',
   core: 'Base',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Activo',
+  beta: 'Beta',
+  partial: 'Parcial',
+  legacy: 'Legacy',
+}
+
+const RISK_LABELS: Record<string, string> = {
+  low: 'Riesgo bajo',
+  medium: 'Riesgo medio',
+  high: 'Riesgo alto',
+}
+
+const RISK_CLASSES: Record<string, string> = {
+  low: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  medium: 'bg-amber-50 text-amber-700 border-amber-200',
+  high: 'bg-red-50 text-red-700 border-red-200',
 }
 
 export default function ModulosPanel() {
@@ -44,6 +68,11 @@ export default function ModulosPanel() {
         description: m.description,
         category: CATEGORY_LABELS[m.category] || m.category || 'Otros',
         enabled: Boolean(m.is_enabled ?? m.enabled ?? m.default_enabled),
+        status: m.status,
+        maturity: typeof m.maturity === 'number' ? m.maturity : undefined,
+        risk: m.risk,
+        requiresOfflineAudit: Boolean(m.requiresOfflineAudit ?? m.requires_offline_audit),
+        requiresFiscalValidation: Boolean(m.requiresFiscalValidation ?? m.requires_fiscal_validation),
       })))
     } catch (e: any) {
       setFetchError(getErrorMessage(e))
@@ -113,6 +142,33 @@ export default function ModulosPanel() {
                   {m.description && (
                     <p className="text-sm text-gray-500 mt-0.5">{m.description}</p>
                   )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {m.status && (
+                      <span className="text-xs border border-slate-200 bg-slate-50 text-slate-700 px-2 py-0.5 rounded-full">
+                        {STATUS_LABELS[m.status] || m.status}
+                      </span>
+                    )}
+                    {typeof m.maturity === 'number' && (
+                      <span className="text-xs border border-slate-200 bg-slate-50 text-slate-700 px-2 py-0.5 rounded-full">
+                        Madurez {m.maturity}/5
+                      </span>
+                    )}
+                    {m.risk && (
+                      <span className={`text-xs border px-2 py-0.5 rounded-full ${RISK_CLASSES[m.risk] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                        {RISK_LABELS[m.risk] || m.risk}
+                      </span>
+                    )}
+                    {m.requiresOfflineAudit && (
+                      <span className="text-xs border border-orange-200 bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full">
+                        Auditar offline
+                      </span>
+                    )}
+                    {m.requiresFiscalValidation && (
+                      <span className="text-xs border border-purple-200 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                        Validación fiscal
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

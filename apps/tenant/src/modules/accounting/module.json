@@ -1,14 +1,22 @@
-{
-  "id": "accounting",
-  "name": "Accounting",
-  "icon": "📚",
-  "category": "finance",
-  "description": "Ledger, journal entries and accounting controls",
-  "surface": "backoffice",
-  "nav_group": "backoffice",
-  "required": false,
-  "default_enabled": false,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "accounting",
+    "name":  "Accounting",
+    "icon":  "📚",
+    "category":  "finance",
+    "description":  "Ledger, journal entries and accounting controls",
+    "surface":  "backoffice",
+    "nav_group":  "backoffice",
+    "required":  false,
+    "default_enabled":  false,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "beta",
+    "maturity":  3,
+    "risk":  "high"
 }

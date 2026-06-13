@@ -7,7 +7,7 @@ Esta guía proporciona instrucciones paso a paso para que el equipo de desarroll
 1. **Adopción completa** de patrones BaseCatalogModel y schema_generator
 2. **Reducción de 80%** del código duplicado en 3 meses
 3. **Mejora de 50%** en la velocidad de desarrollo de nuevos catálogos
-4. **Consistencia 100%** en validaciones y tipos entre frontend/backend
+4. **Consistencia estricta** en validaciones y tipos entre frontend/backend
 
 ## 📋 Fases de Migración
 

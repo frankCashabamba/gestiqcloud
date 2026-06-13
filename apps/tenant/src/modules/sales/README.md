@@ -2,14 +2,59 @@
 
 ## 📋 Descripción
 
-Módulo completo de gestión de ventas con CRUD profesional, cálculo automático de impuestos, gestión de líneas de venta y conversión a facturas.
+Gestión de ventas con CRUD, cálculo automático de impuestos, líneas de venta y conversión a facturas.
+
+Estado: Activo
+Madurez: 4/5
+Owner: Frontend
+Riesgo: Medio
+
+## Implementado
+
+- Listado, creación, edición, detalle y eliminación de ventas.
+- Líneas de venta con cálculo de subtotal, impuestos y total.
+- Exportación CSV desde el listado.
+- Conversión a factura desde ventas en borrador.
+
+## Parcial
+
+- La conversión a factura depende de la integración backend y del módulo de facturación disponible para el tenant.
+- El README documenta dos formas de respuesta (`array` directo u objeto con `items`); el cliente debe mantenerse alineado con el contrato backend activo.
+
+## Pendiente
+
+- Tests unitarios del cálculo de totales.
+- Smoke test venta -> factura con datos reales.
+
+## Endpoints usados
+
+- `GET /api/v1/tenant/sales_orders`
+- `GET /api/v1/tenant/sales_orders/:id`
+- `POST /api/v1/tenant/sales_orders`
+- `PUT /api/v1/tenant/sales_orders/:id`
+- `DELETE /api/v1/tenant/sales_orders/:id`
+- `POST /api/v1/tenant/sales_orders/:id/invoice`
+
+## Permisos
+
+- `sales:read`
+- `sales:create`
+- `sales:update`
+- `sales:delete`
+
+## Tests mínimos
+
+- Crear venta con varias líneas.
+- Editar venta existente y recalcular totales.
+- Convertir borrador a factura.
+- Bloquear acciones sin permiso.
 
 ## 🏗️ Arquitectura
 
 ```
 apps/tenant/src/modules/ventas/
 ├── List.tsx                    ✅ Lista con filtros, paginación, ordenamiento
-├── Form.tsx                    ✅ Formulario completo con líneas de venta
+├── Form.tsx                    ✅ Formulario con líneas de venta
 ├── Detail.tsx                  ✅ Vista detalle con acciones
 ├── Routes.tsx                  ✅ Rutas configuradas
 ├── services.ts                 ✅ API client con tipos TypeScript
@@ -67,7 +112,7 @@ apps/tenant/src/modules/ventas/
 - ✅ Diseño profesional con bordes y uppercase
 
 ### **services.ts** - API Integration
-- ✅ Tipos TypeScript completos:
+- ✅ Tipos TypeScript:
   - `Venta`: modelo principal
   - `VentaLinea`: líneas de venta
 - ✅ Métodos CRUD:

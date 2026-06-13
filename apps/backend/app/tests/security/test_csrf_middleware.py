@@ -65,9 +65,7 @@ def test_post_with_double_submit_passes():
 
 
 def test_post_header_without_cookie_is_rejected():
-    r = _client().post(
-        "/api/v1/tenant/expenses", json={}, headers={"X-CSRF-Token": "tok-123"}
-    )
+    r = _client().post("/api/v1/tenant/expenses", json={}, headers={"X-CSRF-Token": "tok-123"})
     assert r.status_code == 403
 
 

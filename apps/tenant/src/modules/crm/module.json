@@ -1,12 +1,20 @@
-{
-  "id": "crm",
-  "name": "CRM",
-  "icon": "🤝",
-  "category": "sales",
-  "description": "Lead management, opportunities and customer relations",
-  "required": false,
-  "default_enabled": true,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "crm",
+    "name":  "CRM",
+    "icon":  "🤝",
+    "category":  "sales",
+    "description":  "Lead management, opportunities and customer relations",
+    "required":  false,
+    "default_enabled":  true,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "active",
+    "maturity":  3,
+    "risk":  "medium"
 }

@@ -5,6 +5,17 @@ import { fetchCanonicalFields, formatFieldLabel } from '../services'
 import type { StagingLine } from '../services'
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
+const HIDDEN_PREVIEW_KEYS = new Set([
+  'raw_ai_json',
+  'raw_ai',
+  'llm_raw',
+  'prompt',
+  'completion',
+  'debug',
+  'debug_info',
+  'trace',
+  'tokens',
+])
 
 function toggleStringValue(values: string[], value: string, checked: boolean): string[] {
   if (!value) return values
@@ -21,7 +32,18 @@ function toggleNumberValue(values: number[], value: number, checked: boolean): n
 
 function getObjectKeys(value: unknown): string[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return []
-  return Object.keys(value as Record<string, unknown>).filter(Boolean)
+  return Object.keys(value as Record<string, unknown>).filter((key) => {
+    const normalized = key.trim().toLowerCase()
+    return Boolean(normalized) && !normalized.startsWith('_') && !HIDDEN_PREVIEW_KEYS.has(normalized)
+  })
+}
+
+function safePreviewEntries(value: unknown): Array<[string, unknown]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.entries(value as Record<string, unknown>).filter(([key]) => {
+    const normalized = key.trim().toLowerCase()
+    return Boolean(normalized) && !normalized.startsWith('_') && !HIDDEN_PREVIEW_KEYS.has(normalized)
+  })
 }
 
 function getStagingLineColumns(line: StagingLine): string[] {
@@ -318,7 +340,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
               <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto', padding: '0.5rem', border: '1px solid #E5E7EB', borderRadius: 8, background: '#F9FAFB' }}>
                 {reprocessableLines.map(line => {
                   const checked = selectedLineNumbers.includes(line.line_number)
-                  const preview = Object.entries(line.normalized_data || line.raw_data || {})
+                  const preview = safePreviewEntries(line.normalized_data || line.raw_data || {})
                     .slice(0, 3)
                     .map(([key, value]) => `${key}: ${String(value)}`)
                     .join(' · ')

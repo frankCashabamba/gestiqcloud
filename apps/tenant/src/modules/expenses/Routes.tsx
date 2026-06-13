@@ -15,22 +15,24 @@ export default function GastosRoutes() {
       <Routes>
         <Route index element={<GastosList />} />
         <Route
-          path="nuevo"
+          path="new"
           element={
             <ProtectedRoute permission="expenses:create">
               <GastoForm />
             </ProtectedRoute>
           }
         />
+        <Route path="nuevo" element={<Navigate to="../new" replace />} />
         <Route path=":id" element={<GastoDetail />} />
         <Route
-          path=":id/editar"
+          path=":id/edit"
           element={
             <ProtectedRoute permission="expenses:update">
               <GastoForm />
             </ProtectedRoute>
           }
         />
+        <Route path=":id/editar" element={<Navigate to="../edit" replace />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

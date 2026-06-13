@@ -1,4 +1,5 @@
 import api from '../../services/api/client'
+import { TENANT_RECONCILIATION } from '@shared/endpoints'
 
 export interface BankStatement {
   id: string
@@ -47,7 +48,7 @@ export interface StatementImportPayload {
   }[]
 }
 
-const BASE = '/api/v1/tenant/reconciliation'
+const BASE = TENANT_RECONCILIATION.base
 
 export async function listStatements(): Promise<{ items: BankStatement[]; total: number }> {
   return api.get(`${BASE}/statements`).then(r => r.data)

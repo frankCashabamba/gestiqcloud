@@ -2,10 +2,10 @@
 
 Fecha: 2026-04-29
 Revision codigo: 2026-05-01
-Ultima actualizacion masiva: 2026-05-01 (cierre de bloqueos al 100%)
+Ultima actualizacion masiva: 2026-05-01 (cierre funcional de bloqueos priorizados; no equivale a certificacion productiva)
 Auditoria de codigo real: 2026-05-01 (8 agentes paralelos — gaps y discrepancias documentados)
 
-Objetivo: dejar listos para produccion los modulos que estan cerca del 100%, aplicando parches acotados. Los modulos con trabajo estructural, legal, fiscal o de arquitectura quedan fuera del pase a produccion hasta completar una fase aparte.
+Objetivo: preparar para validacion productiva los modulos con mayor cobertura funcional, aplicando parches acotados. Los modulos con trabajo estructural, legal, fiscal o de arquitectura quedan fuera del pase a produccion hasta completar una fase aparte.
 
 ## Actualizacion 2026-05-01 contra codigo
 
@@ -307,9 +307,9 @@ Bloqueos:
 
 Decision: tecnicamente listo para produccion sandbox. Activacion productiva real requiere certificado homologado, aprobacion fiscal del operador y evaluar arquitectura SII sincrona.
 
-### Accounting completo
+### Accounting
 
-Motivo: contabilidad completa lista para beta tras cierre masivo 2026-05-01.
+Motivo: cobertura contable suficiente para beta tras cierre masivo 2026-05-01.
 
 Bloqueos:
 
@@ -359,11 +359,11 @@ Bloqueos:
 - [HECHO 2026-04-30] RLS añadido a rutas tenant y pagos autenticados; pendiente validacion de integracion con Postgres/RLS activo.
 - Importacion de extractos no acepta upload CSV/OFX real; espera JSON ya parseado.
 
-Decision: no activar como modulo productivo completo. Puede quedar en beta interna.
+Decision: no activar como modulo productivo estable. Puede quedar en beta interna.
 
 ### Documents / Quotes
 
-Motivo: cierre completo 2026-05-01.
+Motivo: cierre funcional del alcance MVP el 2026-05-01.
 
 Bloqueos:
 
@@ -391,7 +391,7 @@ Decision: mantener desactivado o solo admin interno.
 
 ### Analytics
 
-Motivo: backend y frontend listos tras cierre 2026-05-01.
+Motivo: backend y frontend con cobertura funcional tras cierre 2026-05-01.
 
 Bloqueos:
 
@@ -404,7 +404,7 @@ Decision: candidato a produccion como modulo "Analitica" con scope tenant. Datos
 
 ### Restaurant
 
-Motivo: cierre completo MVP 2026-05-01; queda solo integracion POS/facturacion.
+Motivo: cierre funcional MVP 2026-05-01; queda integracion POS/facturacion.
 
 Bloqueos:
 
@@ -531,7 +531,7 @@ No subir todavia:
 - Reconciliation
 - AI Agent (solo admin interno)
 
-## Estado de completitud por modulo (2026-05-01)
+## Estado de cobertura por modulo (2026-05-01)
 
 Notas sobre la columna "Decision pendiente":
 - COMPLETO = todas las decisiones de alcance v1 estan documentadas en este fichero (ya sea como [DECISION v1], [HECHO], [TODO FASE 2] o [REQUISITO DEPLOY]).

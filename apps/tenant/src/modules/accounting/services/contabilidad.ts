@@ -1,8 +1,9 @@
 import type { Asiento, Apunte } from '../types/movimiento'
 import { apiFetch } from '../../../lib/http'
+import { TENANT_ACCOUNTING } from '@shared/endpoints'
 
 export async function fetchMovimientos(): Promise<Asiento[]> {
-  const data = await apiFetch<any>(`/api/v1/tenant/accounting/transactions?page_size=500`)
+  const data = await apiFetch<any>(`${TENANT_ACCOUNTING.transactions}?page_size=500`)
   const items: any[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
 
   return items.map((a: any) => {

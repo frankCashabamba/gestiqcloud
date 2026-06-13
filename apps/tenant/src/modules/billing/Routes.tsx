@@ -15,21 +15,24 @@ export default function InvoiceRoutes() {
       <Routes>
         <Route index element={<InvoicesList />} />
         <Route
-          path="nueva"
+          path="new"
           element={
             <ProtectedRoute permission="billing:create">
               <InvoiceForm />
             </ProtectedRoute>
           }
         />
+        <Route path="nueva" element={<Navigate to="../new" replace />} />
+        <Route path="nuevo" element={<Navigate to="../new" replace />} />
         <Route
-          path=":id/editar"
+          path=":id/edit"
           element={
             <ProtectedRoute permission="billing:update">
               <InvoiceForm />
             </ProtectedRoute>
           }
         />
+        <Route path=":id/editar" element={<Navigate to="../edit" replace />} />
         <Route path=":id/facturae" element={<InvoiceEPage />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>

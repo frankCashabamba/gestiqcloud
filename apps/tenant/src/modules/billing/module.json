@@ -10,5 +10,9 @@
   "default_enabled": true,
   "dependencies": [],
   "countries": ["ES", "EC"],
-  "implemented": true
+  "implemented": true,
+  "status": "active",
+  "maturity": 4,
+  "risk": "high",
+  "requiresFiscalValidation": true
 }

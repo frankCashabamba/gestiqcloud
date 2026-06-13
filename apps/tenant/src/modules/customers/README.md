@@ -33,7 +33,7 @@ Cómo añadir un campo (ej. “catalogo”)
    - Ir a Admin → Configuración → Campos → seleccionar Sector y módulo ‘clientes’.
    - Añadir fila field=catalogo, visible=✓, required=según necesidad, ord=…
    - Guardar. En tenants con modo ‘mixed’ o ‘sector’, el campo aparecerá.
-2) Solo para un tenant concreto (100% personalizado o ajuste puntual):
+2) Solo para un tenant concreto (personalizado por tenant o ajuste puntual):
    - En la misma vista, rellenar Empresa (slug), p. ej. kusi-panaderia.
    - Añadir la fila ‘catalogo’ y Guardar.
    - Opcional: cambia el Modo a ‘tenant’ si quieres que se ignore el sector.

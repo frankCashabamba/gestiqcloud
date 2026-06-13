@@ -4,36 +4,33 @@
  */
 
 /**
- * API base URL - recuperada de env var VITE_API_URL
- * En desarrollo: /v1 (proxy local)
- * En producción: https://api.gestiqcloud.com/api/v1 (vía reverse proxy)
+ * API base URL = ORIGIN del backend (p.ej. http://localhost:8000 o
+ * https://api.gestiqcloud.com), SIN sufijo /api ni /v1. El prefijo canónico
+ * `/api/v1/*` va en cada ruta. Alineado con apps/admin/src/shared/api/client.ts.
  */
 function resolveApiBase(rawBase?: string): string {
-  const base = (rawBase || '/v1').replace(/\/+$/g, '')
-  if (base === '' || base === '/v1') return '/v1'
-  if (base.endsWith('/api/v1')) return base
-  if (base.endsWith('/v1')) return base
-  if (base.endsWith('/api')) return `${base}/v1`
-  return `${base}/v1`
+  const base = (rawBase || '').replace(/\/+$/g, '')
+  // Defensa: si el env incluyera por error /api, /v1 o /api/v1 al final, se quita.
+  return base.replace(/\/(api\/v1|api|v1)$/i, '')
 }
 
 export const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL)
 
 /**
- * API endpoint paths
+ * API endpoint paths (prefijo canónico /api/v1)
  */
 export const API_ENDPOINTS = {
   INCIDENTS: {
-    LIST: `${API_BASE}/admin/incidents`,
-    GET: (id: string) => `${API_BASE}/admin/incidents/${id}`,
-    UPDATE: (id: string) => `${API_BASE}/admin/incidents/${id}`,
+    LIST: `${API_BASE}/api/v1/admin/incidents`,
+    GET: (id: string) => `${API_BASE}/api/v1/admin/incidents/${id}`,
+    UPDATE: (id: string) => `${API_BASE}/api/v1/admin/incidents/${id}`,
   },
   LOGS: {
-    LIST: `${API_BASE}/admin/logs`,
-    EXPORT: `${API_BASE}/admin/logs/export`,
+    LIST: `${API_BASE}/api/v1/admin/logs`,
+    EXPORT: `${API_BASE}/api/v1/admin/logs/export`,
   },
   AUTH: {
-    LOGIN: `${API_BASE}/admin/auth/login`,
-    LOGOUT: `${API_BASE}/admin/auth/logout`,
+    LOGIN: `${API_BASE}/api/v1/admin/auth/login`,
+    LOGOUT: `${API_BASE}/api/v1/admin/auth/logout`,
   },
 } as const

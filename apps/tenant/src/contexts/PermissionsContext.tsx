@@ -29,7 +29,7 @@ export type PermissionsContextType = {
 
 const PermissionsContext = createContext<PermissionsContextType | null>(null)
 
-function splitPermissionKey(raw: string): { module: string; action: string } | null {
+export function splitPermissionKey(raw: string): { module: string; action: string } | null {
   const key = raw.trim()
   if (!key) return null
 
@@ -47,7 +47,52 @@ function splitPermissionKey(raw: string): { module: string; action: string } | n
   }
 }
 
-function normalizePermissions(raw: unknown): PermissionDict {
+const PERMISSION_ALIASES: Record<string, string[]> = {
+  'pos:read': ['pos.view', 'pos.read'],
+  'pos:write': ['pos.receipt.create', 'pos.receipt.manage', 'pos.write'],
+  'pos:cashier': ['pos.receipt.pay', 'pos.shift.open', 'pos.cashier'],
+  'pos:close_shift': ['pos.shift.close'],
+  'pos:refund': ['pos.receipt.refund'],
+  'accounting:read': ['accounting.reports.read'],
+  'accounting:entry': ['accounting.entry.create'],
+  'accounting:adjust': ['accounting.entry.post', 'accounting.entry.cancel', 'accounting.account.manage'],
+  'quotes:read': ['quotes.manage'],
+  'quotes:create': ['quotes.manage'],
+  'quotes:update': ['quotes.manage'],
+  'quotes:delete': ['quotes.manage'],
+  'templates:manage': ['templates:write', 'read:templates'],
+  'webhooks:manage': ['admin:webhooks', 'webhooks:write'],
+  'notifications:read': ['notifications.read'],
+  'notifications:manage': ['notifications.write', 'notifications.manage'],
+}
+
+function grantPermission(normalized: PermissionDict, module: string, action: string) {
+  normalized[module] = {
+    ...(normalized[module] || {}),
+    [action]: true,
+  }
+}
+
+function grantPermissionKey(normalized: PermissionDict, key: string) {
+  const parts = splitPermissionKey(key)
+  if (!parts) return
+  grantPermission(normalized, parts.module, parts.action)
+}
+
+function grantAliases(normalized: PermissionDict, key: string) {
+  const aliases = PERMISSION_ALIASES[key]
+  if (aliases) {
+    aliases.forEach((alias) => grantPermissionKey(normalized, alias))
+  }
+
+  for (const [canonical, aliasKeys] of Object.entries(PERMISSION_ALIASES)) {
+    if (aliasKeys.includes(key)) {
+      grantPermissionKey(normalized, canonical)
+    }
+  }
+}
+
+export function normalizePermissions(raw: unknown): PermissionDict {
   if (!raw || typeof raw !== 'object') return {}
 
   const normalized: PermissionDict = {}
@@ -69,6 +114,8 @@ function normalizePermissions(raw: unknown): PermissionDict {
           ...(normalized[key] || {}),
           ...nested,
         }
+        Object.keys(nested).forEach((action) => grantAliases(normalized, `${key}:${action}`))
+        Object.keys(nested).forEach((action) => grantAliases(normalized, `${key}.${action}`))
       }
       continue
     }
@@ -78,10 +125,8 @@ function normalizePermissions(raw: unknown): PermissionDict {
     const parts = splitPermissionKey(key)
     if (!parts) continue
 
-    normalized[parts.module] = {
-      ...(normalized[parts.module] || {}),
-      [parts.action]: true,
-    }
+    grantPermission(normalized, parts.module, parts.action)
+    grantAliases(normalized, key)
   }
 
   return normalized

@@ -15,22 +15,24 @@ export default function ProveedoresRoutes() {
       <Routes>
         <Route index element={<ProveedoresList />} />
         <Route
-          path="nuevo"
+          path="new"
           element={
             <ProtectedRoute permission="suppliers:create">
               <ProveedorForm />
             </ProtectedRoute>
           }
         />
+        <Route path="nuevo" element={<Navigate to="../new" replace />} />
         <Route path=":id" element={<ProveedorDetail />} />
         <Route
-          path=":id/editar"
+          path=":id/edit"
           element={
             <ProtectedRoute permission="suppliers:update">
               <ProveedorForm />
             </ProtectedRoute>
           }
         />
+        <Route path=":id/editar" element={<Navigate to="../edit" replace />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

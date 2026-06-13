@@ -15,8 +15,10 @@ export default function QuotesRoutes() {
       <Routes>
         <Route index element={<QuotesList />} />
         <Route path="new" element={<QuoteForm />} />
+        <Route path="nuevo" element={<Navigate to="../new" replace />} />
         <Route path=":id" element={<QuoteDetail />} />
         <Route path=":id/edit" element={<QuoteForm />} />
+        <Route path=":id/editar" element={<Navigate to="../edit" replace />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

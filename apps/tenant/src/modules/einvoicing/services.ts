@@ -3,6 +3,7 @@
  */
 
 import tenantApi from '../../shared/api/client'
+import { TENANT_EINVOICING } from '@shared/endpoints'
 
 export interface EInvoice {
   id: string
@@ -32,16 +33,16 @@ export interface EInvoiceStatusResponse {
 }
 
 export async function sendToSii(data: SendSiiRequest): Promise<EInvoice> {
-  const res = await tenantApi.post('/api/v1/tenant/einvoicing/send-sii', data)
+  const res = await tenantApi.post(TENANT_EINVOICING.sendSii, data)
   return res.data
 }
 
 export async function getEInvoiceStatus(id: string): Promise<EInvoiceStatusResponse> {
-  const res = await tenantApi.get(`/api/v1/tenant/einvoicing/einvoice/${id}/status`)
+  const res = await tenantApi.get(TENANT_EINVOICING.status(id))
   return res.data
 }
 
 export async function retryEInvoice(id: string): Promise<EInvoice> {
-  const res = await tenantApi.post(`/api/v1/tenant/einvoicing/einvoice/${id}/retry`)
+  const res = await tenantApi.post(TENANT_EINVOICING.retry(id))
   return res.data
 }

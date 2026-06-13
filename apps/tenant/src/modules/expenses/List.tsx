@@ -177,7 +177,7 @@ export default function GastosList() {
            {can('expenses:create') && (
              <button
                className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-               onClick={() => nav('nuevo')}
+               onClick={() => nav('new')}
              >
                {t('expenses:new')}
              </button>
@@ -339,7 +339,7 @@ export default function GastosList() {
                 <td className="py-2 px-2 font-medium">${v.amount.toFixed(2)}</td>
                 <td className="py-2 px-2">
                   {!isProductionExpense(v) && can('expenses:update') && (
-                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
+                    <Link to={`${v.id}/edit`} className="text-blue-600 hover:underline mr-3">
                       {t('edit', { ns: 'common' })}
                     </Link>
                   )}

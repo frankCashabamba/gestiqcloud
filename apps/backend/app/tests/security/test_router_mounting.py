@@ -21,6 +21,7 @@ from pathlib import Path
 
 from app.main import app
 
+
 # --------------------------------------------------------------------------- #
 # 1. No hay rutas duplicadas
 # --------------------------------------------------------------------------- #
@@ -48,9 +49,9 @@ def test_main_does_not_mount_module_routers():
         "main.py monta routers directamente. El montaje debe vivir SOLO en "
         "platform/http/router.py:register_all_routers(). Mueve el include_router allí."
     )
-    assert "register_all_routers(app)" in src, (
-        "main.py debe delegar el montaje en register_all_routers(app)."
-    )
+    assert (
+        "register_all_routers(app)" in src
+    ), "main.py debe delegar el montaje en register_all_routers(app)."
 
 
 # --------------------------------------------------------------------------- #
@@ -59,10 +60,10 @@ def test_main_does_not_mount_module_routers():
 # Rutas legacy/duplicadas retiradas (2026-06-10). Si alguien las vuelve a montar,
 # este test lo detecta. El canónico de cada una vive bajo /api/v1/tenant.
 _RETIRED_LEGACY_PATHS = (
-    "/api/v1/dashboard/kpis",            # alias -> /api/v1/tenant/dashboard/kpis
-    "/api/v1/hr/payroll",                # duplicado -> /api/v1/tenant/hr/payroll
-    "/api/v1/notifications",             # duplicado -> /api/v1/tenant/notifications
-    "/api/v1/reports/profit",            # duplicado -> /api/v1/tenant/reports/profit
+    "/api/v1/dashboard/kpis",  # alias -> /api/v1/tenant/dashboard/kpis
+    "/api/v1/hr/payroll",  # duplicado -> /api/v1/tenant/hr/payroll
+    "/api/v1/notifications",  # duplicado -> /api/v1/tenant/notifications
+    "/api/v1/reports/profit",  # duplicado -> /api/v1/tenant/reports/profit
 )
 
 

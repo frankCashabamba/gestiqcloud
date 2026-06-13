@@ -1,4 +1,5 @@
 import tenantApi from '../../shared/api/client'
+import { ADMIN_INCIDENT_CHANNELS, TENANT_TELEGRAM } from '@shared/endpoints'
 import type {
   NotificationChannel,
   NotificationChannelCreate,
@@ -27,7 +28,7 @@ function fromApiChannel(channel: ApiNotificationChannel): NotificationChannel {
 
 export async function listNotificationChannels(): Promise<NotificationChannel[]> {
   const { data } = await tenantApi.get<ApiNotificationChannel[]>(
-    '/api/v1/admin/incidents/notifications/channels'
+    ADMIN_INCIDENT_CHANNELS.base
   )
   return (data || []).map(fromApiChannel)
 }
@@ -36,7 +37,7 @@ export async function createNotificationChannel(
   payload: NotificationChannelCreate
 ): Promise<NotificationChannel> {
   const { data } = await tenantApi.post<ApiNotificationChannel>(
-    '/api/v1/admin/incidents/notifications/channels',
+    ADMIN_INCIDENT_CHANNELS.base,
     {
       channel_type: payload.tipo,
       name: payload.name,
@@ -52,7 +53,7 @@ export async function updateNotificationChannel(
   payload: NotificationChannelUpdate
 ): Promise<NotificationChannel> {
   const { data } = await tenantApi.put<ApiNotificationChannel>(
-    `/api/v1/admin/incidents/notifications/channels/${id}`,
+    ADMIN_INCIDENT_CHANNELS.byId(id),
     {
       name: payload.name,
       config: payload.config,
@@ -63,13 +64,13 @@ export async function updateNotificationChannel(
 }
 
 export async function generateTelegramSecret(): Promise<string> {
-  const { data } = await tenantApi.post<{ secret: string }>('/api/v1/telegram/generate-secret', {})
+  const { data } = await tenantApi.post<{ secret: string }>(TENANT_TELEGRAM.generateSecret, {})
   return data.secret
 }
 
 export async function registerTelegramWebhook(customBaseUrl?: string): Promise<string> {
   const body: Record<string, string> = {}
   if (customBaseUrl) body.custom_base_url = customBaseUrl
-  const { data } = await tenantApi.post<{ webhook_url: string }>('/api/v1/telegram/register-webhook', body)
+  const { data } = await tenantApi.post<{ webhook_url: string }>(TENANT_TELEGRAM.registerWebhook, body)
   return data.webhook_url
 }

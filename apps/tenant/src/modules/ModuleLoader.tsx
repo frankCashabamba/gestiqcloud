@@ -3,6 +3,7 @@ import { Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMisModulos } from '../hooks/useMisModulos'
 import { canonicalizeCompanyModuleKey, getCompanyModuleFolder } from '../lib/companyModuleKeys'
+import ModuleErrorBoundary from '../components/ModuleErrorBoundary'
 // Side-effect import: forces every `./<module>/manifest.ts` to be evaluated at
 // startup so manifest declarations (permissions, menu, routes) are registered
 // instead of being silently tree-shaken / flagged unused by knip.
@@ -74,8 +75,10 @@ export default function ModuleLoader() {
   if (!Component) return <div style={{ padding: 16 }}>{t('common.loadingModule')}</div>
 
   return (
-    <Suspense fallback={<div style={{ padding: 16 }}>{t('common.loadingModule')}</div>}>
-      <Component />
-    </Suspense>
+    <ModuleErrorBoundary key={canonicalModule || folder} module={canonicalModule || folder}>
+      <Suspense fallback={<div style={{ padding: 16 }}>{t('common.loadingModule')}</div>}>
+        <Component />
+      </Suspense>
+    </ModuleErrorBoundary>
   )
 }

@@ -22,6 +22,7 @@ export default function PurchasesRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="nuevo" element={<Navigate to="../new" replace />} />
         <Route path=":id" element={<PurchaseDetail />} />
         <Route
           path=":id/edit"
@@ -31,6 +32,7 @@ export default function PurchasesRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path=":id/editar" element={<Navigate to="../edit" replace />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

@@ -1,6 +1,7 @@
 import tenantApi from '../../shared/api/client'
+import { TENANT_HISTORICAL } from '@shared/endpoints'
 
-const BASE = '/api/v1/tenant/historical'
+const BASE = TENANT_HISTORICAL.base
 
 export type HistImport = {
   id: string

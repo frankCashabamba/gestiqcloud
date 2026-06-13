@@ -1,10 +1,14 @@
-{
-  "id": "restaurant",
-  "name": "Restaurante",
-  "icon": "🍽️",
-  "version": "1.0.0",
-  "description": "Gestión de mesas y comandas",
-  "category": "operations",
-  "surface": "sector",
-  "enabled": false
+﻿{
+    "id":  "restaurant",
+    "name":  "Restaurante",
+    "icon":  "🍽️",
+    "version":  "1.0.0",
+    "description":  "Gestión de mesas y comandas",
+    "category":  "operations",
+    "surface":  "sector",
+    "enabled":  false,
+    "requiresFiscalValidation":  true,
+    "status":  "beta",
+    "maturity":  2,
+    "risk":  "high"
 }

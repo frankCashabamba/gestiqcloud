@@ -2,8 +2,9 @@ import api from '../../shared/api/client'
 import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
 import { listOrders, getOrder } from './services'
 import { isOfflineQueuedResponse, stripOfflineMeta } from '@/lib/offlineHttp'
+import { TENANT_RESTAURANT } from '@shared/endpoints'
 
-const BASE = '/api/v1/tenant/restaurant/orders'
+const BASE = TENANT_RESTAURANT.orders
 
 export const RestaurantAdapter: SyncAdapter = {
   entity: 'order',

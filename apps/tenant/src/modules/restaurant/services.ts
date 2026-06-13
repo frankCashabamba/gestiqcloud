@@ -1,4 +1,5 @@
 import api from '../../shared/api/client'
+import { TENANT_RESTAURANT } from '@shared/endpoints'
 
 export interface Table {
   id: string
@@ -35,7 +36,7 @@ export interface Order {
   opened_at: string
 }
 
-const BASE = '/api/v1/tenant/restaurant'
+const BASE = TENANT_RESTAURANT.base
 
 export const listTables = () => api.get(`${BASE}/tables`).then(r => r.data as Table[])
 export const createTable = (data: Partial<Table>) => api.post(`${BASE}/tables`, data).then(r => r.data)

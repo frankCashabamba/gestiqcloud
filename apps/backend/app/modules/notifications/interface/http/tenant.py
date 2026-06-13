@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.auth_dependencies import ensure_tenant, get_current_user
+from app.core.authz import require_permission
 from app.modules.notifications.application.schemas import (
     CreateTemplateRequest,
     MarkReadRequest,
@@ -36,7 +37,12 @@ from app.modules.notifications.domain.models import NotificationTemplate
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-@router.post("/send", response_model=NotificationResponse, status_code=201)
+@router.post(
+    "/send",
+    response_model=NotificationResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("notifications:manage"))],
+)
 async def send_notification(
     request: SendNotificationRequest,
     db: Session = Depends(get_db),
@@ -64,7 +70,12 @@ async def send_notification(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/send-template", response_model=NotificationResponse, status_code=201)
+@router.post(
+    "/send-template",
+    response_model=NotificationResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("notifications:manage"))],
+)
 async def send_template_notification(
     request: SendTemplateNotificationRequest,
     db: Session = Depends(get_db),
@@ -93,7 +104,11 @@ async def send_template_notification(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("", response_model=NotificationListResponse)
+@router.get(
+    "",
+    response_model=NotificationListResponse,
+    dependencies=[Depends(require_permission("notifications:read"))],
+)
 def list_notifications(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
@@ -114,7 +129,11 @@ def list_notifications(
     return NotificationListResponse(items=items, total=total, skip=skip, limit=limit)
 
 
-@router.get("/unread-count", response_model=UnreadCountResponse)
+@router.get(
+    "/unread-count",
+    response_model=UnreadCountResponse,
+    dependencies=[Depends(require_permission("notifications:read"))],
+)
 def get_unread_count(
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
@@ -130,7 +149,7 @@ def get_unread_count(
     return UnreadCountResponse(count=count)
 
 
-@router.post("/mark-read")
+@router.post("/mark-read", dependencies=[Depends(require_permission("notifications:manage"))])
 def mark_as_read(
     request: MarkReadRequest,
     db: Session = Depends(get_db),
@@ -148,7 +167,11 @@ def mark_as_read(
     return {"updated": count}
 
 
-@router.post("/{notification_id}/archive", response_model=NotificationResponse)
+@router.post(
+    "/{notification_id}/archive",
+    response_model=NotificationResponse,
+    dependencies=[Depends(require_permission("notifications:manage"))],
+)
 def archive_notification(
     notification_id: UUID,
     db: Session = Depends(get_db),
@@ -171,7 +194,12 @@ def archive_notification(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/templates", response_model=TemplateResponse, status_code=201)
+@router.post(
+    "/templates",
+    response_model=TemplateResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("notifications:manage"))],
+)
 def create_template(
     request: CreateTemplateRequest,
     db: Session = Depends(get_db),
@@ -192,7 +220,11 @@ def create_template(
     return TemplateResponse.model_validate(template)
 
 
-@router.get("/templates", response_model=TemplateListResponse)
+@router.get(
+    "/templates",
+    response_model=TemplateListResponse,
+    dependencies=[Depends(require_permission("notifications:manage"))],
+)
 def list_templates(
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),

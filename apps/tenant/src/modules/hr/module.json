@@ -1,14 +1,22 @@
-{
-  "id": "hr",
-  "name": "Human Resources",
-  "icon": "👥",
-  "category": "people",
-  "description": "Payroll, attendance, vacations and contracts",
-  "surface": "backoffice",
-  "nav_group": "backoffice",
-  "required": false,
-  "default_enabled": false,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "hr",
+    "name":  "Human Resources",
+    "icon":  "👥",
+    "category":  "people",
+    "description":  "Payroll, attendance, vacations and contracts",
+    "surface":  "backoffice",
+    "nav_group":  "backoffice",
+    "required":  false,
+    "default_enabled":  false,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "active",
+    "maturity":  3,
+    "risk":  "medium"
 }

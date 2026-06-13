@@ -1,11 +1,12 @@
 // apps/tenant/src/modules/inventario/services.ts
 import { apiFetch } from '../../lib/http'
+import { TENANT_INVENTORY } from '@shared/endpoints'
 import { queueDeletion, storeEntity } from '../../lib/offlineStore'
 import { createOfflineTempId, isNetworkIssue, stripOfflineMeta } from '../../lib/offlineHttp'
 import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../../lib/offlineResourceCache'
 
 // Base de API para inventario (coincide con rutas backend)
-const INVENTORY_BASE = '/api/v1/tenant/inventory'
+const INVENTORY_BASE = TENANT_INVENTORY.base
 
 // Tipos básicos usados por las vistas
 export type Warehouse = {

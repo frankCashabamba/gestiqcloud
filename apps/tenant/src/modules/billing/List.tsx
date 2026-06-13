@@ -134,7 +134,7 @@ export default function InvoicesList() {
         <h2 className="font-semibold text-lg">{t('nav.invoicing')}</h2>
         <div className="flex gap-2">
           {can('billing:create') && (
-            <ProtectedButton permission="billing:create" variant="primary" onClick={() => nav('nueva')}>
+            <ProtectedButton permission="billing:create" variant="primary" onClick={() => nav('new')}>
               {t('common.new')}
             </ProtectedButton>
           )}
@@ -213,7 +213,7 @@ export default function InvoicesList() {
                 {(invoice.status || '').toLowerCase() === 'pending_payment' ? (
                   <>
                     {can('billing:read') && (
-                      <Link to={`${invoice.id}/editar`} className="text-blue-600 hover:underline">
+                      <Link to={`${invoice.id}/edit`} className="text-blue-600 hover:underline">
                         {t('common.view') || 'View'}
                       </Link>
                     )}
@@ -226,7 +226,7 @@ export default function InvoicesList() {
                 ) : ['issued', 'posted', 'confirmed'].includes((invoice.status || '').toLowerCase()) ? (
                   <>
                     {can('billing:read') && (
-                      <Link to={`${invoice.id}/editar`} className="text-blue-600 hover:underline">
+                      <Link to={`${invoice.id}/edit`} className="text-blue-600 hover:underline">
                         {t('common.view') || 'View'}
                       </Link>
                     )}
@@ -235,7 +235,7 @@ export default function InvoicesList() {
                 ) : (
                   <>
                     {can('billing:update') && (
-                      <Link to={`${invoice.id}/editar`} className="text-blue-600 hover:underline">
+                      <Link to={`${invoice.id}/edit`} className="text-blue-600 hover:underline">
                         {t('common.edit')}
                       </Link>
                     )}

@@ -642,33 +642,35 @@ Variantes*       → Productos
 
 ### 8.5 Estado de Módulos Frontend (Tenant App)
 
+Nota F-10: esta tabla describe cobertura funcional observada, no certifica que un módulo esté listo para producción. Evitar interpretar "Activo" como "completo"; la decisión productiva depende de pruebas, permisos, datos reales e integraciones.
+
 | Módulo | Estado | Archivos/Componentes | Notas |
 |--------|--------|---------------------|-------|
-| **POS** | ✅ Completo | POSView, components/, hooks/, services, offline sync | Checkout, turnos, recibos |
-| **Productos** | ✅ Completo | Dentro de `modules/products/` | CRUD completo |
-| **Inventario** | ✅ Completo | Panel, StockList, MovementForm, MovementFormBulk, components/, services/ | Stock, movimientos, ajustes |
-| **Compras** | ✅ Completo | List, Form, Detail, components/ | CRUD + recepción |
-| **Ventas** | ✅ Completo | List, Form, Detail, components/ | CRUD + tests |
-| **Gastos** | ✅ Completo | List, Form, Detail, Panel, components/ | CRUD completo |
-| **Producción** | ✅ Completo | Recetas (CRUD), Órdenes, Planner, Calculadora, CostDrivers, Ingredientes | 21 archivos |
-| **Contabilidad** | ✅ Completo | ChartOfAccounts (CRUD), JournalEntries (CRUD), Panel, components/, hooks/ | Plan de cuentas + asientos |
-| **RRHH** | ✅ Completo | Employees (CRUD), Nóminas, Fichajes, Vacaciones, MiJornada | 21 archivos |
-| **Finanzas** | ✅ Completo | Bancos, Cajas, Balances, CashForm, CloseCashModal | Tesorería |
-| **Reportes** | ✅ Completo | Dashboard, Financial, Inventory, Sales, Margins, RealProfit | 6 reportes |
-| **Facturación/Billing** | ✅ Completo | List, Form, InvoiceE, components/, sectores/ | Facturación a clientes |
-| **CRM** | ✅ Completo | components/, pages/, services, types | Pipeline CRM |
+| **POS** | Activo | POSView, components/, hooks/, services, offline sync | Checkout, turnos, recibos; requiere smoke de caja completo |
+| **Productos** | Activo | Dentro de `modules/products/` | CRUD y campos dinámicos; requiere validación sectorial |
+| **Inventario** | Activo | Panel, StockList, MovementForm, MovementFormBulk, components/, services/ | Stock, movimientos, ajustes; riesgo alto por trazabilidad |
+| **Compras** | Activo | List, Form, Detail, components/ | CRUD + recepción |
+| **Ventas** | Activo | List, Form, Detail, components/ | CRUD + tests; validar conversión a factura |
+| **Gastos** | Activo | List, Form, Detail, Panel, components/ | CRUD operativo |
+| **Producción** | Beta | Recetas (CRUD), Órdenes, Planner, Calculadora, CostDrivers, Ingredientes | Requiere ciclo integrado con inventario/costes |
+| **Contabilidad** | Beta | ChartOfAccounts (CRUD), JournalEntries (CRUD), Panel, components/, hooks/ | Plan de cuentas + asientos; requiere smoke contable completo |
+| **RRHH** | Activo | Employees (CRUD), Nóminas, Fichajes, Vacaciones, MiJornada | 21 archivos |
+| **Finanzas** | Beta | Bancos, Cajas, Balances, CashForm, CloseCashModal | Tesorería; validar movimientos reales y conciliación |
+| **Reportes** | Parcial | Dashboard, Financial, Inventory, Sales, Margins, RealProfit | Reportes básicos; avanzados quedan por validar |
+| **Facturación/Billing** | Activo | List, Form, InvoiceE, components/, sectores/ | Facturación a clientes; depende de integración fiscal |
+| **CRM** | Activo | components/, pages/, services, types | Pipeline CRM |
 | **E-invoicing** | ⚠️ Parcial | EInvoicingDashboard, services | Solo dashboard — falta flujo completo |
-| **Copilot IA** | ✅ Completo | Dashboard, Routes, services + CopilotChatWidget (global) | Chat, streaming, feedback |
-| **Importador** | ✅ Completo | Panel, components/, pages/, services (SSE) | OCR + importación |
+| **Copilot IA** | Beta | Dashboard, Routes, services + CopilotChatWidget (global) | Chat, streaming, feedback; requiere control operativo |
+| **Importador** | Beta | Panel, components/, pages/, services (SSE) | OCR + importación; cargas grandes pendientes de validación |
 | **Notificaciones** | ⚠️ Parcial | NotificationCenter, services | Centro de notificaciones básico |
 | **Webhooks** | ⚠️ Parcial | SubscriptionsList, services | Lista de suscripciones |
-| **Reconciliación** | ✅ Completo | Dashboard, ImportForm, StatementDetail | Conciliación bancaria |
-| **Configuración** | ✅ Completo | General, Fiscal, Branding, Horarios, Operativo, Notificaciones, Avanzado, Módulos, Límites | 18 archivos |
+| **Reconciliación** | Beta | Dashboard, ImportForm, StatementDetail | Conciliación bancaria; validar providers y extractos reales |
+| **Configuración** | Activo | General, Fiscal, Branding, Horarios, Operativo, Notificaciones, Avanzado, Módulos, Límites | 18 archivos |
 | **Templates** | ⚠️ Parcial | ConfigViewer, services | Solo visor |
-| **Usuarios** | ✅ Completo | Dentro de `modules/users/` | Gestión de usuarios |
-| **Clientes** | ✅ Completo | Dentro de `modules/customers/` | CRUD clientes |
-| **Proveedores** | ✅ Completo | Dentro de `modules/suppliers/` | CRUD proveedores |
-| **Onboarding** | ✅ Completo | `pages/Onboarding.tsx` (544 líneas) | Wizard 4 pasos, multi-sector |
+| **Usuarios** | Activo | Dentro de `modules/users/` | Gestión de usuarios |
+| **Clientes** | Activo | Dentro de `modules/customers/` | CRUD clientes |
+| **Proveedores** | Activo | Dentro de `modules/suppliers/` | CRUD proveedores |
+| **Onboarding** | Activo | `pages/Onboarding.tsx` (544 líneas) | Wizard 4 pasos, multi-sector |
 
 ### 8.6 E2E Tests (Playwright)
 
@@ -696,8 +698,8 @@ Variantes*       → Productos
 | **Bloque A** (Refactoring) | 8 tareas | 8 (A5 parcial en tests) | **~97%** |
 | **Bloque B** (Features) | 14 tareas | 13 completas + 1 parcial | **~96%** |
 | **Bloque C** (Tests) | 7 tareas | 5 completas | **~71%** |
-| **Bloque D** (IA) | 16 tareas | 16 completas | **~100%** |
-| **TOTAL** | **45 items** | **42 completas + 2 parciales** | **~96%** |
+| **Bloque D** (IA) | 16 tareas | 16 cerradas funcionalmente, pendientes de validación operativa | **Alto** |
+| **TOTAL** | **45 items** | **42 cerradas funcionalmente + 2 parciales** | **Alto** |
 
 ### 8.8 Implementaciones realizadas en esta sesión (17-Mar-2026)
 
@@ -720,7 +722,7 @@ Variantes*       → Productos
 |------|------------|-----------------|
 | B1 frontend | Selector de sucursal + gestión | `components/BranchSelector.tsx`, `settings/BranchesManager.tsx` |
 | B2 frontend | Página planes/suscripción | `settings/SubscriptionManager.tsx` |
-| B8 frontend | Módulo restaurante completo | `restaurant/TablesView.tsx`, `restaurant/OrderView.tsx`, `restaurant/services.ts`, `restaurant/Routes.tsx` |
+| B8 frontend | Módulo restaurante MVP | `restaurant/TablesView.tsx`, `restaurant/OrderView.tsx`, `restaurant/services.ts`, `restaurant/Routes.tsx` |
 | D-IA11 frontend | UI historial conversaciones copilot | `CopilotChatWidget.tsx` actualizado con panel de historial |
 
 ### 8.9 Normalización de IDs internos a inglés canónico (2026-03-18)

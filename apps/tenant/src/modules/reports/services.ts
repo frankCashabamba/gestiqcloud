@@ -1,4 +1,5 @@
 import api from '../../services/api/client'
+import { TENANT_REPORTS } from '@shared/endpoints'
 
 export interface ReportData {
   columns: string[]
@@ -22,27 +23,27 @@ export interface ReportType {
 }
 
 export async function getAvailableReports(): Promise<{ available_types: ReportType[], history: any }> {
-  return api.get('/api/v1/tenant/reports').then(r => r.data)
+  return api.get(TENANT_REPORTS.base).then(r => r.data)
 }
 
 export async function generateReport(params: { report_type: string, name: string, date_from?: string, date_to?: string, format?: string }): Promise<GeneratedReport> {
-  return api.post('/api/v1/tenant/reports/generate', params).then(r => r.data)
+  return api.post(TENANT_REPORTS.generate, params).then(r => r.data)
 }
 
 export async function getSalesReport(dateFrom?: string, dateTo?: string): Promise<GeneratedReport> {
-  return api.get('/api/v1/tenant/reports/sales', { params: { date_from: dateFrom, date_to: dateTo } }).then(r => r.data)
+  return api.get(TENANT_REPORTS.sales, { params: { date_from: dateFrom, date_to: dateTo } }).then(r => r.data)
 }
 
 export async function getInventoryReport(): Promise<GeneratedReport> {
-  return api.get('/api/v1/tenant/reports/inventory').then(r => r.data)
+  return api.get(TENANT_REPORTS.inventory).then(r => r.data)
 }
 
 export async function getFinancialReport(dateFrom?: string, dateTo?: string): Promise<GeneratedReport> {
-  return api.get('/api/v1/tenant/reports/financial', { params: { date_from: dateFrom, date_to: dateTo } }).then(r => r.data)
+  return api.get(TENANT_REPORTS.financial, { params: { date_from: dateFrom, date_to: dateTo } }).then(r => r.data)
 }
 
 export async function exportReport(params: { report_type: string, format: string, date_from?: string, date_to?: string }): Promise<Blob> {
-  return api.post('/api/v1/tenant/reports/export', params, { responseType: 'blob' }).then(r => r.data)
+  return api.post(TENANT_REPORTS.export, params, { responseType: 'blob' }).then(r => r.data)
 }
 
 export function downloadBlob(blob: Blob, filename: string) {

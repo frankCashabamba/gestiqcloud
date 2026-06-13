@@ -108,6 +108,29 @@ function normalizeHeaderLabel(value: unknown): string {
 // Slots numéricos que se alinean a la derecha
 const _NUMERIC_SLOTS = new Set(['quantity', 'unit_price', 'total_price'])
 const _MONO_SLOTS = new Set(['supplier_ref'])
+const SENSITIVE_DOCUMENT_FIELD_NAMES = new Set([
+  'raw_ai_json',
+  'raw_ai',
+  'llm_raw',
+  'prompt',
+  'completion',
+  'debug',
+  'debug_info',
+  'trace',
+  'trace_id',
+  'tokens',
+])
+const INTERNAL_DOCUMENT_FIELD_NAMES = new Set([
+  'metadata',
+  'line_items',
+  'filas',
+  'filas_por_hoja',
+  'filas_por_hoja_count',
+  'columnas',
+  'columnas_norm',
+  'sheet_usada',
+  'line_item_page_groups',
+])
 const FALLBACK_LINE_ITEM_SLOT_ORDER = [
   'description',
   'concept',
@@ -135,6 +158,32 @@ function fallbackLineItemLabel(slot: string): string {
     amount: 'Importe',
   }
   return labels[slot] || formatFieldLabel(slot)
+}
+
+function isVisibleDocumentField(key: string, value: unknown, lineItemFieldNames: Set<string>): boolean {
+  const normalized = String(key || '').trim().toLowerCase()
+  if (!normalized || normalized.startsWith('_')) return false
+  if (SENSITIVE_DOCUMENT_FIELD_NAMES.has(normalized)) return false
+  if (INTERNAL_DOCUMENT_FIELD_NAMES.has(normalized)) return false
+  if (lineItemFieldNames.has(key)) return false
+  return typeof value !== 'object' || value === null
+}
+
+function visibleMetadataEntries(metadata: unknown): Array<[string, unknown]> {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return []
+  return Object.entries(metadata as Record<string, unknown>).filter(([key]) => {
+    const normalized = key.trim().toLowerCase()
+    return normalized && !SENSITIVE_DOCUMENT_FIELD_NAMES.has(normalized) && !normalized.startsWith('_')
+  })
+}
+
+function fieldOriginLabel(key: string, doc: Documento): string {
+  const confirmed = doc.datos_confirmados || {}
+  const extracted = doc.datos_extraidos || {}
+  if (Object.prototype.hasOwnProperty.call(confirmed, key)) return 'Usuario'
+  if (doc.routing_decision?.required_fields_ok === false && doc.routing_decision.missing_fields.includes(key)) return 'Regla'
+  if (Object.prototype.hasOwnProperty.call(extracted, key)) return doc.llm_model ? 'IA/OCR' : 'OCR'
+  return 'Sistema'
 }
 
 export function deriveLineItemPreviewSlots(
@@ -768,7 +817,7 @@ export default function DocumentDetail() {
     }
     const flat: Record<string, string> = {}
     Object.entries(data).forEach(([k, v]) => {
-      if (!k.startsWith('_') && k !== 'line_items' && (typeof v !== 'object' || v === null)) flat[k] = String(v ?? '')
+      if (isVisibleDocumentField(k, v, new Set())) flat[k] = String(v ?? '')
     })
     setEditFields(flat)
     setEditLineItems(getEditableLineItems(data, lineItemSlots))
@@ -1614,11 +1663,11 @@ export default function DocumentDetail() {
                         Mostrando 150 de {totalFilasSheet} filas
                       </p>
                     )}
-                    {datos.metadata && typeof datos.metadata === 'object' && (!activeSheet || activeSheet === (datos.sheet_usada as string)) && (
+                    {visibleMetadataEntries(datos.metadata).length > 0 && (!activeSheet || activeSheet === (datos.sheet_usada as string)) && (
                       <div style={{ marginTop: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem', fontSize: 13 }}>
                         <strong style={{ color: '#0f172a' }}>{t('docDetail.review.additionalInfo')}</strong>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px 12px', marginTop: 8 }}>
-                          {Object.entries(datos.metadata as Record<string, unknown>).map(([k, v]) => (
+                          {visibleMetadataEntries(datos.metadata).map(([k, v]) => (
                           <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? '-')}</div>
                           ))}
                         </div>
@@ -1742,13 +1791,18 @@ export default function DocumentDetail() {
                   <>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <tbody>
-                        {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof v !== 'object' || v === null)).map(([key, val]) => (
+                        {Object.entries(datos).filter(([k, v]) => isVisibleDocumentField(k, v, lineItemFieldNames)).map(([key, val]) => (
                           <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{formatFieldLabel(key)}</td>
+                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>
+                              <span>{formatFieldLabel(key)}</span>
+                              <span style={{ marginLeft: 8, padding: '2px 6px', borderRadius: 999, background: '#eef2ff', color: '#3730a3', fontSize: 11, fontWeight: 700 }}>
+                                {fieldOriginLabel(key, doc)}
+                              </span>
+                            </td>
                             <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '-')}</td>
                           </tr>
                         ))}
-                        {Object.keys(datos).filter(k => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
+                        {Object.entries(datos).filter(([k, v]) => isVisibleDocumentField(k, v, lineItemFieldNames)).length === 0 && (
                           <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>
                             {doc.error_detalle
                               ? 'No se pudieron extraer datos. Usa "Reprocesar" para intentarlo de nuevo.'

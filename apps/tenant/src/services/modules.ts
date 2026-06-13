@@ -1,4 +1,5 @@
 import { apiFetch } from '../lib/http'
+import { TENANT_MODULES } from '@shared/endpoints'
 import { isNetworkIssue } from '../lib/offlineHttp'
 import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../lib/offlineResourceCache'
 
@@ -73,12 +74,12 @@ function authModulesCacheKey(authToken?: string) {
 
 // Endpoint oficial: GET /api/v1/modules (lista asignada al usuario actual)
 export const listMisModulos = (authToken?: string) =>
-  fetchWithCache(authModulesCacheKey(authToken), () => apiFetch<Modulo[]>('/api/v1/modules', { authToken }))
+  fetchWithCache(authModulesCacheKey(authToken), () => apiFetch<Modulo[]>(TENANT_MODULES.list, { authToken }))
 
 export const listModulosSeleccionablesPorEmpresa = (empresaSlug: string) => {
   const key = `modules:company:${getOfflineCacheScope(empresaSlug)}`
   return fetchWithCache(
     key,
-    () => apiFetch<Modulo[]>(`/api/v1/modules/company/${encodeURIComponent(empresaSlug)}/selectable`)
+    () => apiFetch<Modulo[]>(`${TENANT_MODULES.byCompany(empresaSlug)}/selectable`)
   )
 }

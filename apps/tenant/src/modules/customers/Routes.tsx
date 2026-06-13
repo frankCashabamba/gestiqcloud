@@ -14,21 +14,23 @@ export default function ClientesRoutes() {
       <Routes>
         <Route index element={<ClientesList />} />
         <Route
-          path="nuevo"
+          path="new"
           element={
             <ProtectedRoute permission="customers:create">
               <ClienteForm />
             </ProtectedRoute>
           }
         />
+        <Route path="nuevo" element={<Navigate to="../new" replace />} />
         <Route
-          path=":id/editar"
+          path=":id/edit"
           element={
             <ProtectedRoute permission="customers:update">
               <ClienteForm />
             </ProtectedRoute>
           }
         />
+        <Route path=":id/editar" element={<Navigate to="../edit" replace />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

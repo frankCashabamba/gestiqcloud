@@ -10,13 +10,38 @@ from app.core.access_guard import with_access_claims
 
 def _permission_aliases(permission: str) -> list[str]:
     aliases = [permission]
+    explicit_aliases = {
+        "accounting.entry.create": ["accounting:entry"],
+        "accounting.entry.post": ["accounting:adjust"],
+        "accounting.entry.cancel": ["accounting:adjust"],
+        "accounting.account.manage": ["accounting:adjust"],
+        "accounting.reports.read": ["accounting:read"],
+        "quotes.manage": [
+            "quotes:read",
+            "quotes:create",
+            "quotes:update",
+            "quotes:delete",
+            "quotes:manage",
+        ],
+        "pos.view": ["pos:read"],
+        "pos.receipt.create": ["pos:write"],
+        "pos.receipt.manage": ["pos:write"],
+        "pos.receipt.pay": ["pos:cashier"],
+        "pos.shift.open": ["pos:cashier"],
+        "pos.shift.close": ["pos:close_shift"],
+        "pos.receipt.refund": ["pos:refund"],
+    }
+    aliases.extend(explicit_aliases.get(permission, []))
 
-    if "." not in permission:
+    separator = "." if "." in permission else ":" if ":" in permission else ""
+    if not separator:
         return aliases
 
-    parts = permission.split(".")
+    parts = permission.split(separator)
     module = parts[0]
     action = parts[-1]
+    aliases.append(f"{module}.{action}")
+    aliases.append(f"{module}:{action}")
 
     if action in {"view", "read"}:
         aliases.append(f"{module}.read")
@@ -34,6 +59,20 @@ def _permission_aliases(permission: str) -> list[str]:
         aliases.append(f"{module}:delete")
 
     return list(dict.fromkeys(aliases))
+
+
+def _has_permission(perms: dict[str, Any], permission: str) -> bool:
+    if perms.get(permission) is True:
+        return True
+
+    split_index = max(permission.rfind("."), permission.rfind(":"))
+    if split_index <= 0 or split_index >= len(permission) - 1:
+        return False
+
+    module = permission[:split_index]
+    action = permission[split_index + 1 :]
+    nested = perms.get(module)
+    return isinstance(nested, dict) and nested.get(action) is True
 
 
 def require_scope(scope: str):
@@ -87,7 +126,7 @@ def require_permission(permission: str):
             return claims
         perms = claims.get("permissions") or claims.get("permisos") or {}
         aliases = _permission_aliases(permission)
-        if isinstance(perms, dict) and any(perms.get(alias) for alias in aliases):
+        if isinstance(perms, dict) and any(_has_permission(perms, alias) for alias in aliases):
             return claims
         available = sorted([k for k, v in perms.items() if v]) if isinstance(perms, dict) else []
         raise HTTPException(

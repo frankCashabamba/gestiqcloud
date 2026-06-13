@@ -1,6 +1,7 @@
 import api from '../../shared/api/client'
+import { TENANT_PRINTING } from '@shared/endpoints'
 
-const BASE = '/api/v1/tenant/printing'
+const BASE = TENANT_PRINTING.base
 
 export interface ReceiptConfig {
   footer_message: string

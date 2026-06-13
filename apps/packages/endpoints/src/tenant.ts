@@ -8,7 +8,8 @@ export const TENANT_AUTH = {
 }
 
 export const TENANT_MODULES = {
-  // add tenant endpoints if exposed publicly
+  list: '/api/v1/modules',
+  byCompany: (empresaSlug: string) => `/api/v1/modules/company/${encodeURIComponent(empresaSlug)}`,
 }
 
 export const TENANT_COMPANIES = {
@@ -80,6 +81,8 @@ export const TENANT_ROLES = {
 }
 
 export const TENANT_SETTINGS = {
+  base: '/api/v1/company/settings',
+  theme: '/api/v1/company/settings/theme',
   general: '/api/v1/company/settings/general',
   branding: '/api/v1/company/settings/branding',
   brandingLogoUpload: '/api/v1/company/settings/branding/logo',
@@ -190,4 +193,200 @@ export const TENANT_COST_DRIVERS = {
 
 export const TENANT_COST_DRIVER_UNIT_TYPES = {
   list: `${PRODUCTION_BASE}/cost-driver-unit-types`,
+}
+
+export const TENANT_PRODUCTION_ORDERS = {
+  base: `${PRODUCTION_BASE}/orders`,
+  byId: (id: string) => `${PRODUCTION_BASE}/orders/${id}`,
+  start: (id: string) => `${PRODUCTION_BASE}/orders/${id}/start`,
+  complete: (id: string) => `${PRODUCTION_BASE}/orders/${id}/complete`,
+  cancel: (id: string) => `${PRODUCTION_BASE}/orders/${id}/cancel`,
+  costs: (id: string) => `${PRODUCTION_BASE}/orders/${id}/costs`,
+}
+
+export const TENANT_PRODUCTION_PLANNING = {
+  suggestions: `${PRODUCTION_BASE}/planning/suggestions`,
+}
+
+const ACCOUNTING_BASE = '/api/v1/tenant/accounting'
+export const TENANT_ACCOUNTING = {
+  chartOfAccounts: {
+    base: `${ACCOUNTING_BASE}/chart-of-accounts`,
+    byId: (id: string) => `${ACCOUNTING_BASE}/chart-of-accounts/${id}`,
+    seed: `${ACCOUNTING_BASE}/chart-of-accounts/seed`,
+    ledger: (id: string) => `${ACCOUNTING_BASE}/chart-of-accounts/${id}/ledger`,
+  },
+  transactions: `${ACCOUNTING_BASE}/transactions`,
+  journalEntries: {
+    base: `${ACCOUNTING_BASE}/journal-entries`,
+    byId: (id: string) => `${ACCOUNTING_BASE}/journal-entries/${id}`,
+    cancel: (id: string) => `${ACCOUNTING_BASE}/journal-entries/${id}/cancel`,
+    post: (id: string) => `${ACCOUNTING_BASE}/journal-entries/${id}/post`,
+  },
+  reports: {
+    profitLoss: `${ACCOUNTING_BASE}/reports/profit-loss`,
+    balanceSheet: `${ACCOUNTING_BASE}/reports/balance-sheet`,
+  },
+  pos: {
+    settings: `${ACCOUNTING_BASE}/pos/settings`,
+    paymentMethods: `${ACCOUNTING_BASE}/pos/payment-methods`,
+    paymentMethodById: (id: string) => `${ACCOUNTING_BASE}/pos/payment-methods/${id}`,
+  },
+}
+
+const POS_BASE = '/api/v1/tenant/pos'
+export const TENANT_POS = {
+  base: POS_BASE,
+  dailyCounts: `${POS_BASE}/daily_counts`,
+  registers: `${POS_BASE}/registers`,
+  registerById: (id: number | string) => `${POS_BASE}/registers/${id}`,
+  shifts: `${POS_BASE}/shifts`,
+  shiftSummary: (shiftId: number | string) => `${POS_BASE}/shifts/${shiftId}/summary`,
+  closeShift: (shiftId: number | string) => `${POS_BASE}/shifts/${shiftId}/close`,
+  currentShift: (registerId: number | string) => `${POS_BASE}/shifts/current/${registerId}`,
+  receipts: `${POS_BASE}/receipts`,
+  receiptById: (id: number | string) => `${POS_BASE}/receipts/${id}`,
+  receiptCalculateTotals: `${POS_BASE}/receipts/calculate_totals`,
+  receiptCheckout: (id: number | string) => `${POS_BASE}/receipts/${id}/checkout`,
+  receiptToInvoice: (id: number | string) => `${POS_BASE}/receipts/${id}/to_invoice`,
+  receiptRefund: (id: number | string) => `${POS_BASE}/receipts/${id}/refund`,
+  receiptPrint: (id: number | string) => `${POS_BASE}/receipts/${id}/print`,
+  receiptBackfillDocuments: (id: number | string) => `${POS_BASE}/receipts/${id}/backfill_documents`,
+  storeCredits: `${POS_BASE}/store_credits`,
+  storeCreditByCode: (code: string) => `${POS_BASE}/store_credits/code/${encodeURIComponent(code)}`,
+  redeemStoreCredit: `${POS_BASE}/store_credits/redeem`,
+  shiftAccounting: (shiftId: string) => `${POS_BASE}/shifts/${shiftId}/accounting`,
+}
+
+const REPORTS_BASE = '/api/v1/tenant/reports'
+export const TENANT_REPORTS = {
+  base: REPORTS_BASE,
+  export: `${REPORTS_BASE}/export`,
+  financial: `${REPORTS_BASE}/financial`,
+  generate: `${REPORTS_BASE}/generate`,
+  inventory: `${REPORTS_BASE}/inventory`,
+  sales: `${REPORTS_BASE}/sales`,
+  profit: `${REPORTS_BASE}/profit`,
+  productMargins: `${REPORTS_BASE}/product-margins`,
+  recalculate: `${REPORTS_BASE}/recalculate`,
+}
+
+const WEBHOOKS_BASE = '/api/v1/tenant/webhooks'
+export const TENANT_WEBHOOKS = {
+  base: WEBHOOKS_BASE,
+  byId: (id: string) => `${WEBHOOKS_BASE}/${id}`,
+  test: (id: string) => `${WEBHOOKS_BASE}/${id}/test`,
+}
+
+const NOTIFICATIONS_BASE = '/api/v1/tenant/notifications'
+export const TENANT_NOTIFICATIONS = {
+  base: NOTIFICATIONS_BASE,
+  markRead: `${NOTIFICATIONS_BASE}/mark-read`,
+  unreadCount: `${NOTIFICATIONS_BASE}/unread-count`,
+  archive: (id: string) => `${NOTIFICATIONS_BASE}/${id}/archive`,
+}
+
+const EINVOICING_BASE = '/api/v1/tenant/einvoicing'
+export const TENANT_EINVOICING = {
+  sendSii: `${EINVOICING_BASE}/send-sii`,
+  retry: (id: string) => `${EINVOICING_BASE}/einvoice/${id}/retry`,
+  status: (id: string) => `${EINVOICING_BASE}/einvoice/${id}/status`,
+  facturaeExport: (id: number | string) => `${EINVOICING_BASE}/facturae/${id}/export`,
+}
+
+// E-invoicing genérico (sin /tenant): envío y consulta de estado por factura.
+export const EINVOICING = {
+  send: '/api/v1/einvoicing/send',
+  status: (invoiceId: string) => `/api/v1/einvoicing/status/${invoiceId}`,
+}
+
+export const TENANT_INVENTORY = {
+  base: '/api/v1/tenant/inventory',
+}
+
+export const TENANT_RECONCILIATION = {
+  base: '/api/v1/tenant/reconciliation',
+}
+
+const RESTAURANT_BASE = '/api/v1/tenant/restaurant'
+export const TENANT_RESTAURANT = {
+  base: RESTAURANT_BASE,
+  orders: `${RESTAURANT_BASE}/orders`,
+}
+
+export const TENANT_TEMPLATES = {
+  uiConfig: '/api/v1/tenant/templates/ui-config',
+}
+
+export const TENANT_DOCUMENTS = {
+  base: '/api/v1/tenant/documents',
+  sales: '/api/v1/tenant/documents/sales',
+  byId: (id: number | string) => `/api/v1/tenant/documents/${id}`,
+  render: (id: number | string) => `/api/v1/tenant/documents/${id}/render`,
+  print: (id: number | string) => `/api/v1/tenant/documents/${id}/print`,
+  salesDraft: '/api/v1/tenant/documents/sales/draft',
+  salesIssue: '/api/v1/tenant/documents/sales/issue',
+}
+
+const PRODUCTS_BASE = '/api/v1/tenant/products'
+export const TENANT_PRINTING = {
+  base: '/api/v1/tenant/printing',
+}
+
+export const TENANT_MFA = {
+  base: '/api/v1/tenant/auth/mfa',
+}
+
+export const TENANT_QUOTES = {
+  base: '/api/v1/tenant/quotes',
+}
+
+const BUSINESS_CATEGORIES_BASE = '/api/v1/business-categories'
+export const TENANT_BUSINESS_CATEGORIES = {
+  base: BUSINESS_CATEGORIES_BASE,
+  byCode: (code: string) => `${BUSINESS_CATEGORIES_BASE}/${code}`,
+}
+
+export const TENANT_SECTORS = {
+  units: (code: string) => `/api/v1/sectors/${encodeURIComponent(code)}/units`,
+}
+
+// Módulos del catálogo (config consolidada por tenant)
+export const SETTINGS_MODULES = '/api/v1/settings/modules'
+
+// Telegram bot (integración de notificaciones)
+export const TENANT_TELEGRAM = {
+  generateSecret: '/api/v1/telegram/generate-secret',
+  registerWebhook: '/api/v1/telegram/register-webhook',
+}
+
+// Canales de notificación de incidencias (admin) consumidos desde settings tenant
+const INCIDENT_CHANNELS_BASE = '/api/v1/admin/incidents/notifications/channels'
+export const ADMIN_INCIDENT_CHANNELS = {
+  base: INCIDENT_CHANNELS_BASE,
+  byId: (id: string) => `${INCIDENT_CHANNELS_BASE}/${id}`,
+}
+
+export const TENANT_PRODUCTS = {
+  products: {
+    list: PRODUCTS_BASE,
+    get: (id: string) => `${PRODUCTS_BASE}/${id}`,
+    create: PRODUCTS_BASE,
+    update: (id: string) => `${PRODUCTS_BASE}/${id}`,
+    delete: (id: string) => `${PRODUCTS_BASE}/${id}`,
+    search: (q: string) => `${PRODUCTS_BASE}/search?q=${encodeURIComponent(q)}`,
+    purge: `${PRODUCTS_BASE}/purge`,
+    bulkActive: `${PRODUCTS_BASE}/bulk/active`,
+    bulkCategory: `${PRODUCTS_BASE}/bulk/category`,
+    bulkGenerateSkus: `${PRODUCTS_BASE}/bulk/generate-skus`,
+    similarDuplicates: `${PRODUCTS_BASE}/duplicates/similar`,
+    mergeDuplicates: `${PRODUCTS_BASE}/duplicates/merge`,
+  },
+  rawMaterials: `${PRODUCTS_BASE}/raw-materials`,
+  variants: `${PRODUCTS_BASE}/variants`,
+  categories: {
+    list: `${PRODUCTS_BASE}/product-categories`,
+    create: `${PRODUCTS_BASE}/product-categories`,
+    delete: (id: string) => `${PRODUCTS_BASE}/product-categories/${id}`,
+  },
 }

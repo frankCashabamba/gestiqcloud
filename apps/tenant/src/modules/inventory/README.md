@@ -2,7 +2,54 @@
 
 ## 📋 Descripción
 
-Módulo profesional de gestión de inventario con control de stock, movimientos, alertas y valoración. Integrado con el módulo de Productos.
+Gestión de inventario con control de stock, movimientos, alertas y valoración. Integrado con el módulo de Productos.
+
+Estado: Activo
+Madurez: 4/5
+Owner: Frontend
+Riesgo: Alto
+
+## Implementado
+
+- Vista de stock con KPIs, filtros, alertas y exportación CSV.
+- Registro de movimientos de inventario.
+- Clientes API para almacenes, stock items, movimientos, ajustes, KPIs y valoración.
+
+## Parcial
+
+- La valoración depende de la implementación backend activa y del método seleccionado.
+- La trazabilidad por lote/caducidad está expuesta en UI, pero requiere validación end-to-end con datos reales.
+
+## Pendiente
+
+- Vista de historial de movimientos completa.
+- Pruebas de ajuste, transferencia, recepción y consumo desde POS/producción.
+- Validación de stock negativo y concurrencia.
+
+## Endpoints usados
+
+- `GET /api/v1/tenant/inventory/warehouses`
+- `POST /api/v1/tenant/inventory/warehouses`
+- `PUT /api/v1/tenant/inventory/warehouses/:id`
+- `GET /api/v1/tenant/inventory/stock-items`
+- `GET /api/v1/tenant/inventory/stock-summary`
+- `GET /api/v1/tenant/inventory/stock-moves`
+- `POST /api/v1/tenant/inventory/stock-moves`
+- `POST /api/v1/tenant/inventory/adjustments`
+
+## Permisos
+
+- `inventory:read`
+- `inventory:create`
+- `inventory:update`
+- `inventory:manage-alerts`
+
+## Tests mínimos
+
+- Crear movimiento de entrada y verificar stock.
+- Crear ajuste físico.
+- Validar alertas de stock bajo/sobre-stock.
+- Comprobar permisos en rutas y acciones.
 
 ## 🏗️ Arquitectura
 
@@ -11,7 +58,7 @@ apps/tenant/src/modules/inventario/
 ├── StockList.tsx         ✅ Vista de stock actual (KPIs + alertas + filtros)
 ├── MovimientoForm.tsx    ✅ Formulario nuevo movimiento (6 tipos)
 ├── Routes.tsx            ✅ Rutas configuradas
-├── services.ts           ✅ API client completo (Warehouses + Stock + Moves)
+├── services.ts           ✅ API client (Warehouses + Stock + Moves)
 ├── manifest.ts           ✅ Configuración del módulo
 └── README.md             📄 Este archivo
 ```
@@ -69,7 +116,7 @@ apps/tenant/src/modules/inventario/
 - ✅ **KPIs y Reportes**:
   - `getInventoryKPIs()` - Métricas del dashboard
   - `getStockValuation(method)` - Valoración (FIFO/average/last)
-  - `exportStockCSV()` - Export completo
+  - `exportStockCSV()` - Export de stock
 
 ## 📊 Integración con Productos
 
@@ -103,7 +150,7 @@ Producto {
 ]
 ```
 
-### Flujo Completo
+### Flujo Operativo
 
 #### 1. Crear Producto (Módulo PRODUCTOS)
 ```typescript
@@ -387,7 +434,7 @@ await createWarehouse({
 ## 🚀 Próximas Mejoras
 
 ### V1.1
-- [ ] Vista de movimientos (historial completo)
+- [ ] Vista de movimientos (historial detallado)
 - [ ] Ajuste de inventario batch (importar CSV)
 - [ ] Transferencias entre almacenes (UI)
 - [ ] Dashboard avanzado con gráficos

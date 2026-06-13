@@ -1,12 +1,20 @@
-{
-  "id": "copilot",
-  "name": "RimayPilot",
-  "icon": "✨",
-  "category": "tools",
-  "description": "AI analysis, suggestions and assisted draft creation with RimayPilot",
-  "required": false,
-  "default_enabled": false,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": false
+﻿{
+    "id":  "copilot",
+    "name":  "RimayPilot",
+    "icon":  "✨",
+    "category":  "tools",
+    "description":  "AI analysis, suggestions and assisted draft creation with RimayPilot",
+    "required":  false,
+    "default_enabled":  false,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  false,
+    "status":  "beta",
+    "maturity":  3,
+    "risk":  "high"
 }

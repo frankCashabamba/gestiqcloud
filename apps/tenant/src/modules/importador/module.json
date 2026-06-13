@@ -10,5 +10,8 @@
   "default_enabled": true,
   "dependencies": [],
   "countries": ["ES", "EC"],
-  "implemented": true
+  "implemented": true,
+  "status": "partial",
+  "maturity": 2,
+  "risk": "medium"
 }

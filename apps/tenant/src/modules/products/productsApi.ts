@@ -1,35 +1,13 @@
 // apps/tenant/src/modules/products/productsApi.ts
 // Centralized API client for products and categories
 import { apiFetch } from '../../lib/http'
+import { TENANT_PRODUCTS } from '@shared/endpoints'
 import { queueDeletion, storeEntity } from '../../lib/offlineStore'
 import { createOfflineTempId, isNetworkIssue, stripOfflineMeta } from '../../lib/offlineHttp'
 import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../../lib/offlineResourceCache'
 
-// ============================================================================
-// ENDPOINTS
-// ============================================================================
-
-const ENDPOINTS = {
-  products: {
-    list: '/api/v1/tenant/products',
-    get: (id: string) => `/api/v1/tenant/products/${id}`,
-    create: '/api/v1/tenant/products',
-    update: (id: string) => `/api/v1/tenant/products/${id}`,
-    delete: (id: string) => `/api/v1/tenant/products/${id}`,
-    search: (q: string) => `/api/v1/tenant/products/search?q=${encodeURIComponent(q)}`,
-    purge: '/api/v1/tenant/products/purge',
-    bulkActive: '/api/v1/tenant/products/bulk/active',
-    bulkCategory: '/api/v1/tenant/products/bulk/category',
-    bulkGenerateSkus: '/api/v1/tenant/products/bulk/generate-skus',
-    similarDuplicates: '/api/v1/tenant/products/duplicates/similar',
-    mergeDuplicates: '/api/v1/tenant/products/duplicates/merge',
-  },
-  categories: {
-    list: '/api/v1/tenant/products/product-categories',
-    create: '/api/v1/tenant/products/product-categories',
-    delete: (id: string) => `/api/v1/tenant/products/product-categories/${id}`,
-  },
-} as const
+// Rutas centralizadas en @shared/endpoints (TENANT_PRODUCTS)
+const ENDPOINTS = TENANT_PRODUCTS
 
 function productsCacheKey(hideOutOfStock: boolean) {
   return `products:list:${hideOutOfStock ? 'active' : 'all'}:${getOfflineCacheScope('pos')}`

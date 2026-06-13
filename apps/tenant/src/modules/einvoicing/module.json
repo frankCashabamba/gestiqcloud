@@ -1,16 +1,25 @@
-{
-  "id": "einvoicing",
-  "name": "E-Invoicing",
-  "icon": "📨",
-  "category": "finance",
-  "description": "Electronic submission via SRI (EC) or Facturae/SII (ES)",
-  "parent_module": "settings",
-  "surface": "embedded",
-  "nav_group": "hidden",
-  "contractable": true,
-  "required": false,
-  "default_enabled": true,
-  "dependencies": ["invoicing"],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "einvoicing",
+    "name":  "E-Invoicing",
+    "icon":  "📨",
+    "category":  "finance",
+    "description":  "Electronic submission via SRI (EC) or Facturae/SII (ES)",
+    "parent_module":  "settings",
+    "surface":  "embedded",
+    "nav_group":  "hidden",
+    "contractable":  true,
+    "required":  false,
+    "default_enabled":  true,
+    "dependencies":  [
+                         "invoicing"
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "requiresFiscalValidation":  true,
+    "status":  "partial",
+    "maturity":  2,
+    "risk":  "high"
 }

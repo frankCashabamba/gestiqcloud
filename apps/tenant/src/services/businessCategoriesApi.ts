@@ -10,6 +10,7 @@
  */
 
 import tenantApi from '../shared/api/client'
+import { TENANT_BUSINESS_CATEGORIES } from '@shared/endpoints'
 
 export interface BusinessCategory {
   id: string
@@ -36,7 +37,7 @@ export interface BusinessCategoryResponse {
 export async function getBusinessCategories(): Promise<BusinessCategory[]> {
   try {
     const response = await tenantApi.get<BusinessCategoriesResponse>(
-      '/api/v1/business-categories'
+      TENANT_BUSINESS_CATEGORIES.base
     )
 
     if (!response.data.ok) {
@@ -59,7 +60,7 @@ export async function getBusinessCategoryByCode(
 ): Promise<BusinessCategory | null> {
   try {
     const response = await tenantApi.get<BusinessCategoryResponse>(
-      `/api/v1/business-categories/${code}`
+      TENANT_BUSINESS_CATEGORIES.byCode(code)
     )
 
     if (!response.data.ok) {

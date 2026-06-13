@@ -259,7 +259,7 @@ export default function ProductoForm() {
         setSyncingPrice(true)
         try {
             const res = await apiFetch<{ suggested_price: number }>(
-                `/api/v1/tenant/manufacturing/recipes/${productRecipe.id}/sync-product-price`,
+                `/api/v1/tenant/production/recipes/${productRecipe.id}/sync-product-price`,
                 { method: 'POST' }
             )
             if (res?.suggested_price != null) {

@@ -3,7 +3,7 @@
  */
 
 import tenantApi from '../../shared/api/client'
-import { TENANT_INVOICING } from '@shared/endpoints'
+import { TENANT_INVOICING, TENANT_EINVOICING, EINVOICING } from '@shared/endpoints'
 import { ensureArray } from '../../shared/utils/array'
 import { queueInvoiceDeletion, queueInvoiceForSync } from './offlineQueue'
 import {
@@ -278,13 +278,13 @@ export interface EinvoiceStatus {
 }
 
 export async function sendEinvoice(request: EinvoiceSendRequest): Promise<{ task_id: string }> {
-  const { data } = await tenantApi.post('/api/v1/tenant/einvoicing/send', request)
+  const { data } = await tenantApi.post(EINVOICING.send, request)
   return data
 }
 
 export async function getEinvoiceStatus(invoiceId: string): Promise<EinvoiceStatus | null> {
   try {
-    const { data } = await tenantApi.get(`/api/v1/tenant/einvoicing/status/${invoiceId}`)
+    const { data } = await tenantApi.get(EINVOICING.status(invoiceId))
     return data
   } catch (err: any) {
     if (err?.response?.status === 404) {
@@ -299,7 +299,7 @@ export async function markInvoiceAsPaid(id: number | string): Promise<void> {
 }
 
 export async function exportInvoiceE(id: string | number): Promise<Blob> {
-  const res = await tenantApi.get(`/einvoicing/facturae/${id}/export`, {
+  const res = await tenantApi.get(TENANT_EINVOICING.facturaeExport(id), {
     responseType: 'blob',
   })
   return res.data as Blob

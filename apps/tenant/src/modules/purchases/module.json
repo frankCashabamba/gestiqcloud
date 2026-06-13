@@ -1,12 +1,20 @@
-{
-  "id": "purchases",
-  "name": "Purchases",
-  "icon": "🛒",
-  "category": "operations",
-  "description": "Purchase orders, receiving, and supplier management",
-  "required": false,
-  "default_enabled": true,
-  "dependencies": ["inventory"],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "purchases",
+    "name":  "Purchases",
+    "icon":  "🛒",
+    "category":  "operations",
+    "description":  "Purchase orders, receiving, and supplier management",
+    "required":  false,
+    "default_enabled":  true,
+    "dependencies":  [
+                         "inventory"
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "active",
+    "maturity":  3,
+    "risk":  "medium"
 }

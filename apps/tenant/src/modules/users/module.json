@@ -1,17 +1,25 @@
-{
-  "id": "users",
-  "name": "Users",
-  "icon": "🪪",
-  "category": "people",
-  "description": "Tenant users, access roles and operational permissions",
-  "parent_module": "settings",
-  "surface": "admin",
-  "nav_group": "user_menu",
-  "contractable": true,
-  "use_module_loader": false,
-  "required": false,
-  "default_enabled": false,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "users",
+    "name":  "Users",
+    "icon":  "🪪",
+    "category":  "people",
+    "description":  "Tenant users, access roles and operational permissions",
+    "parent_module":  "settings",
+    "surface":  "admin",
+    "nav_group":  "user_menu",
+    "contractable":  true,
+    "use_module_loader":  false,
+    "required":  false,
+    "default_enabled":  false,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "active",
+    "maturity":  4,
+    "risk":  "high"
 }

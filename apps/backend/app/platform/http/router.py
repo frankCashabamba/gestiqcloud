@@ -368,10 +368,9 @@ def build_api_router() -> APIRouter:
         ("app.modules.settings.interface.http.tenant", "router"),
         prefix="/company/settings",
     )
-    # Settings admin: field-config + ui-plantillas
-    include_router_safe(
-        r, ("app.modules.settings.interface.http.tenant", "admin_router"), prefix="/api/v1"
-    )
+    # Settings admin (field-config + ui-plantillas): se monta en register_all_routers
+    # directamente sobre `app` con prefix="/api/v1". Montarlo aquí (build_api_router ya
+    # añade /api/v1) producía el doble-prefijo /api/v1/api/v1/admin/field-config.
 
     # Dashboard KPIs (analytics) — canonical mount under /tenant
     include_router_safe(
@@ -406,18 +405,13 @@ def build_api_router() -> APIRouter:
 
     # Legacy routers retirados: no intentar montarlos para evitar ruido en logs
 
-    # Business Categories (Tipos de negocio) - dinámico desde BD
-    include_router_safe(r, ("app.routers.business_categories", "router"))
+    # Business Categories, Sectors y Sector Config Editor: estos routers ya incluyen
+    # /api/v1 en su prefix interno, por lo que se montan en register_all_routers
+    # directamente sobre `app` (montarlos aquí duplicaba el prefijo → /api/v1/api/v1/...).
 
     # Tenant Settings (Configuración consolidada por tenant)
     include_router_safe(r, ("app.routers.company_settings", "router"))
     include_router_safe(r, ("app.routers.company_settings", "router_admin"))
-
-    # Sectors (Plantillas de negocio) - Units, Config, etc.
-    include_router_safe(r, ("app.routers.sectors", "router"))
-
-    # Admin: Sector Config Editor (FASE 6)
-    include_router_safe(r, ("app.routers.admin_sector_config", "router"))
 
     # E-invoicing (SRI/SII)
     include_router_safe(
@@ -541,6 +535,24 @@ def register_all_routers(app) -> None:
         logger.info("Sectors router mounted")
     except Exception as e:
         logger.error(f"Error mounting Sectors router: {e}")
+
+    # Business Categories (Tipos de negocio) — el router ya incluye /api/v1 en su prefix.
+    try:
+        from app.routers.business_categories import router as business_categories_router
+
+        app.include_router(business_categories_router)  # Prefix="/api/v1/business-categories"
+        logger.info("Business Categories router mounted at /api/v1/business-categories")
+    except Exception as e:
+        logger.error(f"Error mounting Business Categories router: {e}")
+
+    # Admin: Sector Config Editor (FASE 6) — el router ya incluye /api/v1 en su prefix.
+    try:
+        from app.routers.admin_sector_config import router as admin_sector_config_router
+
+        app.include_router(admin_sector_config_router)  # Prefix="/api/v1/admin"
+        logger.info("Admin Sector Config router mounted at /api/v1/admin/sectors")
+    except Exception as e:
+        logger.error(f"Error mounting Admin Sector Config router: {e}")
 
     # Admin Stats
     try:

@@ -1,5 +1,6 @@
 ﻿import tenantApi from '../../shared/api/client'
 import { ensureArray } from '../../shared/utils/array'
+import { TENANT_QUOTES } from '@shared/endpoints'
 
 export type QuoteStatus = 'DRAFT' | 'APPROVED' | 'CONVERTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED'
 
@@ -39,7 +40,7 @@ export interface QuoteCreate {
   lines: QuoteLine[]
 }
 
-const BASE = '/api/v1/tenant/quotes'
+const BASE = TENANT_QUOTES.base
 
 export async function listQuotes(params?: {
   status?: string

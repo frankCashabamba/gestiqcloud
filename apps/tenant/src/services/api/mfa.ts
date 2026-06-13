@@ -1,6 +1,7 @@
 import api from '../../shared/api/client'
+import { TENANT_MFA } from '@shared/endpoints'
 
-const BASE = '/api/v1/tenant/auth/mfa'
+const BASE = TENANT_MFA.base
 
 export interface MFAStatus {
   mfa_enabled: boolean

@@ -1,12 +1,20 @@
-{
-  "id": "expenses",
-  "name": "Expenses",
-  "icon": "💸",
-  "category": "finance",
-  "description": "Recording and approval of expenses, mileage and per diems",
-  "required": false,
-  "default_enabled": true,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "expenses",
+    "name":  "Expenses",
+    "icon":  "💸",
+    "category":  "finance",
+    "description":  "Recording and approval of expenses, mileage and per diems",
+    "required":  false,
+    "default_enabled":  true,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "active",
+    "maturity":  3,
+    "risk":  "medium"
 }

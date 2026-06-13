@@ -87,7 +87,7 @@ export default function ProveedorDetail() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link to="editar" className="gc-button gc-button--primary">
+          <Link to="edit" className="gc-button gc-button--primary">
             {t('common:edit')}
           </Link>
           <button className="gc-button gc-button--ghost" onClick={() => setConfirmDeactivate(true)}>

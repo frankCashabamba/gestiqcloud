@@ -50,10 +50,6 @@ export const ADMIN_CONFIG = {
     base: '/api/v1/admin/config/language',
     byId: (id: number | string) => `/api/v1/admin/config/language/${id}`,
   },
-  settingsDefaults: {
-    base: '/api/v1/admin/config/settings-defaults',
-    byId: (id: number | string) => `/api/v1/admin/config/settings-defaults/${id}`,
-  },
   sectors: {
     base: '/api/v1/admin/config/template-sector',
     byId: (id: number | string) => `/api/v1/admin/config/template-sector/${id}`,

@@ -2,6 +2,7 @@
  * POS Services - API calls
  */
 import tenantApi from '../../shared/api/client'
+import { TENANT_INVOICING, TENANT_DOCUMENTS, TENANT_POS, TENANT_PRODUCTS } from '@shared/endpoints'
 import { API_PATHS } from '../../constants/api'
 import { getSyncManager } from '../../lib/syncManager'
 import { getEntity, listEntities, storeEntity } from '../../lib/offlineStore'
@@ -25,7 +26,6 @@ import type {
 } from '../../types/pos'
 export type { POSReceipt } from '../../types/pos'
 
-const BASE_URL = API_PATHS.POS.REGISTERS.replace('/registers', '')
 const PAYMENTS_URL = API_PATHS.PAYMENTS.BASE
 
 function registersCacheKey() {
@@ -127,7 +127,7 @@ function authHeaders(): Record<string, string> {
 
 export async function listRegisters(): Promise<POSRegister[]> {
     try {
-        const { data } = await tenantApi.get<POSRegister[] | { items?: POSRegister[] }>(`${BASE_URL}/registers`, { headers: authHeaders() })
+        const { data } = await tenantApi.get<POSRegister[] | { items?: POSRegister[] }>(TENANT_POS.registers, { headers: authHeaders() })
         const normalized = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : []
         writeCachedResource(registersCacheKey(), normalized)
         return normalized
@@ -141,12 +141,12 @@ export async function listRegisters(): Promise<POSRegister[]> {
 }
 
 export async function createRegister(payload: { code: string; name: string; default_warehouse_id?: string; metadata?: any }): Promise<POSRegister> {
-    const { data } = await tenantApi.post<POSRegister>(`${BASE_URL}/registers`, payload)
+    const { data } = await tenantApi.post<POSRegister>(TENANT_POS.registers, payload)
     return data
 }
 
 export async function getRegister(id: string): Promise<POSRegister> {
-    const { data } = await tenantApi.get<POSRegister>(`${BASE_URL}/registers/${id}`, { headers: authHeaders() })
+    const { data } = await tenantApi.get<POSRegister>(TENANT_POS.registerById(id), { headers: authHeaders() })
     return data
 }
 
@@ -156,7 +156,7 @@ export async function getRegister(id: string): Promise<POSRegister> {
 
 export async function openShift(payload: ShiftOpenRequest): Promise<POSShift> {
     try {
-        const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts`, payload, { headers: authHeaders() })
+        const { data } = await tenantApi.post<POSShift>(TENANT_POS.shifts, payload, { headers: authHeaders() })
         cacheCurrentShift(payload.register_id, data)
         await rememberShift(data)
         return data
@@ -187,7 +187,7 @@ export async function openShift(payload: ShiftOpenRequest): Promise<POSShift> {
 
 export async function getShiftSummary(shiftId: string, params?: { cashier_id?: string }): Promise<ShiftSummary> {
     try {
-        const { data } = await tenantApi.get<ShiftSummary>(`${BASE_URL}/shifts/${shiftId}/summary`, { params, headers: authHeaders() })
+        const { data } = await tenantApi.get<ShiftSummary>(TENANT_POS.shiftSummary(shiftId), { params, headers: authHeaders() })
         const shift = await resolveShiftRecord(shiftId)
         writeCachedResource(shiftSummaryCacheKey(shiftId), {
             ...data,
@@ -205,7 +205,7 @@ export async function getShiftSummary(shiftId: string, params?: { cashier_id?: s
 export async function closeShift(payload: ShiftCloseRequest): Promise<POSShift> {
     const { shift_id, ...body } = payload
     try {
-        const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts/${shift_id}/close`, body, { headers: authHeaders() })
+        const { data } = await tenantApi.post<POSShift>(TENANT_POS.closeShift(shift_id), body, { headers: authHeaders() })
         await rememberShift(data)
         const currentShift = await resolveShiftRecord(shift_id)
         if (currentShift?.register_id) clearCachedCurrentShift(String(currentShift.register_id))
@@ -267,7 +267,7 @@ export async function closeShift(payload: ShiftCloseRequest): Promise<POSShift> 
 
 export async function getCurrentShift(registerId: string): Promise<POSShift | null> {
     try {
-        const { data } = await tenantApi.get<POSShift>(`${BASE_URL}/shifts/current/${registerId}`, { headers: authHeaders() })
+        const { data } = await tenantApi.get<POSShift>(TENANT_POS.currentShift(registerId), { headers: authHeaders() })
         cacheCurrentShift(registerId, data)
         await rememberShift(data)
         return data
@@ -309,7 +309,7 @@ export async function calculateReceiptTotals(payload: {
     global_discount_pct?: number
 }): Promise<ReceiptTotals> {
     const { data } = await tenantApi.post<ReceiptTotals>(
-        `${BASE_URL}/receipts/calculate_totals`,
+        TENANT_POS.receiptCalculateTotals,
         { lines: payload.lines, global_discount_pct: payload.global_discount_pct || 0 },
         { headers: authHeaders() }
     )
@@ -317,21 +317,21 @@ export async function calculateReceiptTotals(payload: {
 }
 
 export async function createReceipt(payload: ReceiptCreateRequest): Promise<POSReceipt> {
-    const { data } = await tenantApi.post<POSReceipt>(`${BASE_URL}/receipts`, payload, { headers: authHeaders() })
+    const { data } = await tenantApi.post<POSReceipt>(TENANT_POS.receipts, payload, { headers: authHeaders() })
     return data
 }
 
 export async function getReceipt(id: string): Promise<POSReceipt> {
-    const { data } = await tenantApi.get<POSReceipt>(`${BASE_URL}/receipts/${id}`, { headers: authHeaders() })
+    const { data } = await tenantApi.get<POSReceipt>(TENANT_POS.receiptById(id), { headers: authHeaders() })
     return data
 }
 
 export async function deleteReceipt(id: string): Promise<void> {
-    await tenantApi.delete(`${BASE_URL}/receipts/${id}`, { headers: authHeaders() })
+    await tenantApi.delete(TENANT_POS.receiptById(id), { headers: authHeaders() })
 }
 
 export async function listReceipts(params?: { shift_id?: string; status?: string; cashier_id?: string }): Promise<POSReceipt[]> {
-    const { data } = await tenantApi.get<POSReceipt[] | { items?: POSReceipt[] }>(`${BASE_URL}/receipts`, { params, headers: authHeaders() })
+    const { data } = await tenantApi.get<POSReceipt[] | { items?: POSReceipt[] }>(TENANT_POS.receipts, { params, headers: authHeaders() })
     if (Array.isArray(data)) return data
     const items = (data as any)?.items
     return Array.isArray(items) ? items : []
@@ -418,7 +418,7 @@ export async function payReceipt(
     if (opts?.warehouse_id) payload.warehouse_id = opts.warehouse_id
     if (opts?.stock_selections?.length) payload.stock_selections = opts.stock_selections
     const { data } = await tenantApi.post<CheckoutResponse>(
-        `${BASE_URL}/receipts/${receiptId}/checkout`,
+        TENANT_POS.receiptCheckout(receiptId),
         payload,
         { headers: authHeaders() }
     )
@@ -426,7 +426,7 @@ export async function payReceipt(
 }
 
 export async function convertToInvoice(receiptId: string, payload: ReceiptToInvoiceRequest): Promise<any> {
-    const { data } = await tenantApi.post(`${BASE_URL}/receipts/${receiptId}/to_invoice`, payload, { headers: authHeaders() })
+    const { data } = await tenantApi.post(TENANT_POS.receiptToInvoice(receiptId), payload, { headers: authHeaders() })
     return data
 }
 
@@ -495,7 +495,7 @@ export async function createInvoiceFromReceipt(receiptId: string, receipt: POSRe
     // Create invoice via invoicing endpoint using the correct API client
     try {
         // Use the invoicing endpoint
-        const { data } = await tenantApi.post('/api/v1/tenant/invoicing', invoiceData)
+        const { data } = await tenantApi.post(TENANT_INVOICING.base, invoiceData)
         return data
     } catch (error: any) {
         console.error('Error creating invoice from receipt:', error.response?.data || error.message)
@@ -504,12 +504,12 @@ export async function createInvoiceFromReceipt(receiptId: string, receipt: POSRe
 }
 
 export async function refundReceipt(receiptId: string, payload: RefundRequest): Promise<any> {
-    const { data } = await tenantApi.post(`${BASE_URL}/receipts/${receiptId}/refund`, payload, { headers: authHeaders() })
+    const { data } = await tenantApi.post(TENANT_POS.receiptRefund(receiptId), payload, { headers: authHeaders() })
     return data
 }
 
 export async function printReceipt(receiptId: string, width: '58mm' | '80mm' = '58mm'): Promise<string> {
-    const { data } = await tenantApi.get<string>(`${BASE_URL}/receipts/${receiptId}/print`, {
+    const { data } = await tenantApi.get<string>(TENANT_POS.receiptPrint(receiptId), {
         params: { width },
         headers: authHeaders(),
     })
@@ -551,22 +551,19 @@ export type DocumentModel = {
     document: { id: string }
 }
 
-const DOCUMENTS_SALES_URL = '/api/v1/tenant/documents/sales'
-const DOCUMENTS_URL = '/api/v1/tenant/documents'
-
 export async function createDocumentDraft(payload: SaleDraft): Promise<DocumentModel> {
-    const { data } = await tenantApi.post<DocumentModel>(`${DOCUMENTS_SALES_URL}/draft`, payload, { headers: authHeaders() })
+    const { data } = await tenantApi.post<DocumentModel>(TENANT_DOCUMENTS.salesDraft, payload, { headers: authHeaders() })
     return data
 }
 
 export async function issueDocument(payload: SaleDraft): Promise<DocumentModel> {
-    const { data } = await tenantApi.post<DocumentModel>(`${DOCUMENTS_SALES_URL}/issue`, payload, { headers: authHeaders() })
+    const { data } = await tenantApi.post<DocumentModel>(TENANT_DOCUMENTS.salesIssue, payload, { headers: authHeaders() })
     return data
 }
 
 export async function backfillReceiptDocuments(receiptId: string): Promise<{ ok: boolean; receipt_id: string; documents_created?: Record<string, any> }> {
     const { data } = await tenantApi.post<{ ok: boolean; receipt_id: string; documents_created?: Record<string, any> }>(
-        `${BASE_URL}/receipts/${receiptId}/backfill_documents`,
+        TENANT_POS.receiptBackfillDocuments(receiptId),
         {},
         { headers: authHeaders() },
     )
@@ -574,14 +571,14 @@ export async function backfillReceiptDocuments(receiptId: string): Promise<{ ok:
 }
 
 export async function renderDocument(documentId: string): Promise<string> {
-    const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/render`, {
+    const { data } = await tenantApi.get<string>(TENANT_DOCUMENTS.render(documentId), {
         headers: authHeaders(),
     })
     return data
 }
 
 export async function renderDocumentWithFormat(documentId: string, format: 'THERMAL_80MM' | 'A4_PDF'): Promise<string> {
-    const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/render`, {
+    const { data } = await tenantApi.get<string>(TENANT_DOCUMENTS.render(documentId), {
         params: { format },
         headers: authHeaders(),
     })
@@ -589,7 +586,7 @@ export async function renderDocumentWithFormat(documentId: string, format: 'THER
 }
 
 export async function printDocument(documentId: string, format?: 'THERMAL_80MM' | 'A4_PDF'): Promise<string> {
-    const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/print`, {
+    const { data } = await tenantApi.get<string>(TENANT_DOCUMENTS.print(documentId), {
         params: format ? { format } : undefined,
         headers: authHeaders(),
     })
@@ -601,19 +598,19 @@ export async function printDocument(documentId: string, format?: 'THERMAL_80MM' 
 // ============================================================================
 
 export async function listStoreCredits(): Promise<StoreCredit[]> {
-    const { data } = await tenantApi.get<StoreCredit[] | { items?: StoreCredit[] }>(`${BASE_URL}/store_credits`, { headers: authHeaders() })
+    const { data } = await tenantApi.get<StoreCredit[] | { items?: StoreCredit[] }>(TENANT_POS.storeCredits, { headers: authHeaders() })
     if (Array.isArray(data)) return data
     const items = (data as any)?.items
     return Array.isArray(items) ? items : []
 }
 
 export async function getStoreCreditByCode(code: string): Promise<StoreCredit> {
-    const { data } = await tenantApi.get<StoreCredit>(`${BASE_URL}/store_credits/code/${code}`, { headers: authHeaders() })
+    const { data } = await tenantApi.get<StoreCredit>(TENANT_POS.storeCreditByCode(code), { headers: authHeaders() })
     return data
 }
 
 export async function redeemStoreCredit(code: string, amount: number): Promise<StoreCredit> {
-    const { data } = await tenantApi.post<StoreCredit>(`${BASE_URL}/store_credits/redeem`, { code, amount }, { headers: authHeaders() })
+    const { data } = await tenantApi.post<StoreCredit>(TENANT_POS.redeemStoreCredit, { code, amount }, { headers: authHeaders() })
     return data
 }
 
@@ -621,7 +618,7 @@ export async function redeemStoreCredit(code: string, amount: number): Promise<S
 // Products (para POS)
 // ============================================================================
 
-const PRODUCTS_BASE = '/api/v1/tenant/products'
+const PRODUCTS_BASE = TENANT_PRODUCTS.products.list
 
 export async function listAllProducts(limit: number = 200): Promise<Product[]> {
     const { data } = await tenantApi.get<Product[] | { items: Product[] }>(`${PRODUCTS_BASE}/`, {
@@ -665,7 +662,7 @@ export async function syncOfflineReceipts(): Promise<void> {
 
 export async function listDailyCounts(params?: { register_id?: string; since?: string; until?: string; limit?: number }): Promise<any[]> {
     try {
-        const { data } = await tenantApi.get(`${BASE_URL}/daily_counts`, { params, headers: authHeaders() })
+        const { data } = await tenantApi.get(TENANT_POS.dailyCounts, { params, headers: authHeaders() })
         if (params?.register_id) writeCachedResource(dailyCountsCacheKey(params.register_id), data || [])
         return data || []
     } catch (error) {

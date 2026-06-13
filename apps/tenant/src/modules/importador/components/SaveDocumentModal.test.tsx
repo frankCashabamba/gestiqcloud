@@ -19,6 +19,41 @@ vi.mock('../../accounting/services', () => ({
   listPaymentMethods: mockListPaymentMethods,
 }))
 
+const translations: Record<string, string> = {
+  'saveModal.title': 'Save document',
+  'saveModal.resumeTitle': 'Complete pending stock',
+  'saveModal.finalReview': 'Final review',
+  'saveModal.readyToSave': 'Ready to save',
+  'saveModal.resumeSummary': 'The purchase already exists. Complete the pending stock lines.',
+  'saveModal.changeDestinationOptions': 'Change destination or options',
+  'saveModal.hideAdvancedOptions': 'Hide advanced options',
+  'saveModal.paymentStatus': 'Payment status',
+  'saveModal.saveAs': 'Save as',
+  'saveModal.completeStock': 'Complete stock',
+  'saveModal.cancel': 'Cancel',
+  'saveModal.pending': 'Pending',
+  'saveModal.summary.destination': 'Destination',
+  'saveModal.summary.total': 'Total',
+  'saveModal.summary.payment': 'Payment',
+  'saveModal.savedIn': 'Saved in {{targets}}',
+  'saveModal.totalDetected': 'Total detected: {{currency}} {{amount}}',
+  'docDetail.buttons.saveInvoice': 'Save invoice',
+}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      let text = translations[key] || key
+      if (values) {
+        for (const [name, value] of Object.entries(values)) {
+          text = text.replace(`{{${name}}}`, String(value))
+        }
+      }
+      return text
+    },
+  }),
+}))
+
 vi.mock('../services', () => ({
   canSaveDocument: () => true,
   fetchDocumentLineMatchCandidates: mockFetchDocumentLineMatchCandidates,

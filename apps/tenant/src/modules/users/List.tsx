@@ -173,7 +173,7 @@ export default function UsuariosList() {
               </button>
             )}
             {can('users:create') && (
-              <ProtectedButton permission="users:create" variant="primary" onClick={() => nav('nuevo')}>
+              <ProtectedButton permission="users:create" variant="primary" onClick={() => nav('new')}>
                 {t('users:newUser')}
               </ProtectedButton>
             )}
@@ -230,7 +230,7 @@ export default function UsuariosList() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-wrap items-center justify-end gap-3">
                       {can('users:update') && (
-                        <Link to={`${u.id}/editar`} className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                        <Link to={`${u.id}/edit`} className="text-sm font-medium text-blue-600 hover:text-blue-500">
                           {t('users:edit')}
                         </Link>
                       )}

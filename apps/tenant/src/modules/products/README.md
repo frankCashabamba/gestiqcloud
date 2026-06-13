@@ -2,7 +2,54 @@
 
 ## 📋 Descripción
 
-Módulo profesional de gestión de productos con configuración dinámica de campos por sector (Panadería, Retail/Bazar, Taller Mecánico). Sigue el mismo patrón arquitectónico del módulo de Clientes.
+Gestión de productos con configuración dinámica de campos por sector (Panadería, Retail/Bazar, Taller Mecánico). Sigue el mismo patrón arquitectónico del módulo de Clientes.
+
+Estado: Activo
+Madurez: 4/5
+Owner: Frontend
+Riesgo: Medio
+
+## Implementado
+
+- Listado, creación, edición y eliminación de productos.
+- Configuración dinámica de campos por sector y por tenant.
+- Exportación CSV desde el listado.
+- Integración con el pipeline de importación Excel.
+
+## Parcial
+
+- La importación depende del módulo importador y de su configuración runtime.
+- Los campos sectoriales documentados son ejemplos de configuración soportada; deben validarse contra los seeds activos de cada tenant.
+
+## Pendiente
+
+- Tests automatizados específicos del flujo productos + importador.
+- Validación end-to-end de campos sectoriales por tenant real.
+
+## Endpoints usados
+
+- `GET /api/v1/tenant/products`
+- `GET /api/v1/tenant/products/:id`
+- `POST /api/v1/tenant/products`
+- `PUT /api/v1/tenant/products/:id`
+- `DELETE /api/v1/tenant/products/:id`
+- `POST /api/v1/tenant/imports/excel/parse`
+- `POST /api/v1/tenant/imports/batches`
+- `POST /api/v1/tenant/imports/batches/{id}/ingest`
+
+## Permisos
+
+- `products:read`
+- `products:create`
+- `products:update`
+- `products:delete`
+
+## Tests mínimos
+
+- Crear, editar y eliminar producto.
+- Cambiar configuración de campos por sector.
+- Importar Excel y verificar batch creado.
+- Confirmar que un usuario sin permiso no accede a rutas protegidas.
 
 ## 🏗️ Arquitectura
 
@@ -11,7 +58,7 @@ apps/tenant/src/modules/products/
 ├── List.tsx                    ✅ Lista con filtros, paginación, ordenamiento, export CSV
 ├── Form.tsx                    ✅ Formulario dinámico con config por sector
 ├── Routes.tsx                  ✅ Rutas configuradas (lista, nuevo, editar)
-├── productsApi.ts              ✅ API client principal con tipos TypeScript completos
+├── productsApi.ts              ✅ API client principal con tipos TypeScript
 ├── manifest.ts                 ✅ Configuración del módulo
 └── README.md                   📄 Este archivo
 ```
@@ -53,8 +100,8 @@ apps/tenant/src/modules/products/
 - ✅ Estilos profesionales con focus states
 
 ### **productsApi.ts** - API Client
-- ✅ Tipos TypeScript completos con 30+ campos
-- ✅ CRUD completo:
+- ✅ Tipos TypeScript con 30+ campos
+- ✅ CRUD:
   - `listProductos()`: GET /api/v1/tenant/products
   - `getProducto(id)`: GET /api/v1/tenant/products/:id
   - `createProducto(data)`: POST /api/v1/tenant/products
@@ -171,7 +218,7 @@ WHERE tenant_id = 'uuid-tenant' AND module = 'productos';
 
 ## 📥 Importación de Productos desde Excel
 
-### Función integrada con módulo importador (110% completitud)
+### Función integrada con módulo importador
 
 ```typescript
 import { importProductosExcel } from './productsApi'

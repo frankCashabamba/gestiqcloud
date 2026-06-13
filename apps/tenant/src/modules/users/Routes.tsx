@@ -15,21 +15,23 @@ export default function UsuariosRoutes() {
       <Routes>
         <Route index element={<GuardedList />} />
         <Route
-          path="nuevo"
+          path="new"
           element={
             <ProtectedRoute permission="users:create">
               <UsuarioForm />
             </ProtectedRoute>
           }
         />
+        <Route path="nuevo" element={<Navigate to="../new" replace />} />
         <Route
-          path=":id/editar"
+          path=":id/edit"
           element={
             <ProtectedRoute permission="users:update">
               <UsuarioForm />
             </ProtectedRoute>
           }
         />
+        <Route path=":id/editar" element={<Navigate to="../edit" replace />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

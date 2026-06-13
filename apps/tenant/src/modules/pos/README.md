@@ -2,7 +2,49 @@
 
 ## 📋 Descripción
 
-Terminal profesional de punto de venta (TPV) con diseño oscuro optimizado para uso intensivo. Integrado con inventario, productos, pagos y facturación.
+Terminal de punto de venta (TPV) con diseño oscuro optimizado para uso intensivo. Integrado con inventario, productos, pagos y facturación.
+
+Estado: Activo
+Madurez: 4/5
+Owner: Frontend
+Riesgo: Alto
+
+## Implementado
+
+- Vista principal de venta, carrito, pagos, turnos y recibos.
+- Componentes para scanner, productos a peso, devoluciones y vales.
+- Integración con backend POS e inventario.
+- Sincronización offline-lite.
+
+## Parcial
+
+- Facturación y pagos dependen de los módulos backend activos y de la configuración del tenant.
+- Offline-lite no sustituye una estrategia completa de caja offline con resolución de conflictos.
+
+## Pendiente
+
+- Smoke test venta -> stock -> cierre de turno -> asiento contable.
+- Validación de impresión y dispositivos físicos.
+- Pruebas de concurrencia en caja y turnos.
+
+## Endpoints usados
+
+- Endpoints bajo `apps/backend/app/modules/pos/interface/http/tenant.py`.
+- Integraciones con productos, inventario y facturación según flujo.
+
+## Permisos
+
+- `pos:read`
+- `pos:create`
+- `pos:update`
+- Permisos de inventario/facturación cuando el flujo los invoque.
+
+## Tests mínimos
+
+- Abrir turno, vender, cobrar y cerrar turno.
+- Vender producto con stock y verificar descuento de inventario.
+- Probar devolución y vale.
+- Validar bloqueo por permisos.
 
 ## 🏗️ Arquitectura
 
@@ -22,7 +64,7 @@ apps/tenant/src/modules/pos/
 │   └── StoreCreditsList.tsx        ✅ Gestión vales
 ├── hooks/
 │   └── useOfflineSync.tsx          ✅ Sync offline-lite
-├── services.ts                     ✅ API client completo
+├── services.ts                     ✅ API client
 ├── Routes.tsx                      ✅ Rutas
 ├── manifest.ts                     ✅ Config módulo
 └── tpv_pro.html                    ✅ Prototipo de diseño
@@ -31,7 +73,7 @@ apps/tenant/src/modules/pos/
 **Backend:**
 ```
 apps/backend/app/modules/pos/interface/http/tenant.py (900+ líneas)
-✅ 13 endpoints completos
+✅ 13 endpoints documentados en backend POS
 ✅ Integración automática con inventario
 ✅ Numeración automática de tickets
 ```
@@ -504,7 +546,7 @@ El diseño es **universal**. Solo cambian:
 
 ---
 
-## 🔄 Flujo Completo de Venta
+## 🔄 Flujo de Venta
 
 ```
 1. ABRIR TURNO

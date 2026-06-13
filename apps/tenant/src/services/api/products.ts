@@ -1,4 +1,5 @@
 import api from '../../shared/api/client'
+import { TENANT_PRODUCTS } from '@shared/endpoints'
 
 export type Product = {
   id: string
@@ -46,14 +47,14 @@ export type ProductCreatePayload = {
 
 export async function listProducts(params?: { q?: string; limit?: number }) {
   // Use tenant-scoped endpoint; compatible with both array and {items}
-  const { data } = await api.get<Product[] | { items?: Product[] }>('/api/v1/tenant/products', { params })
+  const { data } = await api.get<Product[] | { items?: Product[] }>(TENANT_PRODUCTS.products.list, { params })
   if (Array.isArray(data)) return data
   const items = (data as { items?: Product[] }).items
   return Array.isArray(items) ? items : []
 }
 
 export async function listRawMaterials(params?: { q?: string; limit?: number }) {
-  const { data } = await api.get<Product[] | { items?: Product[] }>('/api/v1/tenant/products/raw-materials', {
+  const { data } = await api.get<Product[] | { items?: Product[] }>(TENANT_PRODUCTS.rawMaterials, {
     params,
   })
   if (Array.isArray(data)) return data.map(normalizeProduct)
@@ -62,18 +63,18 @@ export async function listRawMaterials(params?: { q?: string; limit?: number }) 
 }
 
 export async function createProduct(payload: ProductCreatePayload) {
-  const { data } = await api.post<Product>('/api/v1/tenant/products', payload)
+  const { data } = await api.post<Product>(TENANT_PRODUCTS.products.create, payload)
   return data
 }
 
 export async function updateProduct(id: string, payload: Partial<ProductCreatePayload & { name: string }>) {
-  const { data } = await api.put<Product>(`/api/v1/tenant/products/${id}`, payload)
+  const { data } = await api.put<Product>(TENANT_PRODUCTS.products.update(id), payload)
   return data
 }
 
 // === VARIANTES DE PRODUCTO ===
 
-const VARIANTS_BASE = '/api/v1/tenant/products/variants'
+const VARIANTS_BASE = TENANT_PRODUCTS.variants
 
 export interface ProductAttribute {
   id: string

@@ -102,7 +102,7 @@ export default function ProveedoresList() {
           </p>
         </div>
         {can('suppliers:create') && (
-          <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
+          <button className="gc-button gc-button--primary" onClick={() => nav('new')}>
             + {t('suppliers:new')}
           </button>
         )}
@@ -183,7 +183,7 @@ export default function ProveedoresList() {
                   <div className="flex flex-wrap items-center justify-end gap-3">
                     {can('suppliers:update') && (
                       <Link
-                        to={`${p.id}/editar`}
+                        to={`${p.id}/edit`}
                         className="text-sm font-medium text-blue-600 hover:text-blue-500"
                       >
                         {t('common:edit')}

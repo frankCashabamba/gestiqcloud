@@ -1,16 +1,24 @@
-{
-  "id": "templates",
-  "name": "Templates",
-  "icon": "🧩",
-  "category": "settings",
-  "description": "UI templates and overlay configuration",
-  "parent_module": "settings",
-  "surface": "embedded",
-  "nav_group": "hidden",
-  "contractable": false,
-  "required": false,
-  "default_enabled": false,
-  "dependencies": [],
-  "countries": ["ES", "EC"],
-  "implemented": true
+﻿{
+    "id":  "templates",
+    "name":  "Templates",
+    "icon":  "🧩",
+    "category":  "settings",
+    "description":  "UI templates and overlay configuration",
+    "parent_module":  "settings",
+    "surface":  "embedded",
+    "nav_group":  "hidden",
+    "contractable":  false,
+    "required":  false,
+    "default_enabled":  false,
+    "dependencies":  [
+
+                     ],
+    "countries":  [
+                      "ES",
+                      "EC"
+                  ],
+    "implemented":  true,
+    "status":  "partial",
+    "maturity":  2,
+    "risk":  "medium"
 }

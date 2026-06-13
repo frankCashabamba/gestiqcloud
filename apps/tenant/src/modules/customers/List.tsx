@@ -113,7 +113,7 @@ export default function ClientesList() {
         {can('customers:create') && (
           <button
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-colors"
-            onClick={() => nav('nuevo')}
+            onClick={() => nav('new')}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -219,7 +219,7 @@ export default function ClientesList() {
                     <div className="inline-flex items-center gap-1">
                       {can('customers:update') && (
                         <Link
-                          to={`${c.id}/editar`}
+                          to={`${c.id}/edit`}
                           className="px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors"
                         >
                           {t('common:edit')}
@@ -250,7 +250,7 @@ export default function ClientesList() {
                       {!q && can('customers:create') && (
                         <button
                           className="mt-2 text-sm text-blue-600 hover:underline font-medium"
-                          onClick={() => nav('nuevo')}
+                          onClick={() => nav('new')}
                         >
                           + {t('customers:new')}
                         </button>

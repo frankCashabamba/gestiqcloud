@@ -151,7 +151,7 @@ export const apiClient = {
 
   // UI Configuration Endpoints
   uiConfig: {
-    basePath: "/admin/ui-config",
+    basePath: "/api/v1/admin/ui-config",
     // Sections
     getSections: (params?: Record<string, any>) => {
       const query = new URLSearchParams(params).toString();
@@ -222,109 +222,49 @@ export const apiClient = {
   dashboard: {
     getStats: (params?: Record<string, any>) => {
       const query = new URLSearchParams(params).toString();
-      return GET(`/dashboard_stats${query ? `?${query}` : ""}`);
+      return GET(`/api/v1/dashboard_stats${query ? `?${query}` : ""}`);
     },
 
     getKpis: (params?: Record<string, any>) => {
       const query = new URLSearchParams(params).toString();
-      return GET(`/dashboard_kpis${query ? `?${query}` : ""}`);
+      return GET(`/api/v1/dashboard_kpis${query ? `?${query}` : ""}`);
     },
-  },
-
-  // Incidents API
-  incidents: {
-    list: (params?: Record<string, any>) => {
-      const query = new URLSearchParams(params).toString();
-      return GET(`/incidents${query ? `?${query}` : ""}`);
-    },
-
-    get: (incidentId: string) => GET(`/incidents/${incidentId}`),
-    create: (data: any) => POST("/incidents", data),
-    update: (incidentId: string, data: any) =>
-      PUT(`/incidents/${incidentId}`, data),
-    delete: (incidentId: string) => DELETE(`/incidents/${incidentId}`),
   },
 
   // Notifications API
   notifications: {
     list: (params?: Record<string, any>) => {
       const query = new URLSearchParams(params).toString();
-      return GET(`/notifications${query ? `?${query}` : ""}`);
+      return GET(`/api/v1/notifications${query ? `?${query}` : ""}`);
     },
 
     get: (notificationId: string) =>
-      GET(`/notifications/${notificationId}`),
+      GET(`/api/v1/notifications/${notificationId}`),
     markAsRead: (notificationId: string) =>
-      PUT(`/notifications/${notificationId}`, { read: true }),
-  },
-
-  // Payments API
-  payments: {
-    list: (params?: Record<string, any>) => {
-      const query = new URLSearchParams(params).toString();
-      return GET(`/payments${query ? `?${query}` : ""}`);
-    },
-
-    get: (paymentId: string) => GET(`/payments/${paymentId}`),
-    create: (data: any) => POST("/payments", data),
-    update: (paymentId: string, data: any) =>
-      PUT(`/payments/${paymentId}`, data),
+      PUT(`/api/v1/notifications/${notificationId}`, { read: true }),
   },
 
   // Webhooks API
   webhooks: {
     list: (params?: Record<string, any>) => {
       const query = new URLSearchParams(params).toString();
-      return GET(`/webhooks${query ? `?${query}` : ""}`);
+      return GET(`/api/v1/webhooks${query ? `?${query}` : ""}`);
     },
 
-    get: (webhookId: string) => GET(`/webhooks/${webhookId}`),
-    create: (data: any) => POST("/webhooks", data),
+    get: (webhookId: string) => GET(`/api/v1/webhooks/${webhookId}`),
+    create: (data: any) => POST("/api/v1/webhooks", data),
     update: (webhookId: string, data: any) =>
-      PUT(`/webhooks/${webhookId}`, data),
-    delete: (webhookId: string) => DELETE(`/webhooks/${webhookId}`),
+      PUT(`/api/v1/webhooks/${webhookId}`, data),
+    delete: (webhookId: string) => DELETE(`/api/v1/webhooks/${webhookId}`),
 
     test: (webhookId: string) =>
-      POST(`/webhooks/${webhookId}/test`),
+      POST(`/api/v1/webhooks/${webhookId}/test`),
     getLogs: (webhookId: string, params?: Record<string, any>) => {
       const query = new URLSearchParams(params).toString();
       return GET(
-        `/webhooks/${webhookId}/logs${query ? `?${query}` : ""}`
+        `/api/v1/webhooks/${webhookId}/logs${query ? `?${query}` : ""}`
       );
     },
-  },
-
-  // E-invoicing API
-  einvoicing: {
-    list: (params?: Record<string, any>) => {
-      const query = new URLSearchParams(params).toString();
-      return GET(`/einvoicing${query ? `?${query}` : ""}`);
-    },
-
-    get: (documentId: string) =>
-      GET(`/einvoicing/${documentId}`),
-    send: (documentId: string) =>
-      POST(`/einvoicing/${documentId}/send`),
-    download: (documentId: string) =>
-      GET(`/einvoicing/${documentId}/download`),
-  },
-
-  // Admin Config API
-  admin: {
-    getCompanies: (params?: Record<string, any>) => {
-      const query = new URLSearchParams(params).toString();
-      return GET(`/admin/companies${query ? `?${query}` : ""}`);
-    },
-
-    getUsers: (params?: Record<string, any>) => {
-      const query = new URLSearchParams(params).toString();
-      return GET(`/admin/users${query ? `?${query}` : ""}`);
-    },
-
-    getRoles: () => GET("/admin/roles"),
-    getSectors: () => GET("/admin/sectors"),
-    getCurrencies: () => GET("/admin/currencies"),
-    getCountries: () => GET("/admin/countries"),
   },
 };
 

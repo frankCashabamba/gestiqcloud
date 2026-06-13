@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { useCurrency } from '../../hooks/useCurrency'
 import { apiFetch } from '../../lib/http'
+import { TENANT_PRODUCTS } from '@shared/endpoints'
 
 export default function RawMaterialsList() {
   const { t } = useTranslation(['products', 'common'])
@@ -32,7 +33,7 @@ export default function RawMaterialsList() {
   const loadRawMaterials = useCallback(async () => {
     try {
       setLoading(true)
-      const data = await apiFetch<Producto[]>('/api/v1/tenant/products/raw-materials')
+      const data = await apiFetch<Producto[]>(TENANT_PRODUCTS.rawMaterials)
       setItems(data)
     } catch (e: any) {
       const m = getErrorMessage(e)

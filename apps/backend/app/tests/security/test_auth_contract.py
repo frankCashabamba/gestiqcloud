@@ -81,6 +81,26 @@ def test_require_permission_bypassed_by_company_admin():
     assert exc.value.status_code == 403
 
 
+def test_require_permission_accepts_nested_permission_dict():
+    from app.core.authz import require_permission
+
+    dep = require_permission("notifications:read")
+
+    assert dep(claims={"permissions": {"notifications": {"read": True}}})
+
+
+def test_require_permission_accepts_colon_and_dotted_aliases():
+    from app.core.authz import require_permission
+
+    assert require_permission("pos.view")(claims={"permissions": {"pos:read": True}})
+    assert require_permission("pos.receipt.pay")(
+        claims={"permissions": {"pos.receipt": {"pay": True}}}
+    )
+    assert require_permission("accounting.entry.create")(
+        claims={"permissions": {"accounting:entry": True}}
+    )
+
+
 # --------------------------------------------------------------------------- #
 # 3. get_current_user (wrapper dict) deriva de los claims y valida tenant UUID
 # --------------------------------------------------------------------------- #

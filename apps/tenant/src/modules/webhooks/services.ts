@@ -1,4 +1,5 @@
 import api from "../../services/api/client"
+import { TENANT_WEBHOOKS } from '@shared/endpoints'
 
 export interface WebhookSubscription {
   id: string
@@ -34,7 +35,7 @@ export interface DeliveryPayload {
 }
 
 export async function listSubscriptions(): Promise<WebhookSubscription[]> {
-  return api.get('/api/v1/tenant/webhooks').then(r => {
+  return api.get(TENANT_WEBHOOKS.base).then(r => {
     const items = Array.isArray(r.data?.items) ? r.data.items : []
     return items.map((w: any) => ({
       id: String(w.id),
@@ -49,7 +50,7 @@ export async function listSubscriptions(): Promise<WebhookSubscription[]> {
 
 export async function createSubscription(payload: WebhookSubscriptionCreate): Promise<{ id: string }> {
   return api
-    .post('/api/v1/tenant/webhooks', {
+    .post(TENANT_WEBHOOKS.base, {
       event_type: payload.event,
       target_url: payload.url,
       secret: payload.secret || 'webhook-secret-123',
@@ -58,12 +59,12 @@ export async function createSubscription(payload: WebhookSubscriptionCreate): Pr
 }
 
 export async function deleteSubscription(id: string): Promise<void> {
-  return api.delete(`/api/v1/tenant/webhooks/${id}`).then(() => undefined)
+  return api.delete(TENANT_WEBHOOKS.byId(id)).then(() => undefined)
 }
 
 export async function updateSubscription(id: string, payload: Partial<WebhookSubscriptionCreate>): Promise<WebhookSubscription> {
   return api
-    .put(`/api/v1/tenant/webhooks/${id}`, {
+    .put(TENANT_WEBHOOKS.byId(id), {
       target_url: payload.url,
       secret: payload.secret,
       is_active: true,
@@ -83,7 +84,7 @@ export async function enqueueDelivery(payload: DeliveryPayload): Promise<{ enque
 }
 
 export async function testSubscription(id: string): Promise<{ enqueued: number }> {
-  return api.post(`/api/v1/tenant/webhooks/${id}/test`).then(r => ({
+  return api.post(TENANT_WEBHOOKS.test(id)).then(r => ({
     enqueued: r.data?.success ? 1 : 0,
   }))
 }

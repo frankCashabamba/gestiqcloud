@@ -34,8 +34,13 @@ def main():
         # Ver: ops/migrations/2025-11-29_001_migrate_sector_templates_to_db/
         logger.info("Sector templates loaded from SQL migration")
 
-        pos_permissions = [
+        action_permissions = [
             {"key": "pos.view", "module": "pos", "description": "Access POS module"},
+            {"key": "pos:read", "module": "pos", "description": "Access POS module (frontend alias)"},
+            {"key": "pos:write", "module": "pos", "description": "Write POS receipts (frontend alias)"},
+            {"key": "pos:cashier", "module": "pos", "description": "Operate POS cashier flow"},
+            {"key": "pos:close_shift", "module": "pos", "description": "Close POS shifts (frontend alias)"},
+            {"key": "pos:refund", "module": "pos", "description": "Refund POS receipts (frontend alias)"},
             {"key": "pos.register.read", "module": "pos", "description": "Read POS registers"},
             {"key": "pos.register.manage", "module": "pos", "description": "Manage POS registers"},
             {"key": "pos.shift.read", "module": "pos", "description": "Read POS shifts"},
@@ -49,21 +54,36 @@ def main():
             {"key": "pos.receipt.manage", "module": "pos", "description": "Manage POS receipts"},
             {"key": "pos.reports.view", "module": "pos", "description": "View POS reports"},
             {"key": "pos.analytics.view", "module": "pos", "description": "View POS analytics"},
+            {"key": "accounting:read", "module": "accounting", "description": "Read accounting"},
+            {"key": "accounting:entry", "module": "accounting", "description": "Create accounting entries"},
+            {"key": "accounting:adjust", "module": "accounting", "description": "Post, cancel or adjust accounting"},
+            {"key": "accounting.entry.create", "module": "accounting", "description": "Create accounting entries"},
+            {"key": "accounting.entry.post", "module": "accounting", "description": "Post accounting entries"},
+            {"key": "accounting.entry.cancel", "module": "accounting", "description": "Cancel accounting entries"},
+            {"key": "accounting.account.manage", "module": "accounting", "description": "Manage chart of accounts"},
+            {"key": "accounting.reports.read", "module": "accounting", "description": "Read accounting reports"},
+            {"key": "quotes.manage", "module": "quotes", "description": "Manage quotes"},
+            {"key": "quotes:read", "module": "quotes", "description": "Read quotes"},
+            {"key": "quotes:create", "module": "quotes", "description": "Create quotes"},
+            {"key": "quotes:update", "module": "quotes", "description": "Update quotes"},
+            {"key": "quotes:delete", "module": "quotes", "description": "Delete quotes"},
+            {"key": "notifications:read", "module": "notifications", "description": "Read own notifications"},
+            {"key": "notifications:manage", "module": "notifications", "description": "Manage tenant notifications"},
         ]
 
         existing_keys = {
             row[0]
             for row in db.query(GlobalActionPermission.key).filter(
-                GlobalActionPermission.key.in_([p["key"] for p in pos_permissions])
+                GlobalActionPermission.key.in_([p["key"] for p in action_permissions])
             )
         }
-        to_create = [p for p in pos_permissions if p["key"] not in existing_keys]
+        to_create = [p for p in action_permissions if p["key"] not in existing_keys]
         if to_create:
             db.add_all(GlobalActionPermission(**p) for p in to_create)
             db.commit()
-            logger.info("Seeded POS permissions: %s", len(to_create))
+            logger.info("Seeded action permissions: %s", len(to_create))
         else:
-            logger.info("POS permissions already present")
+            logger.info("Action permissions already present")
 
         logger.info("Seeds completed")
         return 0
