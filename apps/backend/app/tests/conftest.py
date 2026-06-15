@@ -706,7 +706,13 @@ def seed_sector_config(request):
     if dirty:
         db.flush()
 
-    # Insertar sector_field_defaults si faltan
+    # Insertar sector_field_defaults si faltan.
+    # Se acumulan las filas nuevas y se insertan con un executemany de Core
+    # (id explícito, sin RETURNING) para evitar el path insertmanyvalues+sentinel
+    # de SQLAlchemy. En Postgres ese path correlaciona el UUID del PK vía RETURNING
+    # y resulta flaky (el result-processor del UUID recibe un `inf` por desalineación
+    # de columnas), lo que rompía esporádicamente el seed en CI.
+    new_field_defaults = []
     for code, cfg in sectors.items():
         for module, fields in cfg["fields"].items():
             for field in fields:
@@ -721,19 +727,25 @@ def seed_sector_config(request):
                 )
                 if exists:
                     continue
-                db.add(
-                    SectorFieldDefault(
-                        sector=code,
-                        module=module,
-                        field=field["field"],
-                        visible=field.get("visible", True),
-                        required=field.get("required", False),
-                        ord=field.get("ord"),
-                        label=field.get("label"),
-                        help=field.get("help"),
-                    )
+                new_field_defaults.append(
+                    {
+                        "id": uuid.uuid4(),
+                        "sector": code,
+                        "module": module,
+                        "field": field["field"],
+                        "visible": field.get("visible", True),
+                        "required": field.get("required", False),
+                        "ord": field.get("ord"),
+                        "label": field.get("label"),
+                        "help": field.get("help"),
+                    }
                 )
-                dirty = True
+
+    if new_field_defaults:
+        from sqlalchemy import insert as _sa_insert
+
+        db.execute(_sa_insert(SectorFieldDefault.__table__), new_field_defaults)
+        dirty = True
     if dirty:
         db.commit()
     yield
